@@ -186,7 +186,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 
 /* LABELS */
 .lg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
-.lcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:8px;display:flex;flex-direction:column;gap:5px;break-inside:avoid;width:155px;flex-shrink:0}
+.lcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:13px;display:flex;flex-direction:column;gap:9px;break-inside:avoid}
 .lqr{display:flex;justify-content:center}
 .li{font-family:'DM Mono',monospace;font-size:.65rem;line-height:1.9;color:var(--tx2)}
 .li strong{color:var(--tx);display:block;font-size:.75rem;margin-bottom:3px}
@@ -296,27 +296,36 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   .ch,.mh{background:#f5f5f5}
   /* ── Label card layout — screen ── */
   .lbl-section-hdr{display:none}
-  /* Sheet grouping — horizontal row per sheet */
-  /* QR Label sheet grouping — one row per sheet, cards flow horizontally */
+  /* Sheet grouping: one ROW per sheet, cards flow left→right */
   .lg{display:flex;flex-direction:column;gap:0}
-  .lbl-sheet-group{display:flex;flex-direction:column;border-bottom:1px solid var(--border);padding:0}
+  .lbl-sheet-group{display:flex;flex-direction:column;border-bottom:1px solid var(--border)}
   .lbl-sheet-group:last-child{border-bottom:none}
-  .lbl-sheet-screen-hdr{padding:7px 12px 5px;font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--mu);border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:8px}
-  .lbl-sheet-screen-hdr .sh-label{font-size:.75rem;font-weight:700;color:var(--a)}
-  .lbl-sheet-screen-hdr .sh-count{font-size:.6rem;color:var(--mu)}
-  .lbl-sheet-cards{display:flex;flex-direction:row;flex-wrap:nowrap;gap:6px;padding:8px 10px;overflow-x:auto}
-  .lbl-sheet-cards::-webkit-scrollbar{height:4px}
-  .lbl-sheet-cards::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .lbl-sheet-screen-hdr{padding:6px 12px;font-family:'DM Mono',monospace;font-size:.6rem;
+    letter-spacing:1px;text-transform:uppercase;color:var(--mu);
+    border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .lbl-sheet-screen-hdr strong{color:var(--a);font-size:.7rem}
+  /* Cards in a HORIZONTAL scrolling row */
+  .lbl-sheet-cards{display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;
+    padding:10px 12px;overflow-x:auto;align-items:flex-start}
+  .lbl-sheet-cards::-webkit-scrollbar{height:5px}
+  .lbl-sheet-cards::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
   .lbl-sheet-print-hdr{display:none}
-  .lbl-inner{display:flex;flex-direction:column;align-items:stretch;gap:4px}
-  .lbl-qr{display:flex;align-items:center;justify-content:center;padding:2px}
-  .lbl-sep{display:none}
-  .lbl-info{display:flex;flex-direction:column;gap:2px;overflow:hidden;min-width:0;padding:0 1px}
-  .lbl-uid{font-family:monospace;font-weight:700;font-size:.8rem;background:#111;color:#fff;padding:2px 6px;border-radius:3px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lbl-specs{font-size:.72rem;line-height:1.5;margin-top:4px;flex:1}
-  .lbl-size{font-weight:700;font-size:.78rem}
-  .lbl-ord{color:var(--mu)}
-  .lbl-procs{font-size:.63rem;border-top:1px solid var(--border);padding-top:4px;color:var(--tx2);margin-top:4px}
+  /* Each card — compact fixed width so they stay in a row */
+  .lcard{background:var(--panel)!important;border:1px solid var(--border);
+    border-radius:var(--r);padding:0;width:130px;flex-shrink:0;
+    display:flex;flex-direction:column;break-inside:avoid;overflow:hidden}
+  /* Screen label layout: QR on top, info below */
+  .lbl-inner{display:flex;flex-direction:column;height:100%}
+  .lbl-qr{display:flex;align-items:center;justify-content:center;padding:6px 6px 3px}
+  .lbl-sep{height:1px;background:var(--border);margin:0 6px}
+  .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
+  .lbl-uid{font-family:monospace;font-weight:700;font-size:.6rem;background:#111;color:#fff;
+    padding:2px 5px;border-radius:3px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lbl-specs{font-size:.6rem;line-height:1.4;flex:1;color:var(--tx2)}
+  .lbl-size{font-weight:700;font-size:.62rem;color:var(--tx)}
+  .lbl-ord{color:var(--mu);font-size:.58rem}
+  .lbl-procs{font-size:.58rem;border-top:1px solid var(--border);padding-top:3px;
+    color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* ── TSC TE244 label: 73mm × 48mm, 2mm side margin, 3mm gap ── */
   body.print-labels{
@@ -327,6 +336,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     width:69mm; /* 73mm - 2×2mm margins */
   }
   body.print-labels .lcard{
+    width:69mm!important;
     width:69mm;
     height:43mm;
     box-sizing:border-box;
@@ -341,9 +351,6 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   }
   body.print-labels .lcard:last-child{ page-break-after:avoid; margin-bottom:0; }
   body.print-labels .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100%;height:100%}
-  body.print-labels .lbl-sep{width:0.3mm;background:#999;flex-shrink:0;margin:1mm 0;display:block}
-  body.print-labels .lbl-qr{width:36mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:1mm}
-  body.print-labels .lbl-info{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:1.5mm 1.5mm 1.5mm 2mm;overflow:hidden;min-width:0}
   body.print-labels .lbl-qr{width:36mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:1mm}
   body.print-labels .lbl-qr img{width:34mm!important;height:34mm!important;display:block}
   body.print-labels .lbl-sep{width:0.3mm;background:#999;flex-shrink:0;margin:1mm 0}
@@ -5493,8 +5500,8 @@ function renderCutLabels(){
       wrap.innerHTML=`
         <div class="lbl-sheet-print-hdr">${sheetLabel}</div>
         <div class="lbl-sheet-screen-hdr">
-          <span class="sh-label">&#9906; ${sheetLabel}</span>
-          <span class="sh-count">${pieces.length} piece${pieces.length!==1?'s':''}</span>
+          <strong>&#9906; ${sheetLabel}</strong>
+          <span>${pieces.length} piece${pieces.length!==1?'s':''}</span>
         </div>
         <div class="lbl-sheet-cards"></div>`;
       const cardsEl=wrap.querySelector('.lbl-sheet-cards');
@@ -5510,8 +5517,8 @@ function renderCutLabels(){
     manualWrap.innerHTML=`
       <div class="lbl-sheet-print-hdr" style="color:#b85a00">Manual Cut / Remnant</div>
       <div class="lbl-sheet-screen-hdr">
-        <span class="sh-label" style="color:var(--a4)">&#9874; Manual Cut / Remnant</span>
-        <span class="sh-count">${manualList.length} piece${manualList.length!==1?'s':''}</span>
+        <strong style="color:var(--a4)">&#9874; Manual Cut</strong>
+        <span>${manualList.length} piece${manualList.length!==1?'s':''}</span>
       </div>
       <div class="lbl-sheet-cards"></div>`;
     const manualCardsEl=manualWrap.querySelector('.lbl-sheet-cards');
@@ -5525,10 +5532,10 @@ function renderCutLabels(){
     const remnantWrap=document.createElement('div');
     remnantWrap.className='lbl-sheet-group';
     remnantWrap.innerHTML=`
-      <div class="lbl-sheet-print-hdr" style="color:#b85a00">Remnant Plates (Used)</div>
+      <div class="lbl-sheet-print-hdr" style="color:#b85a00">Remnant Plates</div>
       <div class="lbl-sheet-screen-hdr">
-        <span class="sh-label" style="color:var(--a4)">&#9632; Remnant Plates Used</span>
-        <span class="sh-count">${remForOpt.length} plate${remForOpt.length!==1?'s':''}</span>
+        <div style="font-size:.85rem;font-weight:700;color:var(--a4)">&#9632; Remnant Plates</div>
+        <div style="color:var(--mu)">${remForOpt.length} plate${remForOpt.length!==1?'s':''}</div>
       </div>
       <div class="lbl-sheet-cards" id="rem-plates-cards"></div>`;
     grid.appendChild(remnantWrap);
@@ -5589,85 +5596,6 @@ function renderCutLabels(){
 }catch(e){}}
       },60);
     });
-  }
-
-  // ── Unused remnants from this optimization's raw sheets ────────────────
-  // These are remnants generated by the optimizer that haven't been used as input
-  // Show them so the cutter can print QR labels and store them in the right slot
-  const unusedRems = remnants.filter(r=>{
-    // Available remnants from this opt that are NOT in remForOpt (not assigned as input)
-    if(r.opt_file_id !== activeOptId) return false;
-    if(remForOpt.find(x=>x.id===r.id)) return false; // already shown above
-    return r.status==='available';
-  });
-  // Also show any remnants with this opt that are new (just created from this run)
-  const allOptRems = remnants.filter(r=>r.opt_file_id===activeOptId&&r.status==='available');
-  const unusedToShow = allOptRems.filter(r=>!remForOpt.find(x=>x.id===r.id));
-
-  if(unusedToShow.length){
-    const unusedWrap=document.createElement('div');
-    unusedWrap.className='lbl-sheet-group';
-    unusedWrap.innerHTML=`
-      <div class="lbl-sheet-print-hdr" style="color:#1a7a4a">Unused Remnants — Store &amp; Label</div>
-      <div class="lbl-sheet-screen-hdr">
-        <span class="sh-label" style="color:var(--a3)">&#9632; Unused Remnants</span>
-        <span class="sh-count">${unusedToShow.length} plate${unusedToShow.length!==1?'s':''} — print &amp; store</span>
-      </div>
-      <div class="lbl-sheet-cards" id="unused-rem-cards"></div>`;
-    grid.appendChild(unusedWrap);
-    const unusedCardsEl=unusedWrap.querySelector('.lbl-sheet-cards');
-    unusedToShow.forEach(rem=>makeRemCard(rem, unusedCardsEl));
-  }
-
-  // If ALL available remnants from this opt (not just the used ones as inputs)
-  // i.e. the fresh remnants generated by THIS optimization run
-  const freshRems = remnants.filter(r=>r.opt_file_id===activeOptId&&r.status==='available');
-  if(freshRems.length && !unusedToShow.length && !remForOpt.length){
-    // Fallback: show all available remnants for this opt
-    const freshWrap=document.createElement('div');
-    freshWrap.className='lbl-sheet-group';
-    freshWrap.innerHTML=`
-      <div class="lbl-sheet-print-hdr" style="color:#1a7a4a">Remnants — Store &amp; Label</div>
-      <div class="lbl-sheet-screen-hdr">
-        <span class="sh-label" style="color:var(--a3)">&#9632; Remnants to Store</span>
-        <span class="sh-count">${freshRems.length} plate${freshRems.length!==1?'s':''}</span>
-      </div>
-      <div class="lbl-sheet-cards"></div>`;
-    grid.appendChild(freshWrap);
-    const freshCardsEl=freshWrap.querySelector('.lbl-sheet-cards');
-    freshRems.forEach(rem=>makeRemCard(rem, freshCardsEl));
-  }
-
-  function makeRemCard(rem, container){
-    const card=document.createElement('div'); card.className='lcard';
-    const qid='qr-store-'+rem.id;
-    const qrPayload={
-      'ID':rem.uid,'Size':Math.round(rem.w)+'x'+Math.round(rem.h)+' mm',
-      'Thickness':rem.thickness+'mm','Type':rem.glass_type||'glass',
-      'Color':rem.color||'clear','Slot':rem.slot_code||'Unassigned',
-      'Date':(rem.created_at||'').slice(0,10)
-    };
-    const qrText=Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
-    const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
-    const logoHtml=logoSrc?`<img src="${logoSrc}" style="display:block;max-height:10mm;max-width:100%;object-fit:contain;margin-bottom:1mm">`:'';
-    card.innerHTML=`
-      <div class="lbl-inner">
-        <div class="lbl-qr" id="${qid}"></div>
-        <div class="lbl-sep"></div>
-        <div class="lbl-info">
-          ${logoHtml}
-          <div class="lbl-uid" style="background:#0a3a2a;color:#4fffb0">${rem.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span>${rem.slot_code?` <span style="font-size:.55em;background:#f90;color:#000;border-radius:2px;padding:0 3px">${rem.slot_code}</span>`:''}</div>
-          <div class="lbl-specs">
-            <div class="lbl-size">&#9632; ${Math.round(rem.w)} &times; ${Math.round(rem.h)} mm</div>
-            <div>${rem.thickness}mm ${rem.glass_type||'glass'}</div>
-            <div>${rem.color||'clear'}</div>
-            ${rem.slot_code?`<div style="color:var(--a3);font-weight:600">Slot: ${rem.slot_code}</div>`:'<div style="color:var(--a2)">No slot assigned</div>'}
-          </div>
-          <div class="lbl-procs" style="border-top:0.5px solid #333">Store &rarr; ${rem.slot_code||'Unassigned'}</div>
-        </div>
-      </div>`;
-    container.appendChild(card);
-    setTimeout(()=>renderQR(qid, qrText, 100), 60);
   }
 }
 
