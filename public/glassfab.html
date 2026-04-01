@@ -356,10 +356,10 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   body.print-labels .lbl-sep{width:0.3mm;background:#999;flex-shrink:0;margin:1mm 0}
   body.print-labels .lbl-info{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:1.5mm 1.5mm 1.5mm 2mm;overflow:hidden;min-width:0}
   body.print-labels .lbl-uid{font-family:'DM Mono',Courier,monospace;font-size:7.5pt;font-weight:700;background:#111;color:#fff;padding:0.8mm 1.5mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-  body.print-labels .lbl-specs{font-family:'DM Mono',Courier,monospace;font-size:6.5pt;line-height:1.5;margin-top:1mm;flex:1}
+  body.print-labels .lbl-specs{font-family:'DM Mono',Courier,monospace;font-size:6.5pt;line-height:1.5;margin-top:1mm;flex:1;color:#000}
   body.print-labels .lbl-size{font-size:7pt;font-weight:600}
   body.print-labels .lbl-ord{color:#555}
-  body.print-labels .lbl-procs{font-size:5.5pt;font-family:'DM Sans',Arial,sans-serif;border-top:0.2mm solid #ccc;padding-top:0.8mm;color:#222;line-height:1.3}
+  body.print-labels .lbl-procs{font-size:5.5pt;font-family:'DM Sans',Arial,sans-serif;border-top:0.2mm solid #999;padding-top:0.8mm;color:#000;line-height:1.3}
   /* Screen part hidden, print part shown */
   /* unified label layout */
   /* Hide section headers completely in print — zero footprint */
@@ -5447,7 +5447,7 @@ function renderCutLabels(){
     const typeStr=(item.glassType||'glass').charAt(0).toUpperCase()+(item.glassType||'glass').slice(1);
     const colorStr=(item.color||'clear').charAt(0).toUpperCase()+(item.color||'clear').slice(1);
     const qrPayload={
-      'ID':item.uid,'Order':item.orderNum||'',
+      'ID':item.uid,
       'Size':item.w+'x'+item.h+' mm','Thickness':item.thickness+'mm',
       'Type':typeStr,'Color':colorStr,
       'Processes':procNames.join(', '),
@@ -5472,7 +5472,7 @@ function renderCutLabels(){
             <div class="lbl-size">&#9632; ${item.w} &times; ${item.h} mm</div>
             <div>${item.thickness}mm ${typeStr}</div>
             <div>${colorStr}</div>
-            ${item.orderNum?`<div class="lbl-ord">Ord: ${item.orderNum}</div>`:''}
+
           </div>
           <div class="lbl-procs">${isManual?'<span style="background:var(--a4);color:#000;border-radius:2px;padding:0 3px;font-size:.75em;margin-right:3px">REM</span>':''}${procNames.join(' — ')||'—'}${item.bevelMM?' Bevel:'+item.bevelMM+'cm':''}</div>
         </div>
@@ -5596,6 +5596,77 @@ function renderCutLabels(){
 }catch(e){}}
       },60);
     });
+  }
+
+  // ── Storage Remnants — free (unused) rectangles from the optimization canvas ──
+  // These are the leftover raw glass pieces on each sheet after cutting.
+  // Shown per sheet so the cutter can label and store each free piece.
+  const snap = window._lastOptResults;
+  if(snap && snap.results && snap.results.length){
+    const allFree = [];
+    snap.results.forEach(r=>{
+      const sh = r.sh || {};
+      (r.free||[]).forEach((fr,fi)=>{
+        if(fr.w < 50 || fr.h < 50) return; // skip slivers
+        allFree.push({
+          sheetIdx: r.idx,
+          sheetW: sh.w, sheetH: sh.h,
+          thickness: sh.thickness||6,
+          glassType: sh.glass_type||sh.glassType||'glass',
+          color: sh.color||'clear',
+          x: Math.round(fr.x), y: Math.round(fr.y),
+          w: Math.round(fr.w), h: Math.round(fr.h),
+          uid: 'FREE-S'+(r.idx)+'-'+(fi+1)
+        });
+      });
+    });
+    if(allFree.length){
+      const freeWrap = document.createElement('div');
+      freeWrap.className = 'lbl-sheet-group';
+      freeWrap.innerHTML = `
+        <div class="lbl-sheet-print-hdr" style="color:#1a6a3a">Storage Remnants — Free Pieces</div>
+        <div class="lbl-sheet-screen-hdr">
+          <strong style="color:var(--a3)">&#9635; Storage Remnants</strong>
+          <span>${allFree.length} free piece${allFree.length!==1?'s':''} — label &amp; store</span>
+        </div>
+        <div class="lbl-sheet-cards"></div>`;
+      grid.appendChild(freeWrap);
+      const freeCardsEl = freeWrap.querySelector('.lbl-sheet-cards');
+      allFree.forEach(fr=>{
+        const card = document.createElement('div'); card.className = 'lcard';
+        const qid = 'qr-free-' + fr.sheetIdx + '-' + fr.x + '-' + fr.y;
+        const typeStr = (fr.glassType||'glass').charAt(0).toUpperCase()+(fr.glassType||'glass').slice(1);
+        const colorStr = (fr.color||'clear').charAt(0).toUpperCase()+(fr.color||'clear').slice(1);
+        const qrPayload = {
+          'ID': fr.uid,
+          'Size': fr.w+'x'+fr.h+' mm',
+          'Thickness': fr.thickness+'mm',
+          'Type': typeStr, 'Color': colorStr,
+          'Sheet': fr.sheetIdx
+        };
+        const qrText = Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
+        const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
+        const logoHtml=logoSrc?`<img src="${logoSrc}" style="display:block;max-height:10mm;max-width:100%;object-fit:contain;margin-bottom:1mm">`:'';
+        card.innerHTML=`
+          <div class="lbl-inner">
+            <div class="lbl-qr" id="${qid}"></div>
+            <div class="lbl-sep"></div>
+            <div class="lbl-info">
+              ${logoHtml}
+              <div class="lbl-uid" style="background:#0d3320;color:#4fffb0">${fr.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span></div>
+              <div class="lbl-specs">
+                <div class="lbl-size">&#9632; ${fr.w} &times; ${fr.h} mm</div>
+                <div>${fr.thickness}mm ${typeStr}</div>
+                <div>${colorStr}</div>
+                <div style="color:var(--mu);font-size:.57rem">Sheet ${fr.sheetIdx} @ ${fr.x},${fr.y}</div>
+              </div>
+              <div class="lbl-procs">Store remnant</div>
+            </div>
+          </div>`;
+        freeCardsEl.appendChild(card);
+        setTimeout(()=>renderQR(qid, qrText, 100), 60);
+      });
+    }
   }
 
   // ── Remnants to Store — generated by this optimization, need QR labels ──
