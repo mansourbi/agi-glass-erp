@@ -327,11 +327,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
   .lbl-uid{font-family:monospace;font-weight:700;font-size:.6rem;background:#111;color:#fff;
     padding:2px 5px;border-radius:3px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lbl-specs{font-size:.6rem;line-height:1.4;flex:1;color:var(--tx)}
-  .lbl-size{font-weight:700;font-size:.62rem;color:var(--tx)}
+  .lbl-specs{font-size:.6rem;line-height:1.4;flex:1;color:#000}
+  .lbl-size{font-weight:700;font-size:.62rem;color:#000}
   .lbl-ord{color:var(--mu);font-size:.58rem}
   .lbl-procs{font-size:.58rem;border-top:1px solid var(--border);padding-top:3px;
-    color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* ── TSC TE244 label: 73mm × 48mm, 2mm side margin, 3mm gap ── */
   body.print-labels{
@@ -5576,11 +5576,11 @@ function renderCutLabels(){
                 ${logoHtml}
                 <div class="lbl-uid" style="background:#0d3320;color:#4fffb0">${fr.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span></div>
                 <div class="lbl-specs">
-                  <div class="lbl-size">&#9632; ${fr.w} &times; ${fr.h} mm</div>
-                  <div>${fr.thickness}mm ${typeStr} &bull; ${colorStr}</div>
-                  ${fr.rawCode?`<div style="font-weight:700">${fr.rawCode}</div>`:''}
+                  <div class="lbl-size" style="color:#000">&#9632; ${fr.w} &times; ${fr.h} mm</div>
+                  <div style="color:#000">${fr.thickness}mm ${typeStr} &bull; ${colorStr}</div>
+                  <div style="font-weight:700;color:#000">${fr.rawCode||'—'}</div>
                 </div>
-                <div class="lbl-procs" style="color:#000">${fr.optDate||''}</div>
+                <div class="lbl-procs" style="color:#000;border-top:1px solid #ccc">${fr.optDate||''}</div>
               </div>
             </div>`;
           subCards.appendChild(card);
