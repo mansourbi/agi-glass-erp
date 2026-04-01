@@ -629,16 +629,21 @@ function loadJsQR(){
 
 function handleQRResult(rawText){
   if(scanCooldown) return;
-  // Parse the QR — try JSON first, then line-by-line, then treat as plain UID
+  // Parse the QR — try JSON first, then URL, then line-by-line, then treat as plain UID
   let uid = null;
   try{
     const parsed = JSON.parse(rawText);
     uid = parsed.uid || parsed['PIECE ID'] || null;
   }catch{
-    // Line-by-line format: "PIECE ID: XXX-1-1\n..."
-    const match = rawText.match(/PIECE\s*ID[:\s]+([^\n]+)/i);
-    if(match) uid = match[1].trim();
-    else uid = rawText.trim(); // treat whole string as UID
+    // URL format: https://host/piece/UID
+    const urlMatch = rawText.match(/\/piece\/([^\s?#]+)/i);
+    if(urlMatch){ uid = decodeURIComponent(urlMatch[1]).trim().toUpperCase(); }
+    else{
+      // Line-by-line format: "PIECE ID: XXX-1-1\n..."
+      const match = rawText.match(/PIECE\s*ID[:\s]+([^\n]+)/i);
+      if(match) uid = match[1].trim();
+      else uid = rawText.trim(); // treat whole string as UID
+    }
   }
   if(!uid) return;
   if(uid === lastScanned) return; // debounce same code

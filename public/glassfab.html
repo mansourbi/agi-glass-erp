@@ -5175,7 +5175,11 @@ function renderPieceView(){
           if(isCancelled){html+=`<td class="mc-cancel">✕</td>`;return}
           const done=scanLog.find(s=>s.pieceUid===uid&&s.process===pid&&s.action==='done');
           if(done){
-            html+=`<td class="mc-done" title="${done.ts||''}">✓ <span style="font-size:.55rem">${done.ts?done.ts.slice(0,10).slice(5)+' '+done.ts.slice(11,16):''}</span></td>`;
+            const doneDate=done.ts?new Date(done.ts).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}).replace(/ /g,'-'):'';
+            const doneTime=done.ts?done.ts.slice(11,16):'';
+            const doneWho=done.workerName||done.worker_name||'';
+            html+=`<td class="mc-done" title="${done.ts||''}">✓ <span style="font-size:.55rem;display:block">${doneDate} ${doneTime}</span>${doneWho?`<span style="font-size:.5rem;color:var(--a4);display:block">${doneWho}</span>`:''}`;
+            html+=`</td>`;
           } else {
             html+=`<td class="mc-pend" style="cursor:pointer" title="Click to mark done" onclick="adminMarkPieceDone('${uid}','${pid}')">○ Mark</td>`;
           }
