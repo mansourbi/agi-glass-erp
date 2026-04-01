@@ -361,7 +361,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   body.print-labels .lbl-qr img{width:34mm!important;height:34mm!important;display:block}
   body.print-labels .lbl-sep{width:0.3mm;background:#999;flex-shrink:0;margin:1mm 0}
   body.print-labels .lbl-info{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:1.5mm 1.5mm 1.5mm 2mm;overflow:hidden;min-width:0}
-  body.print-labels .lbl-uid{font-family:'DM Mono',Courier,monospace;font-size:7.5pt;font-weight:700;background:#111;color:#fff;padding:0.8mm 1.5mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  body.print-labels .lbl-uid{font-family:'DM Mono',Courier,monospace;font-size:7.5pt;font-weight:700;background:#111!important;color:#fff!important;padding:0.8mm 1.5mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   body.print-labels .lbl-specs{font-family:'DM Mono',Courier,monospace;font-size:6.5pt;line-height:1.5;margin-top:1mm;flex:1;color:#000}
   body.print-labels .lbl-size{font-size:7pt;font-weight:600}
   body.print-labels .lbl-ord{color:#555}
@@ -378,8 +378,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     color:#1a6a3a; padding:1mm 0; margin:1mm 0 0.5mm;
     border-top:0.3mm solid #999; background:none; }
   body.print-labels .lbl-sheet-cards{ display:block; padding:0; }
-  body.print-labels .lbl-sheet-cards .lcard:last-child{ page-break-after:always; break-after:page; margin-bottom:0; }
-  body.print-labels .lbl-sheet-group:last-of-type .lbl-sheet-cards .lcard:last-child{ page-break-after:avoid; break-after:avoid; }
+  /* Page break after last card of LAST sub-section in a sheet group */
+  body.print-labels .lbl-sheet-group .lbl-sheet-cards:last-of-type .lcard:last-child{ page-break-after:always; break-after:page; margin-bottom:0; }
+  body.print-labels .lbl-sheet-group:last-of-type .lbl-sheet-cards:last-of-type .lcard:last-child{ page-break-after:avoid; break-after:avoid; }
+  /* Cut pieces cards (first .lbl-sheet-cards) — no page break between cut and storage remnants */
+  body.print-labels .lbl-sheet-cards:not(:last-of-type) .lcard:last-child{ page-break-after:avoid; break-after:avoid; }
   body.print-labels .lbl-sheet-print-hdr{
     display:block;
     font-family:'DM Mono',Courier,monospace;
@@ -5546,7 +5549,7 @@ function renderCutLabels(){
         wrap.appendChild(subHdr);
         const subCards=document.createElement('div');
         subCards.className='lbl-sheet-cards';
-        subCards.style.cssText='border-top:none;padding-top:6px';
+        subCards.style.cssText='';
         freePieces.forEach(fr=>{
           const card=document.createElement('div'); card.className='lcard';
           const qid='qr-free-'+fr.sheetIdx+'-'+fr.x+'-'+fr.y;
