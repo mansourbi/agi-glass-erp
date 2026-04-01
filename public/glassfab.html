@@ -330,8 +330,9 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   .lbl-specs{font-size:.6rem;line-height:1.4;flex:1;color:#000}
   .lbl-size{font-weight:700;font-size:.62rem;color:#000}
   .lbl-ord{color:var(--mu);font-size:.58rem}
-  .lbl-procs{font-size:.58rem;border-top:1px solid var(--border);padding-top:3px;
-    color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lbl-procs{font-size:.56rem;border-top:1px solid var(--border);padding-top:3px;
+    color:#000;white-space:normal;overflow:hidden;line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
   /* ── TSC TE244 label: 73mm × 48mm, 2mm side margin, 3mm gap ── */
   body.print-labels{
@@ -365,7 +366,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   body.print-labels .lbl-specs{font-family:'DM Mono',Courier,monospace;font-size:6.5pt;line-height:1.5;margin-top:1mm;flex:1;color:#000}
   body.print-labels .lbl-size{font-size:7pt;font-weight:600}
   body.print-labels .lbl-ord{color:#555}
-  body.print-labels .lbl-procs{font-size:5.5pt;font-family:'DM Sans',Arial,sans-serif;border-top:0.2mm solid #999;padding-top:0.8mm;color:#000;line-height:1.3}
+  body.print-labels .lbl-procs{font-size:5pt;font-family:'DM Sans',Arial,sans-serif;border-top:0.2mm solid #999;padding-top:0.8mm;color:#000;line-height:1.3;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   /* Screen part hidden, print part shown */
   /* unified label layout */
   /* Hide section headers completely in print — zero footprint */
@@ -4722,7 +4723,12 @@ async function loadOptFile(id){
     await renderCutSheetDropdown();
   }
   if(f.results){
-    window._lastOptResults=f.results;
+    // Attach rawSheet and date to results so renderCutLabels can read them
+    window._lastOptResults={
+      ...f.results,
+      rawSheet: f.rawSheet||f.raw_sheet_snap||null,
+      date: f.date||f.createdAt||f.created_at||new Date().toISOString()
+    };
     const r=f.results;
     renderCutResultsUI(r.results,r.placed,r.total,r.tu,r.ts,r.unplaced||[]);
     document.getElementById('cut-stats').style.display='grid';
