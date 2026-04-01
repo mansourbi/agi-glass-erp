@@ -92,8 +92,8 @@ app.use((err, req, res, _next) => {
 
 // ── Start ─────────────────────────────────────────────────
 const HTTPS_PORT = process.env.HTTPS_PORT || 3444;
-const certFile = path.join(__dirname, '192.168.1.19+2.pem');
-const keyFile  = path.join(__dirname, '192.168.1.19+2-key.pem');
+const certFile = path.join(__dirname, '192.168.1.15+2.pem');
+const keyFile  = path.join(__dirname, '192.168.1.15+2-key.pem');
 
 if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
   // HTTPS — required for camera access on mobile
