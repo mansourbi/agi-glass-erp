@@ -20,8 +20,6 @@ app.use(morgan('dev'));
 // ── Static files (HTML apps served from /public) ─────────
 app.use(express.static(path.join(__dirname, 'public')));
 
-
-
 // ── API Routes ────────────────────────────────────────────
 // Public QR scan page
 app.use('/piece', require('./routes/scan'));
@@ -46,53 +44,15 @@ app.use('/api/remnants', require('./routes/remnants'));
 const { requireAuth, requireAdmin } = require('./middleware/auth');
 const db = require('./db');
 
-// ── Uploads directory — served as static files ────────────
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-app.use('/uploads', express.static(uploadsDir));
-
-// ── File upload endpoint ───────────────────────────────────
-const multer = require('multer');
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const orderRef = (req.params.orderRef || 'misc').replace(/[^a-zA-Z0-9_\-]/g, '_');
-    const dir = path.join(uploadsDir, orderRef);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ts = Date.now();
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._\-]/g, '_');
-    cb(null, ts + '_' + safe);
-  }
-});
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
-
-// POST /api/uploads/:orderRef
-app.post('/api/uploads/:orderRef', requireAuth, upload.array('files', 20), (req, res) => {
-  try {
-    const orderRef = (req.params.orderRef || 'misc').replace(/[^a-zA-Z0-9_\-]/g, '_');
-    const result = (req.files || []).map(f => ({
-      originalName: f.originalname,
-      filename:     f.filename,
-      path:         '/uploads/' + orderRef + '/' + f.filename,
-      size:         f.size,
-      type:         f.mimetype
-    }));
-    res.json({ ok: true, files: result });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// DELETE /api/uploads/:orderRef/:filename
-app.delete('/api/uploads/:orderRef/:filename', requireAuth, (req, res) => {
-  try {
-    const orderRef = req.params.orderRef.replace(/[^a-zA-Z0-9_\-]/g, '_');
-    const filename = req.params.filename.replace(/[^a-zA-Z0-9._\-]/g, '_');
-    const filePath = path.join(uploadsDir, orderRef, filename);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
+// ── DB Migrations (safe — ignore if column already exists) ──
+const migrations = [
+  "ALTER TABLE workers ADD COLUMN device_id TEXT",
+  "ALTER TABLE workers ADD COLUMN device_status TEXT",
+  "ALTER TABLE workers ADD COLUMN device_registered_at TEXT",
+];
+for (const sql of migrations) {
+  try { db.prepare(sql).run(); } catch(e) { /* column exists */ }
+}
 
 app.get('/api/config', requireAuth, (req, res) => {
   const rows = db.prepare('SELECT key,value FROM config').all();
@@ -105,7 +65,7 @@ app.put('/api/config', requireAuth, requireAdmin, (req, res) => {
     ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at
   `);
   const run = db.transaction(obj => {
-    for (const [k,v] of Object.entries(obj)) { if(v===null||v===undefined||v==='null') { db.prepare('DELETE FROM config WHERE key=?').run(k); } else { upsert.run(k, String(v)); } }
+    for (const [k,v] of Object.entries(obj)) upsert.run(k, String(v));
   });
   run(req.body);
   res.json({ ok: true });
@@ -119,30 +79,6 @@ app.get('/api/health', (req, res) => {
   } catch(e) {
     res.status(503).json({ status: 'error', db: 'disconnected' });
   }
-});
-
-// POST /api/uploads/rename-folder — rename new-order → actual order ref
-app.post('/api/uploads/rename-folder', requireAuth, (req, res) => {
-  try {
-    const { from, to } = req.body;
-    if (!from || !to) return res.status(400).json({ error: 'from and to required' });
-    const safeFrom = from.replace(/[^a-zA-Z0-9_\-]/g, '_');
-    const safeTo   = to.replace(/[^a-zA-Z0-9_\-]/g, '_');
-    const fromPath = path.join(uploadsDir, safeFrom);
-    const toPath   = path.join(uploadsDir, safeTo);
-    if (fs.existsSync(fromPath)) {
-      if (fs.existsSync(toPath)) {
-        // Merge: move all files from fromPath to toPath
-        fs.readdirSync(fromPath).forEach(f => {
-          fs.renameSync(path.join(fromPath, f), path.join(toPath, f));
-        });
-        fs.rmdirSync(fromPath);
-      } else {
-        fs.renameSync(fromPath, toPath);
-      }
-    }
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── 404 ───────────────────────────────────────────────────

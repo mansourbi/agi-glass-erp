@@ -400,6 +400,16 @@ let orders     = [];
 let customers  = [];
 let currentWorker = null;
 
+// Generate a stable pseudo-device-ID stored in localStorage
+function getDeviceId(){
+  let did = localStorage.getItem('gfw_device_id');
+  if(!did){
+    did = 'DEV-' + Math.random().toString(36).slice(2,8).toUpperCase() + '-' + Date.now().toString(36).toUpperCase();
+    localStorage.setItem('gfw_device_id', did);
+  }
+  return did;
+}
+
 async function doLogin(){
   const email = document.getElementById('l-email').value.trim().toLowerCase();
   const pass  = document.getElementById('l-pass').value;
@@ -409,6 +419,40 @@ async function doLogin(){
   try{
     const worker = await AGI.Auth.login(email, pass);
     currentWorker = worker;
+
+    // ── Device binding check ──────────────────────────────
+    const deviceId = getDeviceId();
+    let deviceOk = false;
+    try{
+      const res = await fetch(AGI.base+'/workers/'+worker.id+'/register-device', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+AGI.getToken() },
+        body: JSON.stringify({ device_id: deviceId })
+      }).then(r=>r.json());
+
+      if(res.status === 'approved'){
+        deviceOk = true;
+      } else if(res.status === 'pending'){
+        errEl.innerHTML = '⏳ <strong>Device pending approval.</strong><br>Ask your admin to approve this device in Settings → Workers → Device tab.';
+        AGI.Auth.logout(); currentWorker = null;
+        return;
+      } else if(res.status === 'rejected' || res.error){
+        errEl.innerHTML = '✗ <strong>Device not authorized.</strong><br>' + (res.error || 'This account is bound to a different device.');
+        AGI.Auth.logout(); currentWorker = null;
+        return;
+      } else {
+        // First registration — pending
+        errEl.innerHTML = '⏳ <strong>Device registered — pending approval.</strong><br>Ask your admin to approve this device.';
+        AGI.Auth.logout(); currentWorker = null;
+        return;
+      }
+    }catch(de){
+      // If device endpoint fails (network/server issue) — allow login but warn
+      console.warn('[device check failed]', de.message);
+      deviceOk = true;
+    }
+
+    if(!deviceOk) return;
     sessionStorage.setItem('gfw_session', JSON.stringify({id:worker.id, ts:Date.now()}));
     await startSession();
   }catch(e){
@@ -591,25 +635,10 @@ function handleQRResult(rawText){
     const parsed = JSON.parse(rawText);
     uid = parsed.uid || parsed['PIECE ID'] || null;
   }catch{
-    const lines = rawText.trim().split('\n').map(l=>l.trim()).filter(Boolean);
-    // Format 1: "PIECE ID: XXX-1-1" anywhere in text (old format)
-    const matchPID = rawText.match(/PIECE\s*ID[:\s]+([^\n]+)/i);
-    if(matchPID){
-      uid = matchPID[1].trim();
-    }
-    // Format 2: AGI GLASS label — "AGI GLASS\nDATE\nUID\n..."
-    else if(lines[0] && lines[0].toUpperCase().startsWith('AGI GLASS') && lines.length >= 3){
-      uid = lines[2].trim();
-    }
-    // Format 3: single line — use as-is
-    else if(lines.length === 1){
-      uid = lines[0];
-    }
-    // Format 4: multi-line unknown — find a piece UID pattern (LETTERS-N-N)
-    else{
-      const uidMatch = rawText.match(/\b([A-Z][A-Z0-9_-]+-\d+-\d+)\b/);
-      uid = uidMatch ? uidMatch[1] : lines[0];
-    }
+    // Line-by-line format: "PIECE ID: XXX-1-1\n..."
+    const match = rawText.match(/PIECE\s*ID[:\s]+([^\n]+)/i);
+    if(match) uid = match[1].trim();
+    else uid = rawText.trim(); // treat whole string as UID
   }
   if(!uid) return;
   if(uid === lastScanned) return; // debounce same code

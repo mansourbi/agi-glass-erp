@@ -9,8 +9,7 @@ router.use(requireAuth);
 // ── Schema migrations ─────────────────────────────────────────────────────
 ['hourly_rate','monthly_salary','employment_type','national_id',
  'phone','join_date','dob','notes_hr','vacation_days_balance',
- 'social_security_pct','photo_url','documents',
- 'device_id','device_verified'].forEach(col => {
+ 'social_security_pct','photo_url','documents'].forEach(col => {
   try { db.prepare(`ALTER TABLE workers ADD COLUMN ${col} TEXT`).run(); } catch(e) {}
 });
 
@@ -22,9 +21,7 @@ function parseW(w) {
     hourly_rate: w.hourly_rate ? +w.hourly_rate : null,
     monthly_salary: w.monthly_salary ? +w.monthly_salary : null,
     social_security_pct: w.social_security_pct ? +w.social_security_pct : 0,
-    vacation_days_balance: w.vacation_days_balance ? +w.vacation_days_balance : 0,
-    device_id: w.device_id || null,
-    device_verified: w.device_verified || null
+    vacation_days_balance: w.vacation_days_balance ? +w.vacation_days_balance : 0
   };
 }
 
@@ -189,54 +186,59 @@ router.delete('/:id/documents/:idx', requireAdmin, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /:id/register-device — called on every worker login from mobile
-// First call: stores device_id with status 'pending' (admin must verify)
-// Subsequent calls from same device: returns 'verified' or 'pending'
-// Called by worker themselves (not admin-only)
+module.exports = router;
+
+// ── Device Binding ──────────────────────────────────────────────────────────
+// POST /:id/register-device  — called on worker login from worker app
 router.post('/:id/register-device', (req, res) => {
   try {
-    const targetId = +req.params.id;
-    // Workers can only register their own device
-    if (req.user.id !== targetId && req.user.role !== 'admin')
-      return res.status(403).json({ error: 'Forbidden' });
     const { device_id } = req.body;
     if (!device_id) return res.status(400).json({ error: 'device_id required' });
-    const w = db.prepare('SELECT * FROM workers WHERE id=?').get(targetId);
+    const w = db.prepare('SELECT * FROM workers WHERE id=?').get(+req.params.id);
     if (!w) return res.status(404).json({ error: 'Not found' });
-    // First registration — store and mark pending
-    if (!w.device_id) {
-      db.prepare("UPDATE workers SET device_id=?,device_verified='pending',updated_at=datetime('now') WHERE id=?")
-        .run(device_id, targetId);
-      return res.json({ status: 'pending', device_id, message: 'Device registered, awaiting admin approval' });
+
+    const existing_device = w.device_id;
+    const existing_status = w.device_status; // null | 'pending' | 'approved' | 'rejected'
+
+    // First registration — store as pending
+    if (!existing_device) {
+      db.prepare('UPDATE workers SET device_id=?, device_status=?, device_registered_at=? WHERE id=?')
+        .run(device_id, 'pending', new Date().toISOString(), +req.params.id);
+      return res.json({ status: 'pending', message: 'Device registration pending admin approval' });
     }
-    // Same device — return current status
-    if (w.device_id === device_id) {
-      return res.json({ status: w.device_verified || 'pending', device_id });
+
+    // Same device
+    if (existing_device === device_id) {
+      return res.json({ status: existing_status || 'approved' });
     }
+
     // Different device — reject
-    if (w.device_verified === 'approved') {
-      return res.json({ status: 'rejected', message: 'Device not recognized. Contact admin.' });
-    }
-    // Device pending but different device — update to new device (overwrite while still pending)
-    db.prepare("UPDATE workers SET device_id=?,device_verified='pending',updated_at=datetime('now') WHERE id=?")
-      .run(device_id, targetId);
-    return res.json({ status: 'pending', device_id, message: 'New device registered, awaiting admin approval' });
+    return res.status(403).json({ status: 'rejected', error: 'This account is bound to a different device. Contact admin.' });
+
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /:id/verify-device — admin approves or resets device
-router.patch('/:id/verify-device', requireAdmin, (req, res) => {
+// GET /:id/device  — get device binding info (admin)
+router.get('/:id/device', requireAdmin, (req, res) => {
   try {
-    const { action } = req.body; // 'approve' | 'reset'
-    const targetId = +req.params.id;
-    if (action === 'approve') {
-      db.prepare("UPDATE workers SET device_verified='approved',updated_at=datetime('now') WHERE id=?").run(targetId);
-    } else if (action === 'reset') {
-      db.prepare("UPDATE workers SET device_id=NULL,device_verified=NULL,updated_at=datetime('now') WHERE id=?").run(targetId);
-    }
-    const w = db.prepare('SELECT * FROM workers WHERE id=?').get(targetId);
-    res.json(parseW(w));
+    const w = db.prepare('SELECT id,name,device_id,device_status,device_registered_at FROM workers WHERE id=?').get(+req.params.id);
+    if (!w) return res.status(404).json({ error: 'Not found' });
+    res.json({ device_id: w.device_id, status: w.device_status, registered_at: w.device_registered_at });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-module.exports = router;
+// POST /:id/device/approve  — admin approves device
+router.post('/:id/device/approve', requireAdmin, (req, res) => {
+  try {
+    db.prepare('UPDATE workers SET device_status=? WHERE id=?').run('approved', +req.params.id);
+    res.json({ ok: true, status: 'approved' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /:id/device/reset  — admin resets device (allows re-registration)
+router.post('/:id/device/reset', requireAdmin, (req, res) => {
+  try {
+    db.prepare('UPDATE workers SET device_id=NULL, device_status=NULL, device_registered_at=NULL WHERE id=?').run(+req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});

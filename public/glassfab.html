@@ -1304,6 +1304,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <button class="btn bg bsm wkptab" id="wkpt-employment" onclick="showWkTab('employment')">Employment</button>
             <button class="btn bg bsm wkptab" id="wkpt-access" onclick="showWkTab('access')">Access</button>
             <button class="btn bg bsm wkptab" id="wkpt-attendance" onclick="showWkTab('attendance')">Attendance</button>
+            <button class="btn bg bsm wkptab" id="wkpt-device" onclick="showWkTab('device')" style="position:relative">Device <span id="wkpt-device-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--a2);color:#000;border-radius:50%;width:10px;height:10px;font-size:0"></span></button>
           </div>
 
           <!-- Personal Info -->
@@ -1371,6 +1372,19 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <div id="wka-list" class="tw">
               <table><thead><tr><th>Date</th><th>Punch In</th><th>Punch Out</th><th>Total</th><th>Actions</th></tr></thead>
               <tbody id="wka-body"></tbody></table>
+            </div>
+          </div>
+
+          <div id="wkptab-device" style="padding:16px;display:none">
+            <div style="font-size:.75rem;color:var(--mu);margin-bottom:16px">
+              Each worker must log in from a verified device. The first login from a new device requires admin approval.
+            </div>
+            <div id="wk-device-info" style="background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:14px">
+              <div style="font-size:.7rem;color:var(--mu)">Loading device info...</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn ba" onclick="approveWorkerDevice()">&#10003; Approve Device</button>
+              <button class="btn bd" onclick="resetWorkerDevice()">&#8635; Reset Device</button>
             </div>
           </div>
 
@@ -4756,23 +4770,9 @@ async function markOptDone(id){
   f.completedAt=new Date().toISOString();
   try{ await AGI.OptFiles.update(id,f); }catch(e){ console.warn('opt status:',e.message); }
 
-  // Mark all linked orders as done — fetch fresh from API to get correct data
-  const fresh = await AGI.OptFiles.get(id).catch(()=>f);
-  const linkedOrderIds = [...new Set([
-    ...(fresh.orderIds||fresh.order_ids||f.orderIds||f.order_ids||[]),
-    ...(fresh.cutPieces||fresh.cut_pieces||f.cutPieces||f.cut_pieces||[])
-      .map(p=>p.orderId||p.order_id).filter(Boolean)
-  ])];
-  console.log('[markOptDone] linked order IDs:', linkedOrderIds);
-  for(const oid of linkedOrderIds){
-    try{
-      // Use PATCH /status — no need to fetch full order
-      await AGI.Orders.setStatus(oid, 'done');
-      // Update local memory
-      const local = orders.find(x=>x.id===oid);
-      if(local) local.status='done';
-    }catch(e){ console.warn('order status update:', oid, e.message); }
-  }
+  // NOTE: Marking optimization as Done does NOT change order status.
+  // Orders are completed only when all pieces have been scanned and processes
+  // marked done by workers (or manually by admin in the Tracking page).
 
   // Record remnant usages that were assigned in this session
   const assignmentsForThisOpt=_sessionRemAssignments.filter(a=>true); // all session assignments
@@ -7024,15 +7024,54 @@ let _editWorkerId = null;
 let _currentWorker = null;
 
 function showWkTab(tab){
-  ['personal','employment','access','attendance'].forEach(t=>{
+  ['personal','employment','access','attendance','device'].forEach(t=>{
     const el=document.getElementById('wkptab-'+t);
-    if(el) el.style.display=t===tab?'grid':t==='access'||t==='attendance'?'none':'none';
-    if(t==='personal'&&tab==='personal') el.style.display='grid';
-    if(t!=='personal') { const e=document.getElementById('wkptab-'+t); if(e) e.style.display=t===tab?'block':'none'; }
+    if(el) el.style.display=t===tab?(t==='personal'?'grid':'block'):'none';
     const btn=document.getElementById('wkpt-'+t);
     if(btn){ btn.classList.toggle('on',t===tab); btn.classList.toggle('ba',t===tab); btn.classList.toggle('bg',t!==tab); }
   });
   if(tab==='attendance'&&_editWorkerId) loadWorkerAttendance();
+  if(tab==='device'&&_editWorkerId) loadWorkerDeviceTab(_editWorkerId);
+}
+
+async function loadWorkerDeviceTab(wid){
+  const box = document.getElementById('wk-device-info');
+  if(!box) return;
+  box.innerHTML = '<div style="font-size:.7rem;color:var(--mu)">Loading...</div>';
+  try{
+    const d = await fetch('/api/workers/'+wid+'/device', {headers:{'Authorization':'Bearer '+AGI.getToken()}}).then(r=>r.json());
+    const statusColor = d.status==='approved'?'var(--a3)':d.status==='pending'?'var(--a2)':'var(--a2)';
+    const statusLabel = d.status==='approved'?'✓ Approved':d.status==='pending'?'⏳ Pending Approval':d.status==='rejected'?'✗ Rejected':'Not registered';
+    box.innerHTML = `
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.72rem">
+        <span style="color:var(--mu)">Status</span>
+        <span style="font-weight:700;color:${statusColor}">${statusLabel}</span>
+        <span style="color:var(--mu)">Device ID</span>
+        <span style="font-family:monospace;font-size:.65rem;color:var(--tx2)">${d.device_id||'—'}</span>
+        <span style="color:var(--mu)">Registered</span>
+        <span>${d.registered_at?d.registered_at.slice(0,16).replace('T',' '):'—'}</span>
+      </div>`;
+    // Show orange badge on tab if pending
+    const badge = document.getElementById('wkpt-device-badge');
+    if(badge) badge.style.display = d.status==='pending'?'block':'none';
+  }catch(e){ box.innerHTML = '<div style="color:var(--a2)">Could not load device info</div>'; }
+}
+
+async function approveWorkerDevice(){
+  if(!_editWorkerId) return;
+  try{
+    await fetch('/api/workers/'+_editWorkerId+'/device/approve',{method:'POST',headers:{'Authorization':'Bearer '+AGI.getToken()}});
+    showToast('Device approved'); loadWorkerDeviceTab(_editWorkerId);
+  }catch(e){ showToast('Error: '+e.message); }
+}
+
+async function resetWorkerDevice(){
+  if(!_editWorkerId) return;
+  if(!confirm('Reset device binding? The worker will need to re-register from their device.')) return;
+  try{
+    await fetch('/api/workers/'+_editWorkerId+'/device/reset',{method:'POST',headers:{'Authorization':'Bearer '+AGI.getToken()}});
+    showToast('Device reset'); loadWorkerDeviceTab(_editWorkerId);
+  }catch(e){ showToast('Error: '+e.message); }
 }
 
 async function openWorkerProfile(id){
@@ -7942,9 +7981,15 @@ function showLoginOverlay(){
   ov = document.createElement('div');
   ov.id = 'agi-login-ov';
   ov.style.cssText='position:fixed;inset:0;background:rgba(7,13,22,.97);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px';
+  // Show company logo if set, otherwise show AGI GLASS text
+  const loginLogoSrc = (typeof cfg!=='undefined' && cfg && cfg.factory_logo) ? cfg.factory_logo : null;
+  const loginName = (typeof cfg!=='undefined' && cfg && cfg.factory) ? cfg.factory : 'AGI GLASS';
   ov.innerHTML=`
     <img src="/agi-api.js" style="display:none">
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:#00ccff">AGI GLASS</div>
+    ${loginLogoSrc
+      ? `<img src="${loginLogoSrc}" style="max-height:72px;max-width:220px;object-fit:contain;margin-bottom:4px">`
+      : `<div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:#00ccff">${loginName}</div>`
+    }
     <div style="font-family:'DM Mono',monospace;font-size:.75rem;color:#3d5570;letter-spacing:2px;margin-bottom:8px">FACTORY MANAGEMENT SYSTEM</div>
     <div style="display:flex;flex-direction:column;gap:10px;width:300px">
       <input id="agi-l-email" type="email" placeholder="Email" style="background:#0d1825;border:1px solid #1b2e45;border-radius:5px;color:#d8eaf8;font-family:'DM Mono',monospace;font-size:.85rem;padding:10px 12px;outline:none;width:100%">
