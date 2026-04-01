@@ -327,7 +327,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
   .lbl-uid{font-family:monospace;font-weight:700;font-size:.6rem;background:#111;color:#fff;
     padding:2px 5px;border-radius:3px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lbl-specs{font-size:.6rem;line-height:1.4;flex:1;color:var(--tx2)}
+  .lbl-specs{font-size:.6rem;line-height:1.4;flex:1;color:var(--tx)}
   .lbl-size{font-weight:700;font-size:.62rem;color:var(--tx)}
   .lbl-ord{color:var(--mu);font-size:.58rem}
   .lbl-procs{font-size:.58rem;border-top:1px solid var(--border);padding-top:3px;
@@ -5500,6 +5500,8 @@ function renderCutLabels(){
   // Build free-rects map per sheet from last optimization results
   const snap = window._lastOptResults;
   const freeBySheet = {};
+  const snapRawCode = snap&&snap.rawSheet&&snap.rawSheet.code ? snap.rawSheet.code : '';
+  const snapDate = snap&&snap.date ? snap.date.slice(0,10) : new Date().toISOString().slice(0,10);
   if(snap && snap.results){
     snap.results.forEach(r=>{
       const sh = r.sh||{};
@@ -5510,6 +5512,8 @@ function renderCutLabels(){
           thickness:sh.thickness||6,
           glassType:sh.glass_type||sh.glassType||'glass',
           color:sh.color||'clear',
+          rawCode:snapRawCode,
+          optDate:snapDate,
           x:Math.round(fr.x), y:Math.round(fr.y),
           w:Math.round(fr.w), h:Math.round(fr.h),
           uid:'FREE-S'+r.idx+'-'+(fi+1)
@@ -5558,7 +5562,8 @@ function renderCutLabels(){
           const qrPayload={
             'ID':fr.uid,'Size':fr.w+'x'+fr.h+' mm',
             'Thickness':fr.thickness+'mm','Type':typeStr,'Color':colorStr,
-            'Sheet':fr.sheetIdx
+            'Sheet':fr.sheetIdx,
+            'Raw':fr.rawCode||'','Date':fr.optDate||''
           };
           const qrText=Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
           const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
@@ -5572,10 +5577,10 @@ function renderCutLabels(){
                 <div class="lbl-uid" style="background:#0d3320;color:#4fffb0">${fr.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span></div>
                 <div class="lbl-specs">
                   <div class="lbl-size">&#9632; ${fr.w} &times; ${fr.h} mm</div>
-                  <div>${fr.thickness}mm ${typeStr}</div>
-                  <div>${colorStr}</div>
+                  <div>${fr.thickness}mm ${typeStr} &bull; ${colorStr}</div>
+                  ${fr.rawCode?`<div style="font-weight:700">${fr.rawCode}</div>`:''}
                 </div>
-                <div class="lbl-procs">Store remnant</div>
+                <div class="lbl-procs" style="color:#000">${fr.optDate||''}</div>
               </div>
             </div>`;
           subCards.appendChild(card);
