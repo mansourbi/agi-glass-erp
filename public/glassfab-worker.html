@@ -424,7 +424,7 @@ async function doLogin(){
     const deviceId = getDeviceId();
     let deviceOk = false;
     try{
-      const res = await fetch(AGI.base+'/workers/'+worker.id+'/register-device', {
+      const res = await fetch('/api/workers/'+worker.id+'/register-device', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+AGI.getToken() },
         body: JSON.stringify({ device_id: deviceId })
