@@ -3824,12 +3824,16 @@ async function confirmSendToCutting(orderId, sheetId){
   if(!rawSheetCatalog.length) rawSheetCatalog=await AGI.RawSheets.list().catch(()=>[]);
   activeRawSheet=rawSheetCatalog.find(s=>s.id===sheetId)||null;
   await renderCutSheetDropdown();
+  // Load remnants so the optimizer can match them to pieces
+  try{ remnants=await AGI.Remnants.list({status:'available'}); }catch(e){ console.warn('[remnants]',e.message); }
   // Load the order
   const items=o.items||[];
   const ft=activeRawSheet?activeRawSheet.thickness:null;
   const fc=activeRawSheet?activeRawSheet.color:null;
   addOrderToCutQueue(o, ft, fc);
   cutPieces.forEach((p,i)=>p.ci=i%COLORS.length);
+  // Build remnant fit map so badges appear immediately
+  buildGlobalRemFitsMap();
   renderCutUI();
   updateCutWSHeader();
   showToast('Order '+o.num+' loaded — ready to optimize');
@@ -6757,6 +6761,14 @@ function openUseRemnantModal(pieceId, uid, w, h, thickness, orderNum){
   list.innerHTML = '';
   fits.forEach(function(rem){
     const rotated = !(rem.w>=w-2&&rem.h>=h-2) && (rem.w>=h-2&&rem.h>=w-2);
+    // Utilization: piece area / remnant area
+    const pieceArea = w * h;
+    const remArea   = rem.w * rem.h;
+    const utilPct   = remArea > 0 ? Math.round((pieceArea / remArea) * 100) : 0;
+    // Color code: green ≥80%, amber 50-79%, red <50%
+    const utilColor = utilPct>=80 ? '#00cc88' : utilPct>=50 ? '#f90' : '#e55';
+    // Waste area
+    const wasteArea = ((remArea - pieceArea) / 1e6).toFixed(3);
     const div = document.createElement('div');
     div.style.cssText = 'background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;cursor:pointer;transition:.15s';
     div.innerHTML =
@@ -6770,8 +6782,10 @@ function openUseRemnantModal(pieceId, uid, w, h, thickness, orderNum){
             (rem.slot_code ? ' &bull; Slot: <strong style="color:var(--a4)">' + rem.slot_code + '</strong>' : '') + '</div>' +
           '<div style="font-size:.62rem;color:var(--mu)">' + (rem.opt_file_name||rem.notes||'') + '</div>' +
         '</div>' +
-        '<div style="text-align:right">' +
-          '<div style="font-size:.7rem;color:var(--a3)">' + (+rem.sqm||0).toFixed(3) + ' m²</div>' +
+        '<div style="text-align:right;min-width:80px">' +
+          '<div style="font-size:1rem;font-weight:700;color:' + utilColor + '">' + utilPct + '%</div>' +
+          '<div style="font-size:.6rem;color:var(--mu)">utilization</div>' +
+          '<div style="font-size:.62rem;color:var(--mu);margin-top:2px">' + wasteArea + ' m² waste</div>' +
           '<button class="btn ba bsm" style="margin-top:6px">Use This</button>' +
         '</div>' +
       '</div>';
