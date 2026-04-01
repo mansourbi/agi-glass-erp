@@ -309,6 +309,12 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     padding:10px 12px;overflow-x:auto;align-items:flex-start}
   .lbl-sheet-cards::-webkit-scrollbar{height:5px}
   .lbl-sheet-cards::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  /* Storage remnants sub-row inside a sheet group */
+  .lbl-sub-hdr{padding:4px 12px;font-family:'DM Mono',monospace;font-size:.56rem;
+    letter-spacing:1px;text-transform:uppercase;color:var(--a3);
+    border-top:1px dashed rgba(0,180,120,.3);border-bottom:1px dashed rgba(0,180,120,.2);
+    background:rgba(0,60,30,.25);display:flex;align-items:center;gap:6px}
+  .lbl-sub-hdr strong{color:var(--a3);font-size:.62rem}
   .lbl-sheet-print-hdr{display:none}
   /* Each card — compact fixed width so they stay in a row */
   .lcard{background:var(--panel);border:1px solid var(--border);
@@ -367,6 +373,10 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   body.print-labels .lg{ display:block; }
   body.print-labels .lbl-sheet-group{ display:block; }
   body.print-labels .lbl-sheet-screen-hdr{ display:none; }
+  body.print-labels .lbl-sub-hdr{ display:block; font-family:'DM Mono',Courier,monospace;
+    font-size:7pt; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+    color:#1a6a3a; padding:1mm 0; margin:1mm 0 0.5mm;
+    border-top:0.3mm solid #999; background:none; }
   body.print-labels .lbl-sheet-cards{ display:block; padding:0; }
   body.print-labels .lbl-sheet-cards .lcard:last-child{ page-break-after:always; break-after:page; margin-bottom:0; }
   body.print-labels .lbl-sheet-group:last-of-type .lbl-sheet-cards .lcard:last-child{ page-break-after:avoid; break-after:avoid; }
@@ -5483,7 +5493,27 @@ function renderCutLabels(){
   }
 
 
-  // Machine cut labels — grouped by sheet
+  // Machine cut labels — grouped by sheet, with Storage Remnants sub-row
+  // Build free-rects map per sheet from last optimization results
+  const snap = window._lastOptResults;
+  const freeBySheet = {};
+  if(snap && snap.results){
+    snap.results.forEach(r=>{
+      const sh = r.sh||{};
+      freeBySheet[r.idx] = (r.free||[])
+        .filter(fr=>fr.w>=50&&fr.h>=50)
+        .map((fr,fi)=>({
+          sheetIdx:r.idx,
+          thickness:sh.thickness||6,
+          glassType:sh.glass_type||sh.glassType||'glass',
+          color:sh.color||'clear',
+          x:Math.round(fr.x), y:Math.round(fr.y),
+          w:Math.round(fr.w), h:Math.round(fr.h),
+          uid:'FREE-S'+r.idx+'-'+(fi+1)
+        }));
+    });
+  }
+
   if(machineList.length){
     const sheetOrder=[];
     const sheetMap={};
@@ -5495,17 +5525,62 @@ function renderCutLabels(){
     sheetOrder.forEach(si=>{
       const pieces=sheetMap[si];
       const sheetLabel=si==='?'?'Sheet —':('Sheet '+si);
+      const freePieces=freeBySheet[si]||[];
       const wrap=document.createElement('div');
       wrap.className='lbl-sheet-group';
       wrap.innerHTML=`
         <div class="lbl-sheet-print-hdr">${sheetLabel}</div>
         <div class="lbl-sheet-screen-hdr">
           <strong>&#9906; ${sheetLabel}</strong>
-          <span>${pieces.length} piece${pieces.length!==1?'s':''}</span>
+          <span>${pieces.length} piece${pieces.length!==1?'s':''}${freePieces.length?' &bull; '+freePieces.length+' storage rem.':''}</span>
         </div>
         <div class="lbl-sheet-cards"></div>`;
       const cardsEl=wrap.querySelector('.lbl-sheet-cards');
       pieces.forEach(item=>{ const c=makeLabel(item,true); if(c) cardsEl.appendChild(c); });
+
+      // Storage remnants sub-row — free rectangles from this sheet
+      if(freePieces.length){
+        const subHdr=document.createElement('div');
+        subHdr.className='lbl-sub-hdr';
+        subHdr.innerHTML=`<strong>&#9635; Storage Remnants</strong><span>${freePieces.length} free piece${freePieces.length!==1?'s':''}</span>`;
+        wrap.appendChild(subHdr);
+        const subCards=document.createElement('div');
+        subCards.className='lbl-sheet-cards';
+        subCards.style.cssText='border-top:none;padding-top:6px';
+        freePieces.forEach(fr=>{
+          const card=document.createElement('div'); card.className='lcard';
+          const qid='qr-free-'+fr.sheetIdx+'-'+fr.x+'-'+fr.y;
+          const typeStr=(fr.glassType||'glass').charAt(0).toUpperCase()+(fr.glassType||'glass').slice(1);
+          const colorStr=(fr.color||'clear').charAt(0).toUpperCase()+(fr.color||'clear').slice(1);
+          const qrPayload={
+            'ID':fr.uid,'Size':fr.w+'x'+fr.h+' mm',
+            'Thickness':fr.thickness+'mm','Type':typeStr,'Color':colorStr,
+            'Sheet':fr.sheetIdx
+          };
+          const qrText=Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
+          const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
+          const logoHtml=logoSrc?`<img src="${logoSrc}" style="display:block;max-height:10mm;max-width:100%;object-fit:contain;margin-bottom:1mm">`:'';
+          card.innerHTML=`
+            <div class="lbl-inner">
+              <div class="lbl-qr" id="${qid}"></div>
+              <div class="lbl-sep"></div>
+              <div class="lbl-info">
+                ${logoHtml}
+                <div class="lbl-uid" style="background:#0d3320;color:#4fffb0">${fr.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span></div>
+                <div class="lbl-specs">
+                  <div class="lbl-size">&#9632; ${fr.w} &times; ${fr.h} mm</div>
+                  <div>${fr.thickness}mm ${typeStr}</div>
+                  <div>${colorStr}</div>
+                </div>
+                <div class="lbl-procs">Store remnant</div>
+              </div>
+            </div>`;
+          subCards.appendChild(card);
+          setTimeout(()=>renderQR(qid, qrText, 100), 60);
+        });
+        wrap.appendChild(subCards);
+      }
+
       grid.appendChild(wrap);
     });
   }
@@ -5596,77 +5671,6 @@ function renderCutLabels(){
 }catch(e){}}
       },60);
     });
-  }
-
-  // ── Storage Remnants — free (unused) rectangles from the optimization canvas ──
-  // These are the leftover raw glass pieces on each sheet after cutting.
-  // Shown per sheet so the cutter can label and store each free piece.
-  const snap = window._lastOptResults;
-  if(snap && snap.results && snap.results.length){
-    const allFree = [];
-    snap.results.forEach(r=>{
-      const sh = r.sh || {};
-      (r.free||[]).forEach((fr,fi)=>{
-        if(fr.w < 50 || fr.h < 50) return; // skip slivers
-        allFree.push({
-          sheetIdx: r.idx,
-          sheetW: sh.w, sheetH: sh.h,
-          thickness: sh.thickness||6,
-          glassType: sh.glass_type||sh.glassType||'glass',
-          color: sh.color||'clear',
-          x: Math.round(fr.x), y: Math.round(fr.y),
-          w: Math.round(fr.w), h: Math.round(fr.h),
-          uid: 'FREE-S'+(r.idx)+'-'+(fi+1)
-        });
-      });
-    });
-    if(allFree.length){
-      const freeWrap = document.createElement('div');
-      freeWrap.className = 'lbl-sheet-group';
-      freeWrap.innerHTML = `
-        <div class="lbl-sheet-print-hdr" style="color:#1a6a3a">Storage Remnants — Free Pieces</div>
-        <div class="lbl-sheet-screen-hdr">
-          <strong style="color:var(--a3)">&#9635; Storage Remnants</strong>
-          <span>${allFree.length} free piece${allFree.length!==1?'s':''} — label &amp; store</span>
-        </div>
-        <div class="lbl-sheet-cards"></div>`;
-      grid.appendChild(freeWrap);
-      const freeCardsEl = freeWrap.querySelector('.lbl-sheet-cards');
-      allFree.forEach(fr=>{
-        const card = document.createElement('div'); card.className = 'lcard';
-        const qid = 'qr-free-' + fr.sheetIdx + '-' + fr.x + '-' + fr.y;
-        const typeStr = (fr.glassType||'glass').charAt(0).toUpperCase()+(fr.glassType||'glass').slice(1);
-        const colorStr = (fr.color||'clear').charAt(0).toUpperCase()+(fr.color||'clear').slice(1);
-        const qrPayload = {
-          'ID': fr.uid,
-          'Size': fr.w+'x'+fr.h+' mm',
-          'Thickness': fr.thickness+'mm',
-          'Type': typeStr, 'Color': colorStr,
-          'Sheet': fr.sheetIdx
-        };
-        const qrText = Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
-        const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
-        const logoHtml=logoSrc?`<img src="${logoSrc}" style="display:block;max-height:10mm;max-width:100%;object-fit:contain;margin-bottom:1mm">`:'';
-        card.innerHTML=`
-          <div class="lbl-inner">
-            <div class="lbl-qr" id="${qid}"></div>
-            <div class="lbl-sep"></div>
-            <div class="lbl-info">
-              ${logoHtml}
-              <div class="lbl-uid" style="background:#0d3320;color:#4fffb0">${fr.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span></div>
-              <div class="lbl-specs">
-                <div class="lbl-size">&#9632; ${fr.w} &times; ${fr.h} mm</div>
-                <div>${fr.thickness}mm ${typeStr}</div>
-                <div>${colorStr}</div>
-                <div style="color:var(--mu);font-size:.57rem">Sheet ${fr.sheetIdx} @ ${fr.x},${fr.y}</div>
-              </div>
-              <div class="lbl-procs">Store remnant</div>
-            </div>
-          </div>`;
-        freeCardsEl.appendChild(card);
-        setTimeout(()=>renderQR(qid, qrText, 100), 60);
-      });
-    }
   }
 
   // ── Remnants to Store — generated by this optimization, need QR labels ──
