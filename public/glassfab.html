@@ -5395,7 +5395,8 @@ function renderCutLabels(){
 
   // Build URL that phones can open when scanning
   function buildPieceUrl(uid){
-    return window.location.protocol+'//'+window.location.host+'/piece/'+encodeURIComponent(uid);
+    const lanHost = '192.168.1.15:3444';
+    return 'https://'+lanHost+'/piece/'+encodeURIComponent(uid);
   }
 
   // Draw AGI logo overlay on QR canvas

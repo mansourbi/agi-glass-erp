@@ -107,7 +107,7 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
     console.log('\n  ╔═══════════════════════════════════════╗');
     console.log(`  ║  AGI Glass — Server running           ║`);
     console.log(`  ║  https://localhost:${HTTPS_PORT}            ║`);
-    console.log(`  ║  https://192.168.1.19:${HTTPS_PORT}   (LAN) ║`);
+    console.log(`  ║  https://192.168.1.15:${HTTPS_PORT}   (LAN) ║`);
     console.log('  ╚═══════════════════════════════════════╝\n');
   });
   // Also keep HTTP for desktop
