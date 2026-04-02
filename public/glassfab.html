@@ -400,6 +400,10 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     page-break-inside:avoid;break-inside:avoid;
     margin:0;padding:0;
   }
+  /* No blank page before first sheet */
+  body.print-labels .lbl-sheet-group:first-child .lbl-sheet-print-hdr{
+    page-break-before:avoid;break-before:avoid;
+  }
   /* STORAGE REMNANTS TITLE PAGE — full page, centered, green */
   body.print-labels .lbl-sub-hdr{
     display:flex!important;
@@ -7965,7 +7969,7 @@ function printMode(mode){
   let styleEl = document.getElementById('print-page-style');
   if(!styleEl){ styleEl=document.createElement('style'); styleEl.id='print-page-style'; document.head.appendChild(styleEl); }
   if(mode==='labels'){
-    styleEl.textContent = '@page { size: 73mm 48mm; margin: 2mm 2mm 2mm 2mm; }';
+    styleEl.textContent = '@page { size: 100mm 50mm; margin: 0; }';
   } else {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
   }
