@@ -4324,7 +4324,9 @@ function refreshRemFitsMap(){
 }
 
 function renderCutResultsUI(results,placed,total,tu,ts,unplaced){
-  window._lastOptResults={results,placed,total,tu,ts,unplaced};
+  window._lastOptResults={results,placed,total,tu,ts,unplaced,
+    rawSheet:activeRawSheet?{...activeRawSheet}:null,
+    date:new Date().toISOString()};
   _globalRemFitsMap=buildGlobalRemFitsMap(results);
   const eff=ts>0?(tu/ts*100):0, waste=100-eff;
   const statsEl=document.getElementById('cut-stats');
