@@ -1180,10 +1180,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <option value="">All Workers</option>
             </select>
             <button class="btn bg bsm" onclick="clearHRFilters()">Clear</button>
+            <button class="btn ba bsm" onclick="openAddAttModal()">+ Add Record</button>
           </div>
         </div>
         <div class="tw"><table>
-          <thead><tr><th>Date</th><th>Worker</th><th>Punch In</th><th>Punch Out</th><th>Total</th><th>Late</th><th>Status</th></tr></thead>
+          <thead><tr><th>Date</th><th>Worker</th><th>Punch In</th><th>Punch Out</th><th>Total</th><th>Late</th><th>Status</th><th></th></tr></thead>
           <tbody id="hr-att-body"></tbody>
         </table></div>
       </div>
@@ -6913,10 +6914,55 @@ async function renderHRAttendance(){
       <td class="mn">${totalH}${r.total_mins?' h':''}</td>
       <td class="mn" style="color:${lateColor}">${lateStr}</td>
       <td class="mn" style="color:${statusColor}">${status}</td>
+      <td class="mn"><button class="btn bg bsm" onclick="openEditAttModal(${r.id},'${r.date}','${r.worker_id}','${r.worker_name}','${(r.punch_in||'').slice(11,16)}','${(r.punch_out||'').slice(11,16)}')">Edit</button></td>
     </tr>`;
   }).join('');
 }
 
+function openAddAttModal(){
+  document.getElementById('att-modal-title').textContent='Add Attendance Record';
+  document.getElementById('att-modal-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('att-modal-in').value='';
+  document.getElementById('att-modal-out').value='';
+  document.getElementById('att-modal-date').dataset.attId='';
+  // Populate worker select
+  const sel=document.getElementById('att-modal-worker');
+  sel.innerHTML='<option value="">Select worker...</option>'+
+    workers.map(w=>`<option value="${w.id}">${w.name}</option>`).join('');
+  sel.disabled=false;
+  document.getElementById('att-modal').style.display='flex';
+}
+function openEditAttModal(id,date,workerId,workerName,pin,pout){
+  document.getElementById('att-modal-title').textContent='Edit Attendance — '+workerName;
+  document.getElementById('att-modal-date').value=date;
+  document.getElementById('att-modal-date').dataset.attId=id;
+  document.getElementById('att-modal-in').value=pin||'';
+  document.getElementById('att-modal-out').value=pout||'';
+  // Set worker select and lock it
+  const sel=document.getElementById('att-modal-worker');
+  sel.innerHTML=`<option value="${workerId}">${workerName}</option>`;
+  sel.disabled=true;
+  document.getElementById('att-modal').style.display='flex';
+}
+async function saveAttModal(){
+  const date=document.getElementById('att-modal-date').value;
+  const pIn=document.getElementById('att-modal-in').value;
+  const pOut=document.getElementById('att-modal-out').value;
+  const attId=document.getElementById('att-modal-date').dataset.attId;
+  const workerId=document.getElementById('att-modal-worker').value;
+  if(!date){ alert('Date required'); return; }
+  if(!workerId){ alert('Worker required'); return; }
+  try{
+    if(attId){
+      await AGI.Attendance.override(+attId,{punch_in:pIn?date+' '+pIn:null,punch_out:pOut?date+' '+pOut:null});
+    } else {
+      await AGI.Attendance.adminCreate({worker_id:+workerId,date,punch_in:pIn||null,punch_out:pOut||null});
+    }
+    document.getElementById('att-modal').style.display='none';
+    showToast('Attendance saved ✓');
+    renderHRAttendance();
+  }catch(e){ alert('Error: '+e.message); }
+}
 function clearHRFilters(){
   ['hr-date-from','hr-date-to'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const wf=document.getElementById('hr-worker-filter'); if(wf) wf.value='';
@@ -8339,5 +8385,34 @@ window.addEventListener('agi:logout', showLoginOverlay);
   </div>
 </div>
 
+
+  <!-- Attendance Edit/Add Modal -->
+  <div id="att-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:24px;min-width:340px;max-width:420px;width:90%">
+      <div style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:var(--tx)" id="att-modal-title">Edit Attendance</div>
+      <div style="display:grid;gap:10px">
+        <div class="fg"><label class="lbl">Worker</label>
+          <select id="att-modal-worker" class="inp" style="width:100%">
+            <option value="">Select worker...</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">Date</label>
+          <input type="date" id="att-modal-date" class="inp" style="width:100%">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="fg"><label class="lbl">Punch In</label>
+            <input type="time" id="att-modal-in" class="inp" style="width:100%">
+          </div>
+          <div class="fg"><label class="lbl">Punch Out</label>
+            <input type="time" id="att-modal-out" class="inp" style="width:100%">
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
+        <button class="btn bg" onclick="document.getElementById('att-modal').style.display='none'">Cancel</button>
+        <button class="btn ba" onclick="saveAttModal()">Save</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
