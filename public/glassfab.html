@@ -344,7 +344,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     box-sizing:border-box;
     padding:2mm!important;margin:0!important;
     background:#fff;
-    border:0.3mm solid #333;
+    border:none;
     page-break-before:always;break-before:page;
     page-break-after:always;break-after:page;
     page-break-inside:avoid;break-inside:avoid;
@@ -355,11 +355,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   /* QR column: 38mm, no gaps/padding */
   body.print-labels .lbl-qr{width:38mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0;margin:0;gap:0;box-sizing:border-box}
   /* Logo — ABOVE QR, transparent, order:0 forces it first visually */
-  body.print-labels .lbl-logo-bar{order:0;width:38mm;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:1mm 0 0.5mm 0;margin:0}
+  body.print-labels .lbl-logo-bar{order:0;width:38mm;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:1mm 0 1.5mm 0;margin:0}
   body.print-labels .lbl-logo-img{max-height:10mm;max-width:36mm;width:36mm;object-fit:contain;display:block}
   body.print-labels .lbl-logo-txt{font-family:'DM Mono',Courier,monospace;font-size:9pt;font-weight:700;color:#111;letter-spacing:0.5mm}
   /* QR below logo, order:1 forces it after logo */
-  body.print-labels .lbl-qr-wrap{order:1;flex:1;width:38mm;display:flex;align-items:center;justify-content:center;padding:0;margin:0}
+  body.print-labels .lbl-qr-wrap{order:1;flex:1;width:38mm;display:flex;align-items:center;justify-content:center;padding:0 0 1.5mm 0;margin:0}
   body.print-labels .lbl-qr canvas,body.print-labels .lbl-qr img{display:block;width:36mm!important;height:36mm!important}
   /* Separator */
   body.print-labels .lbl-sep{width:0.3mm;background:#ccc;flex-shrink:0;margin:0}
@@ -394,7 +394,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     font-family:'DM Mono',Courier,monospace;
     font-size:18pt;font-weight:700;letter-spacing:4px;text-transform:uppercase;
     color:#000;
-    border:0.5mm solid #333;
+    border:none;
     page-break-before:always;break-before:page;
     page-break-after:always;break-after:page;
     page-break-inside:avoid;break-inside:avoid;
@@ -409,7 +409,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     font-family:'DM Mono',Courier,monospace;
     font-size:13pt;font-weight:700;letter-spacing:2px;text-transform:uppercase;
     color:#1a6a3a;
-    border:0.5mm solid #1a6a3a;
+    border:none;
     page-break-before:always;break-before:page;
     page-break-after:always;break-after:page;
     page-break-inside:avoid;break-inside:avoid;
@@ -5617,6 +5617,7 @@ function renderCutLabels(){
                 ${fr.rawCode?`<div class="lbl-rawcode">${fr.rawCode}</div>`:''}
                 <hr class="lbl-divider">
                 <div class="lbl-procs">Storage remnant</div>
+                ${fr.rawCode?`<div class="lbl-rawcode">${fr.rawCode}</div>`:""}
                 <div class="lbl-date">${rawDateStr}</div>
               </div>
             </div>`;
