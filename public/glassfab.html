@@ -392,18 +392,30 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   /* Hide section headers completely in print — zero footprint */
   /* Sheet groups in print */
   body.print-labels .lg{ display:block; }
-  body.print-labels .lbl-sheet-group{ display:block; }
+  body.print-labels .lbl-sheet-group{ display:block; break-inside:avoid-page; margin-bottom:4mm; }
   body.print-labels .lbl-sheet-screen-hdr{ display:none; }
-  body.print-labels .lbl-sub-hdr{ display:none!important; }
+  /* Sheet header — shown in print as clear separator */
+  body.print-labels .lbl-sheet-print-hdr{
+    display:block!important;
+    font-family:'DM Mono',Courier,monospace;
+    font-size:9pt; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+    color:#000; padding:2mm 0 1.5mm; margin-bottom:2mm;
+    border-bottom:0.5mm solid #333;
+  }
+  /* Storage remnants sub-header — shown in print */
+  body.print-labels .lbl-sub-hdr{
+    display:block!important;
+    font-family:'DM Mono',Courier,monospace;
+    font-size:7pt; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+    color:#1a6a3a; padding:1mm 0; margin:2mm 0 1mm;
+    border-top:0.3mm dashed #aaa;
+  }
   body.print-labels .lbl-sheet-cards{ display:block; padding:0; }
-  /* Page break after last card of LAST sub-section in a sheet group */
+  /* No page break between cut pieces and their storage remnants */
+  body.print-labels .lbl-sheet-cards:not(:last-of-type) .lcard:last-child{ page-break-after:avoid; break-after:avoid; }
+  /* Page break after each complete sheet group (last card of last sub-section) */
   body.print-labels .lbl-sheet-group .lbl-sheet-cards:last-of-type .lcard:last-child{ page-break-after:always; break-after:page; margin-bottom:0; }
   body.print-labels .lbl-sheet-group:last-of-type .lbl-sheet-cards:last-of-type .lcard:last-child{ page-break-after:avoid; break-after:avoid; }
-  /* Cut pieces cards (first .lbl-sheet-cards) — no page break between cut and storage remnants */
-  body.print-labels .lbl-sheet-cards:not(:last-of-type) .lcard:last-child{ page-break-after:avoid; break-after:avoid; }
-  body.print-labels .lbl-sheet-print-hdr{
-    display:none!important;
-  }
   body.print-labels .lbl-section-hdr{ display:none!important; height:0!important; min-height:0!important; max-height:0!important; padding:0!important; margin:0!important; border:none!important; overflow:hidden!important; line-height:0!important; }
   body.print-labels .no-print{ display:none!important; }
   /* Non-label print */
@@ -4272,8 +4284,8 @@ async function runOptimize(){
       try{ labelItems=await AGI.Labels.list({optFileId:activeOptId}); }catch(e){}
     }
   }catch(e){ console.warn('[optimize] label save error:',e.message); }
-  renderCutLabels();
   renderCutResultsUI(results,tp,cutPieces.length,tu,ts,rem);
+  renderCutLabels();
   }catch(e){ console.error('[runOptimize CRASH]',e); alert('Optimization error: '+e.message); }
 }
 
@@ -5525,7 +5537,7 @@ function renderCutLabels(){
       const sh = r.sh||{};
       // r.free may be missing if results came from old save — default to []
       const freeArr = Array.isArray(r.free) ? r.free : [];
-      freeBySheet[r.idx] = freeArr
+      freeBySheet[String(r.idx)] = freeArr
         .filter(fr=>fr.w>=50&&fr.h>=50)
         .map((fr,fi)=>({
           sheetIdx:r.idx,
@@ -5552,7 +5564,7 @@ function renderCutLabels(){
     sheetOrder.forEach(si=>{
       const pieces=sheetMap[si];
       const sheetLabel=si==='?'?'Sheet —':('Sheet '+si);
-      const freePieces=freeBySheet[si]||[];
+      const freePieces=freeBySheet[String(si)]||[];
       const wrap=document.createElement('div');
       wrap.className='lbl-sheet-group';
       wrap.innerHTML=`
