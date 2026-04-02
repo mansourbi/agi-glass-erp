@@ -323,7 +323,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   /* Screen label layout: QR on top, info below */
   .lbl-inner{display:flex;flex-direction:column;height:100%}
   .lbl-qr{width:130px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:5px 4px 3px}
-  .lbl-logo-bar{display:none}
+  .lbl-logo-bar{display:none!important;width:0!important;height:0!important;overflow:hidden!important;position:absolute!important;visibility:hidden!important}
   .lbl-sep{height:1px;background:var(--border);margin:0 6px}
   .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
   .lbl-uid{font-family:monospace;font-weight:700;font-size:.6rem;background:#111;color:#fff;
@@ -5496,9 +5496,10 @@ function renderCutLabels(){
       ? `<img src="${logoSrc}" class="lbl-logo" style="display:block;max-height:12mm;max-width:36mm;object-fit:contain;margin-top:1mm">`
       : '';
     const descHtml=item.description||item.code?`<div class="lbl-desc">${item.description||item.code||''}</div>`:'';
+    // Logo bar only shown in print (hidden on screen via CSS)
     const logoBarHtml=logoSrc
-      ?`<div class="lbl-logo-bar"><img src="${logoSrc}" class="lbl-logo-img"></div>`
-      :`<div class="lbl-logo-bar"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
+      ?`<div class="lbl-logo-bar" aria-hidden="true"><img src="${logoSrc}" class="lbl-logo-img"></div>`
+      :`<div class="lbl-logo-bar" aria-hidden="true"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
     // Single unified layout — works for both screen and print
     card.innerHTML=`
       <div class="lbl-inner">
@@ -5606,8 +5607,8 @@ function renderCutLabels(){
           const qrText=Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
           const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
           const remLogoBarHtml=logoSrc
-            ?`<div class="lbl-logo-bar"><img src="${logoSrc}" class="lbl-logo-img"></div>`
-            :`<div class="lbl-logo-bar"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
+            ?`<div class="lbl-logo-bar" aria-hidden="true"><img src="${logoSrc}" class="lbl-logo-img"></div>`
+            :`<div class="lbl-logo-bar" aria-hidden="true"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
           const rawDateStr=fr.optDate?new Date(fr.optDate+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}).replace(/ /g,'-'):'';
           card.innerHTML=`
             <div class="lbl-inner">
