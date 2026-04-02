@@ -6976,7 +6976,10 @@ async function renderHRAttendance(){
       <td class="mn" style="color:${lateColor}">${lateStr}</td>
       <td class="mn" style="color:${dayTypeColor};text-transform:capitalize">${dayType}</td>
       <td class="mn" style="color:${statusColor}">${status}</td>
-      <td class="mn"><button class="btn bg bsm" onclick="openEditAttModal(${r.id},'${r.date}','${r.worker_id}','${r.worker_name}','${(r.punch_in||'').slice(11,16)}','${(r.punch_out||'').slice(11,16)}','${dayType}')">Edit</button></td>
+      <td class="mn" style="display:flex;gap:4px">
+        <button class="btn bg bsm" onclick="openEditAttModal(${r.id},'${r.date}','${r.worker_id}','${r.worker_name}','${(r.punch_in||'').slice(11,16)}','${(r.punch_out||'').slice(11,16)}','${dayType}')">Edit</button>
+        <button class="btn bd bsm" style="color:#ff6464" onclick="deleteAttRecord(${r.id},'${r.worker_name}','${r.date}')">&#10005;</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -7007,6 +7010,15 @@ function openEditAttModal(id,date,workerId,workerName,pin,pout,dayType){
   sel.disabled=true;
   document.getElementById('att-modal').style.display='flex';
 }
+async function deleteAttRecord(id, workerName, date){
+  if(!confirm('Delete attendance record for '+workerName+' on '+date+'?\nThis cannot be undone.')) return;
+  try{
+    await AGI.Attendance.delete(id);
+    showToast('Record deleted ✓');
+    renderHRAttendance();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
 async function saveAttModal(){
   const date=document.getElementById('att-modal-date').value;
   const pIn=document.getElementById('att-modal-in').value;
