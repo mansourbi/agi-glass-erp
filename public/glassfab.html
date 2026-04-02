@@ -318,13 +318,15 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   .lbl-sheet-print-hdr{display:none}
   /* Each card — compact fixed width so they stay in a row */
   .lcard{background:var(--panel);border:1px solid var(--border);
-    border-radius:var(--r);padding:0;width:130px;flex-shrink:0;
+    border-radius:var(--r);padding:0;width:200px;flex-shrink:0;
     display:flex;flex-direction:column;break-inside:avoid;overflow:hidden}
-  /* Screen label layout: QR on top, info below */
-  .lbl-inner{display:flex;flex-direction:column;height:100%}
-  .lbl-qr{width:130px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:5px 4px 3px}
-  .lbl-logo-bar{display:none!important;width:0!important;height:0!important;overflow:hidden!important;position:absolute!important;visibility:hidden!important}
-  .lbl-sep{height:1px;background:var(--border);margin:0 6px}
+  /* Screen label layout: QR left, info right (horizontal) */
+  .lbl-inner{display:flex;flex-direction:row;height:100%}
+  .lbl-qr{width:90px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:4px}
+  .lbl-logo-bar{display:none!important}
+  .lbl-logo-img{display:none!important}
+  .lbl-qr-wrap{width:82px;height:82px;display:flex;align-items:center;justify-content:center}
+  .lbl-sep{width:1px;background:var(--border);margin:4px 0}
   .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
   .lbl-uid{font-family:monospace;font-weight:700;font-size:.6rem;background:#111;color:#fff;
     padding:2px 5px;border-radius:3px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -5496,16 +5498,15 @@ function renderCutLabels(){
       ? `<img src="${logoSrc}" class="lbl-logo" style="display:block;max-height:12mm;max-width:36mm;object-fit:contain;margin-top:1mm">`
       : '';
     const descHtml=item.description||item.code?`<div class="lbl-desc">${item.description||item.code||''}</div>`:'';
-    // Logo bar only shown in print (hidden on screen via CSS)
+    // Logo bar — only injected when printing, empty string on screen
     const logoBarHtml=logoSrc
-      ?`<div class="lbl-logo-bar" aria-hidden="true"><img src="${logoSrc}" class="lbl-logo-img"></div>`
-      :`<div class="lbl-logo-bar" aria-hidden="true"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
+      ?`<div class="lbl-logo-bar"><img src="${logoSrc}" class="lbl-logo-img" style="max-width:100%;max-height:100%"></div>`
+      :`<div class="lbl-logo-bar"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
     // Single unified layout — works for both screen and print
     card.innerHTML=`
       <div class="lbl-inner">
         <div class="lbl-qr">
-          ${logoBarHtml}
-          <div class="lbl-qr-wrap"><div id="${qid}"></div></div>
+          <div id="${qid}"></div>
         </div>
         <div class="lbl-sep"></div>
         <div class="lbl-info">
@@ -5607,14 +5608,13 @@ function renderCutLabels(){
           const qrText=Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
           const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
           const remLogoBarHtml=logoSrc
-            ?`<div class="lbl-logo-bar" aria-hidden="true"><img src="${logoSrc}" class="lbl-logo-img"></div>`
-            :`<div class="lbl-logo-bar" aria-hidden="true"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
+            ?`<div class="lbl-logo-bar"><img src="${logoSrc}" class="lbl-logo-img" style="max-width:100%;max-height:100%"></div>`
+            :`<div class="lbl-logo-bar"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
           const rawDateStr=fr.optDate?new Date(fr.optDate+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}).replace(/ /g,'-'):'';
           card.innerHTML=`
             <div class="lbl-inner">
               <div class="lbl-qr">
-                ${remLogoBarHtml}
-                <div class="lbl-qr-wrap"><div id="${qid}"></div></div>
+                <div id="${qid}"></div>
               </div>
               <div class="lbl-sep"></div>
               <div class="lbl-info">
