@@ -322,7 +322,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     display:flex;flex-direction:column;break-inside:avoid;overflow:hidden}
   /* Screen label layout: QR on top, info below */
   .lbl-inner{display:flex;flex-direction:column;height:100%}
-  .lbl-qr{display:flex;align-items:center;justify-content:center;padding:6px 6px 3px}
+  .lbl-qr{display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 4px 3px}
   .lbl-sep{height:1px;background:var(--border);margin:0 6px}
   .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
   .lbl-uid{font-family:monospace;font-weight:700;font-size:.6rem;background:#111;color:#fff;
@@ -334,18 +334,17 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     color:#000;white-space:normal;overflow:hidden;line-height:1.3;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
-  /* ── TSC TE244 label: 73mm × 48mm, 2mm side margin, 3mm gap ── */
+  /* ── TSC TE244 label: 100mm × 60mm, 2mm side margin, 3mm gap ── */
   body.print-labels{
     margin:0;padding:0;background:#fff;
   }
   body.print-labels .lg{
     display:block;
-    width:69mm; /* 73mm - 2×2mm margins */
+    width:96mm; /* 100mm - 2×2mm margins */
   }
   body.print-labels .lcard{
-    width:69mm!important;
-    width:69mm;
-    height:43mm;
+    width:96mm!important;
+    height:56mm;
     box-sizing:border-box;
     padding:1.5mm;
     margin:0 0 3mm 0;
@@ -358,15 +357,19 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   }
   body.print-labels .lcard:last-child{ page-break-after:avoid; margin-bottom:0; }
   body.print-labels .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100%;height:100%}
-  body.print-labels .lbl-qr{width:36mm;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:1mm}
-  body.print-labels .lbl-qr img{width:34mm!important;height:34mm!important;display:block}
+  body.print-labels .lbl-qr{width:42mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:1mm 0.5mm;box-sizing:border-box}
+  body.print-labels .lbl-logo{display:block;max-height:11mm;max-width:40mm;width:auto;object-fit:contain;margin-top:0.5mm}
+  body.print-labels .lbl-qr canvas,body.print-labels .lbl-qr img{display:block;width:40mm!important;height:40mm!important}
   body.print-labels .lbl-sep{width:0.3mm;background:#999;flex-shrink:0;margin:1mm 0}
   body.print-labels .lbl-info{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:1.5mm 1.5mm 1.5mm 2mm;overflow:hidden;min-width:0}
-  body.print-labels .lbl-uid{font-family:'DM Mono',Courier,monospace;font-size:7.5pt;font-weight:700;background:#111!important;color:#fff!important;padding:0.8mm 1.5mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-  body.print-labels .lbl-specs{font-family:'DM Mono',Courier,monospace;font-size:6.5pt;line-height:1.5;margin-top:1mm;flex:1;color:#000}
-  body.print-labels .lbl-size{font-size:7pt;font-weight:600}
+  body.print-labels .lbl-uid{font-family:'DM Mono',Courier,monospace;font-size:9pt;font-weight:700;background:#111!important;color:#fff!important;padding:1mm 2mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center}
+  body.print-labels .lbl-specs{font-family:'DM Mono',Courier,monospace;font-size:6.5pt;line-height:1.4;margin-top:0.5mm;flex:1;color:#000}
+  body.print-labels .lbl-size{font-size:11pt;font-weight:700;color:#000}
   body.print-labels .lbl-ord{color:#555}
-  body.print-labels .lbl-procs{font-size:5pt;font-family:'DM Sans',Arial,sans-serif;border-top:0.2mm solid #999;padding-top:0.8mm;color:#000;line-height:1.3;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  body.print-labels .lbl-procs{font-size:5.5pt;font-family:'DM Sans',Arial,sans-serif;border-top:0.2mm solid #999;padding-top:0.8mm;color:#000;line-height:1.3;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  body.print-labels .lbl-desc{font-size:5pt;font-family:'DM Sans',Arial,sans-serif;color:#555;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.print-labels .lbl-rawcode{font-size:5.5pt;font-family:'DM Mono',Courier,monospace;background:#f0f0f0;border:0.2mm solid #ccc;border-radius:0.5mm;padding:0.3mm 1mm;color:#444;display:inline-block}
+  body.print-labels .lbl-date{font-size:5pt;color:#888;text-align:right}
   /* Screen part hidden, print part shown */
   /* unified label layout */
   /* Hide section headers completely in print — zero footprint */
@@ -5403,36 +5406,9 @@ function renderCutLabels(){
     return 'https://'+lanHost+'/piece/'+encodeURIComponent(uid);
   }
 
-  // Draw AGI logo overlay on QR canvas
-  // Draw logo overlay on QR canvas — uses qr_logo > factory_logo > AGI text fallback
+  // Logo overlay removed — logo shown below QR code instead
   function overlayLogo(canvas, callback){
-    const ctx=canvas.getContext('2d');
-    const s=canvas.width;
-    const ls=Math.round(s*0.18); // 18% — well within 30% H error correction tolerance
-    const x=Math.round((s-ls)/2), y=Math.round((s-ls)/2);
-    const pad=Math.round(ls*0.15);
-    // White backing rect — clears QR modules underneath
-    ctx.fillStyle='#ffffff';
-    ctx.fillRect(x-pad, y-pad, ls+pad*2, ls+pad*2);
-    const logoB64=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
-    if(logoB64){
-      const img=new Image();
-      img.onload=function(){
-        const ar=img.naturalWidth/img.naturalHeight;
-        let dw=ls, dh=ls;
-        if(ar>1){dh=Math.round(ls/ar);}else{dw=Math.round(ls*ar);}
-        const dx=x+Math.round((ls-dw)/2), dy=y+Math.round((ls-dh)/2);
-        ctx.imageSmoothingEnabled=true;
-        ctx.imageSmoothingQuality='high';
-        ctx.drawImage(img,dx,dy,dw,dh);
-        if(callback)callback();
-      };
-      img.onerror=function(){ _overlayText(ctx,ls,x,y); if(callback)callback(); };
-      img.src=logoB64;
-    } else {
-      _overlayText(ctx,ls,x,y);
-      if(callback)callback();
-    }
+    if(callback)callback();
   }
   function _overlayText(ctx,ls,x,y){
     const grad=ctx.createLinearGradient(x,y,x+ls,y+ls);
@@ -5456,14 +5432,12 @@ function renderCutLabels(){
       setTimeout(()=>{
         const cv=el.querySelector('canvas');
         if(cv){
-          overlayLogo(cv, ()=>{
-            const img=document.createElement('img');
-            img.src=cv.toDataURL('image/png');
-            img.style.cssText='display:block;width:'+size+'px;height:'+size+'px;max-width:100%';
-            el.innerHTML=''; el.appendChild(img);
-          });
+          const img=document.createElement('img');
+          img.src=cv.toDataURL('image/png');
+          img.style.cssText='display:block;width:100%;height:auto;max-width:'+size+'px';
+          el.innerHTML=''; el.appendChild(img);
         }
-      },150);
+      },200);
     }catch(e){ el.textContent='QR'; }
   }
 
@@ -5486,28 +5460,30 @@ function renderCutLabels(){
     // Logo for print labels
     const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
     const logoHtml=logoSrc
-      ? `<img src="${logoSrc}" class="lbl-logo" style="display:block;max-height:10mm;max-width:100%;object-fit:contain;margin-bottom:1mm">`
+      ? `<img src="${logoSrc}" class="lbl-logo" style="display:block;max-height:12mm;max-width:36mm;object-fit:contain;margin-top:1mm">`
       : '';
+    const descHtml=item.description||item.code?`<div class="lbl-desc">${item.description||item.code||''}</div>`:'';
     // Single unified layout — works for both screen and print
     card.innerHTML=`
       <div class="lbl-inner">
-        <div class="lbl-qr" id="${qid}"></div>
+        <div class="lbl-qr">
+          <div id="${qid}" style="width:100%;flex:1;display:flex;align-items:center;justify-content:center"></div>
+          ${logoHtml}
+        </div>
         <div class="lbl-sep"></div>
         <div class="lbl-info">
-          ${logoHtml}
-          <div class="lbl-uid">${item.uid}${isManual?'<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span>':''}</div>
+          <div class="lbl-uid" style="text-align:center">${item.uid}${isManual?'<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span>':''}</div>
           <div class="lbl-specs">
-            <div class="lbl-size">&#9632; ${item.w} &times; ${item.h} mm</div>
-            <div>${item.thickness}mm ${typeStr}</div>
-            <div>${colorStr}</div>
-
+            <div class="lbl-size" style="text-align:center">&#9632; ${item.w} &times; ${item.h} mm</div>
+            <div style="font-size:7pt;color:#333">${item.thickness}mm ${typeStr} &bull; ${colorStr}</div>
+            <div class="lbl-procs" style="border-top:0.2mm solid #ddd;margin-top:0.5mm;padding-top:0.5mm">${isManual?'<span style="background:var(--a4);color:#000;border-radius:2px;padding:0 3px;font-size:.75em;margin-right:3px">REM</span>':''}${procNames.join(' — ')||'—'}</div>
           </div>
-          <div class="lbl-procs">${isManual?'<span style="background:var(--a4);color:#000;border-radius:2px;padding:0 3px;font-size:.75em;margin-right:3px">REM</span>':''}${procNames.join(' — ')||'—'}${item.bevelMM?' Bevel:'+item.bevelMM+'cm':''}</div>
+          ${descHtml}
         </div>
       </div>`;
-    if(returnCard){ setTimeout(()=>renderQR(qid, qrText, 100), 60); return card; }
+    if(returnCard){ setTimeout(()=>renderQR(qid, qrText, 152), 60); return card; }
     grid.appendChild(card);
-    setTimeout(()=>renderQR(qid, qrText, 100), 60);
+    setTimeout(()=>renderQR(qid, qrText, 152), 60);
   }
 
 
@@ -5515,7 +5491,9 @@ function renderCutLabels(){
   // Build free-rects map per sheet from last optimization results
   const snap = window._lastOptResults;
   const freeBySheet = {};
-  const snapRawCode = snap&&snap.rawSheet&&snap.rawSheet.code ? snap.rawSheet.code : '';
+  // rawSheet may come back as a JSON string from the API — parse if needed
+  const _rawSheetObj = snap&&snap.rawSheet ? (typeof snap.rawSheet==='string' ? JSON.parse(snap.rawSheet) : snap.rawSheet) : null;
+  const snapRawCode = _rawSheetObj&&_rawSheetObj.code ? _rawSheetObj.code : '';
   const snapDate = snap&&snap.date ? snap.date.slice(0,10) : new Date().toISOString().slice(0,10);
   if(snap && snap.results){
     snap.results.forEach(r=>{
@@ -5524,9 +5502,9 @@ function renderCutLabels(){
         .filter(fr=>fr.w>=50&&fr.h>=50)
         .map((fr,fi)=>({
           sheetIdx:r.idx,
-          thickness:sh.thickness||6,
-          glassType:sh.glass_type||sh.glassType||'glass',
-          color:sh.color||'clear',
+          thickness:sh.thickness||_rawSheetObj&&_rawSheetObj.thickness||6,
+          glassType:sh.glass_type||sh.glassType||(_rawSheetObj&&(_rawSheetObj.glass_type||_rawSheetObj.type))||'glass',
+          color:sh.color||(_rawSheetObj&&_rawSheetObj.color)||'clear',
           rawCode:snapRawCode,
           optDate:snapDate,
           x:Math.round(fr.x), y:Math.round(fr.y),
@@ -5582,24 +5560,28 @@ function renderCutLabels(){
           };
           const qrText=Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
           const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
-          const logoHtml=logoSrc?`<img src="${logoSrc}" style="display:block;max-height:10mm;max-width:100%;object-fit:contain;margin-bottom:1mm">`:'';
+          const logoHtml=logoSrc?`<img src="${logoSrc}" class="lbl-logo" style="display:block;max-height:12mm;max-width:36mm;object-fit:contain;margin-top:1mm">`:'';
+          const rawDateStr=fr.optDate?new Date(fr.optDate+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}).replace(/ /g,'-'):'';
           card.innerHTML=`
             <div class="lbl-inner">
-              <div class="lbl-qr" id="${qid}"></div>
+              <div class="lbl-qr">
+                <div id="${qid}" style="width:100%;flex:1;display:flex;align-items:center;justify-content:center"></div>
+                ${logoHtml}
+              </div>
               <div class="lbl-sep"></div>
               <div class="lbl-info">
-                ${logoHtml}
-                <div class="lbl-uid" style="background:#0d3320;color:#4fffb0">${fr.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span></div>
+                <div class="lbl-uid" style="background:#0d3320!important;color:#4fffb0!important">${fr.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span></div>
                 <div class="lbl-specs">
-                  <div class="lbl-size" style="color:#000">&#9632; ${fr.w} &times; ${fr.h} mm</div>
-                  <div style="color:#000">${fr.thickness}mm ${typeStr} &bull; ${colorStr}</div>
-                  <div style="font-weight:700;color:#000">${fr.rawCode||'—'}</div>
+                  <div class="lbl-size">&#9632; ${fr.w} &times; ${fr.h} mm</div>
+                  <div>${fr.thickness}mm ${typeStr} &bull; ${colorStr}</div>
+                  ${fr.rawCode?`<span class="lbl-rawcode">${fr.rawCode}</span>`:''}
                 </div>
-                <div class="lbl-procs" style="color:#000;border-top:1px solid #ccc">${fr.optDate||''}</div>
+                <div class="lbl-procs" style="border-top:0.2mm solid #ccc">Storage remnant</div>
+                <div class="lbl-date">${rawDateStr}</div>
               </div>
             </div>`;
           subCards.appendChild(card);
-          setTimeout(()=>renderQR(qid, qrText, 100), 60);
+          setTimeout(()=>renderQR(qid, qrText, 152), 60);
         });
         wrap.appendChild(subCards);
       }
