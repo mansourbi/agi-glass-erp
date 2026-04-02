@@ -322,7 +322,10 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     display:flex;flex-direction:column;break-inside:avoid;overflow:hidden}
   /* Screen label layout: QR on top, info below */
   .lbl-inner{display:flex;flex-direction:column;height:100%}
-  .lbl-qr{width:140px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 4px 3px}
+  .lbl-qr{width:130px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:5px 4px 3px}
+  .lbl-logo-bar{display:flex;align-items:center;justify-content:center;width:100%}
+  .lbl-logo-bar img{max-height:20px!important;max-width:80px!important;width:auto!important;object-fit:contain}
+  .lbl-logo-bar span{font-size:8px;font-weight:700;color:#888}
   .lbl-sep{height:1px;background:var(--border);margin:0 6px}
   .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
   .lbl-uid{font-family:monospace;font-weight:700;font-size:.6rem;background:#111;color:#fff;
@@ -334,42 +337,53 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     color:#000;white-space:normal;overflow:hidden;line-height:1.3;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
-  /* ── TSC TE244 label: 100mm × 60mm, 2mm side margin, 3mm gap ── */
-  body.print-labels{
-    margin:0;padding:0;background:#fff;
-  }
-  body.print-labels .lg{
-    display:block;
-    width:96mm; /* 100mm - 2×2mm margins */
-  }
+  /* ── TSC TE244 label: 100mm × 60mm ── */
+  /* ── Label: 100×60mm, 3mm border inset ──
+     Outer card: 100mm × 60mm (no page margins — printer handles them)
+     Inner border box: 3mm inset on all sides → content = 94mm × 54mm
+     QR column: 36mm wide. Logo above QR ~8mm. QR fills remaining ~44mm.
+     Sep: 0.3mm. Info column: ~57mm wide. ── */
+  body.print-labels{margin:0;padding:0;background:#fff;}
+  body.print-labels .lg{display:block;width:100mm;}
   body.print-labels .lcard{
-    width:96mm!important;
-    height:56mm;
-    box-sizing:border-box;
-    padding:1.5mm;
-    margin:0 0 3mm 0;
-    background:#fff;
-    border:0.3mm solid #333;
-    break-inside:avoid;
-    page-break-after:always;
-    overflow:hidden;
-    border-radius:1.5mm;
+    /* 100×60mm label, 3mm border on ALL edges */
+    width:100mm!important;height:60mm;box-sizing:border-box;
+    padding:3mm;margin:0;background:#fff;
+    border:0.3mm solid #333;break-inside:avoid;
+    page-break-after:always;overflow:hidden;border-radius:0;
   }
-  body.print-labels .lcard:last-child{ page-break-after:avoid; margin-bottom:0; }
-  body.print-labels .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100%;height:100%}
-  body.print-labels .lbl-qr{width:42mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:1mm 0.5mm;box-sizing:border-box}
-  body.print-labels .lbl-logo{display:block;max-height:11mm;max-width:40mm;width:auto;object-fit:contain;margin-top:0.5mm}
-  body.print-labels .lbl-qr canvas,body.print-labels .lbl-qr img{display:block;width:40mm!important;height:40mm!important}
-  body.print-labels .lbl-sep{width:0.3mm;background:#999;flex-shrink:0;margin:1mm 0}
-  body.print-labels .lbl-info{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:1.5mm 1.5mm 1.5mm 2mm;overflow:hidden;min-width:0}
-  body.print-labels .lbl-uid{font-family:'DM Mono',Courier,monospace;font-size:9pt;font-weight:700;background:#111!important;color:#fff!important;padding:1mm 2mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center}
-  body.print-labels .lbl-specs{font-family:'DM Mono',Courier,monospace;font-size:6.5pt;line-height:1.4;margin-top:0.5mm;flex:1;color:#000}
-  body.print-labels .lbl-size{font-size:11pt;font-weight:700;color:#000}
-  body.print-labels .lbl-ord{color:#555}
-  body.print-labels .lbl-procs{font-size:5.5pt;font-family:'DM Sans',Arial,sans-serif;border-top:0.2mm solid #999;padding-top:0.8mm;color:#000;line-height:1.3;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-  body.print-labels .lbl-desc{font-size:5pt;font-family:'DM Sans',Arial,sans-serif;color:#555;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  body.print-labels .lbl-rawcode{font-size:5.5pt;font-family:'DM Mono',Courier,monospace;background:#f0f0f0;border:0.2mm solid #ccc;border-radius:0.5mm;padding:0.3mm 1mm;color:#444;display:inline-block}
-  body.print-labels .lbl-date{font-size:5pt;color:#888;text-align:right}
+  body.print-labels .lcard:last-child{page-break-after:avoid;margin-bottom:0;}
+  /* Inner box: 2mm padding inside the border on all edges */
+  body.print-labels .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100%;height:100%;padding:2mm;box-sizing:border-box}
+  /* QR column: 36mm, logo above, QR below */
+  body.print-labels .lbl-qr{width:36mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1mm;box-sizing:border-box}
+  /* Logo — transparent background, large */
+  body.print-labels .lbl-logo-bar{width:34mm;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+  body.print-labels .lbl-logo-img{max-height:10mm;max-width:34mm;width:34mm;object-fit:contain;display:block}
+  body.print-labels .lbl-logo-txt{font-family:'DM Mono',Courier,monospace;font-size:9pt;font-weight:700;color:#111;letter-spacing:0.5mm}
+  /* QR fills remaining height */
+  body.print-labels .lbl-qr-wrap{flex:1;width:34mm;display:flex;align-items:center;justify-content:center}
+  body.print-labels .lbl-qr canvas,body.print-labels .lbl-qr img{display:block;width:34mm!important;height:34mm!important}
+  /* Separator */
+  body.print-labels .lbl-sep{width:0.3mm;background:#ccc;flex-shrink:0;margin:0 1.5mm}
+  /* Info column */
+  body.print-labels .lbl-info{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;gap:1mm}
+  /* UID badge — fonts +3pt from previous: was 8.5pt → 11.5pt */
+  body.print-labels .lbl-uid{font-family:'DM Mono',Courier,monospace;font-size:11.5pt;font-weight:700;background:#111!important;color:#fff!important;padding:0.8mm 1.5mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center}
+  /* Size — was 10pt → 13pt */
+  body.print-labels .lbl-size{font-family:'DM Mono',Courier,monospace;font-size:13pt;font-weight:700;color:#111;text-align:center;display:block}
+  /* Glass spec — was 6pt → 9pt */
+  body.print-labels .lbl-glass{font-family:'DM Mono',Courier,monospace;font-size:9pt;color:#444;text-align:center;display:block}
+  /* Raw code pill — was 5.5pt → 8.5pt */
+  body.print-labels .lbl-rawcode{font-family:'DM Mono',Courier,monospace;font-size:8.5pt;background:#f0f0f0;border:0.2mm solid #ddd;border-radius:0.5mm;padding:0.3mm 1mm;color:#555;display:block;text-align:center}
+  /* Divider */
+  body.print-labels .lbl-divider{border:none;border-top:0.2mm solid #eee;margin:0}
+  /* Processes — was 5.5pt → 8.5pt */
+  body.print-labels .lbl-procs{font-family:'DM Sans',Arial,sans-serif;font-size:8.5pt;color:#555;text-align:center;display:block;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  /* Description — was 5pt → 8pt */
+  body.print-labels .lbl-desc{font-family:'DM Sans',Arial,sans-serif;font-size:8pt;color:#888;font-style:italic;text-align:center;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Date — was 5pt → 8pt */
+  body.print-labels .lbl-date{font-family:'DM Mono',Courier,monospace;font-size:8pt;color:#888;text-align:right;display:block;margin-top:auto}
   /* Screen part hidden, print part shown */
   /* unified label layout */
   /* Hide section headers completely in print — zero footprint */
@@ -5468,21 +5482,23 @@ function renderCutLabels(){
       ? `<img src="${logoSrc}" class="lbl-logo" style="display:block;max-height:12mm;max-width:36mm;object-fit:contain;margin-top:1mm">`
       : '';
     const descHtml=item.description||item.code?`<div class="lbl-desc">${item.description||item.code||''}</div>`:'';
+    const logoBarHtml=logoSrc
+      ?`<div class="lbl-logo-bar"><img src="${logoSrc}" class="lbl-logo-img"></div>`
+      :`<div class="lbl-logo-bar"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
     // Single unified layout — works for both screen and print
     card.innerHTML=`
       <div class="lbl-inner">
         <div class="lbl-qr">
-          <div id="${qid}" style="width:100%;flex:1;display:flex;align-items:center;justify-content:center"></div>
-          ${logoHtml}
+          ${logoBarHtml}
+          <div class="lbl-qr-wrap"><div id="${qid}"></div></div>
         </div>
         <div class="lbl-sep"></div>
         <div class="lbl-info">
-          <div class="lbl-uid" style="text-align:center">${item.uid}${isManual?'<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span>':''}</div>
-          <div class="lbl-specs">
-            <div class="lbl-size" style="text-align:center">&#9632; ${item.w} &times; ${item.h} mm</div>
-            <div style="font-size:7pt;color:#333">${item.thickness}mm ${typeStr} &bull; ${colorStr}</div>
-            <div class="lbl-procs" style="border-top:0.2mm solid #ddd;margin-top:0.5mm;padding-top:0.5mm">${isManual?'<span style="background:var(--a4);color:#000;border-radius:2px;padding:0 3px;font-size:.75em;margin-right:3px">REM</span>':''}${procNames.join(' — ')||'—'}</div>
-          </div>
+          <div class="lbl-uid">${item.uid}${isManual?'<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span>':''}</div>
+          <div class="lbl-size">&#9632; ${item.w} &times; ${item.h} mm</div>
+          <div class="lbl-glass">${item.thickness}mm ${typeStr} &bull; ${colorStr}</div>
+          <hr class="lbl-divider">
+          <div class="lbl-procs">${isManual?'<span style="background:var(--a4);color:#000;border-radius:2px;padding:0 3px;font-size:.75em;margin-right:3px">REM</span>':''}${procNames.join(' — ')||'—'}</div>
           ${descHtml}
         </div>
       </div>`;
@@ -5573,23 +5589,24 @@ function renderCutLabels(){
           };
           const qrText=Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
           const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
-          const logoHtml=logoSrc?`<img src="${logoSrc}" class="lbl-logo" style="display:block;max-height:12mm;max-width:36mm;object-fit:contain;margin-top:1mm">`:'';
+          const remLogoBarHtml=logoSrc
+            ?`<div class="lbl-logo-bar"><img src="${logoSrc}" class="lbl-logo-img"></div>`
+            :`<div class="lbl-logo-bar"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
           const rawDateStr=fr.optDate?new Date(fr.optDate+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}).replace(/ /g,'-'):'';
           card.innerHTML=`
             <div class="lbl-inner">
               <div class="lbl-qr">
-                <div id="${qid}" style="width:100%;flex:1;display:flex;align-items:center;justify-content:center"></div>
-                ${logoHtml}
+                ${remLogoBarHtml}
+                <div class="lbl-qr-wrap"><div id="${qid}"></div></div>
               </div>
               <div class="lbl-sep"></div>
               <div class="lbl-info">
-                <div class="lbl-uid" style="background:#0d3320!important;color:#4fffb0!important">${fr.uid} <span style="font-size:.55em;background:var(--a3);color:#000;border-radius:2px;padding:0 3px">REM</span></div>
-                <div class="lbl-specs">
-                  <div class="lbl-size">&#9632; ${fr.w} &times; ${fr.h} mm</div>
-                  <div>${fr.thickness}mm ${typeStr} &bull; ${colorStr}</div>
-                  ${fr.rawCode?`<span class="lbl-rawcode">${fr.rawCode}</span>`:''}
-                </div>
-                <div class="lbl-procs" style="border-top:0.2mm solid #ccc">Storage remnant</div>
+                <div class="lbl-uid" style="background:#0d3320!important;color:#4fffb0!important">${fr.uid} <span style="font-size:.55em;background:#4fffb0;color:#0d3320;border-radius:2px;padding:0 3px">REM</span></div>
+                <div class="lbl-size">&#9632; ${fr.w} &times; ${fr.h} mm</div>
+                <div class="lbl-glass">${fr.thickness}mm ${typeStr} &bull; ${colorStr}</div>
+                ${fr.rawCode?`<div class="lbl-rawcode">${fr.rawCode}</div>`:''}
+                <hr class="lbl-divider">
+                <div class="lbl-procs">Storage remnant</div>
                 <div class="lbl-date">${rawDateStr}</div>
               </div>
             </div>`;
