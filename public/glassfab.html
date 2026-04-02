@@ -353,8 +353,9 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     break-inside:avoid;
     page-break-after:always;
     overflow:hidden;border-radius:0;
+    margin-bottom:3mm;
   }
-  body.print-labels .lcard:last-child{page-break-after:avoid;}
+  body.print-labels .lcard:last-child{page-break-after:avoid;margin-bottom:0;}
   /* lbl-inner fills the full card — no padding */
   body.print-labels .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100%;height:100%;padding:0;margin:0;box-sizing:border-box}
   /* QR column: 38mm, no gaps/padding */
