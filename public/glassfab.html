@@ -927,6 +927,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <span style="color:var(--mu);font-size:.7rem">to</span>
           <input type="date" id="att-rep-to" class="inp" style="padding:4px 8px;font-size:.72rem;width:130px">
           <button class="btn ba bsm" onclick="renderAttendanceReport()">&#8635; Load</button>
+          <button class="btn bg bsm" onclick="exportAttPDF()">&#8659; PDF</button>
+          <button class="btn bg bsm" onclick="exportAttExcel()">&#8659; Excel</button>
         </div>
       </div>
       <div class="tw" id="rep-att-wrap" style="overflow-x:auto">
@@ -5990,9 +5992,9 @@ async function renderAttendanceReport(){
   // Default: last 7 days
   const fromEl = document.getElementById('att-rep-from');
   const toEl   = document.getElementById('att-rep-to');
-  const today  = new Date().toISOString().slice(0,10);
-  const week   = new Date(Date.now()-6*86400000).toISOString().slice(0,10);
-  if(fromEl && !fromEl.value) fromEl.value = week;
+  const today     = new Date().toISOString().slice(0,10);
+  const twoWeeks  = new Date(Date.now()-13*86400000).toISOString().slice(0,10);
+  if(fromEl && !fromEl.value) fromEl.value = twoWeeks;
   if(toEl   && !toEl.value)   toEl.value   = today;
   const dateFrom = fromEl ? fromEl.value : week;
   const dateTo   = toEl   ? toEl.value   : today;
@@ -6058,6 +6060,106 @@ async function renderAttendanceReport(){
     }).join('');
     return `<tr style="${rowStyle}"><td class="mn" style="white-space:nowrap;color:${isWeekend?'var(--a2)':'var(--tx2)'}">${day}</td>${cells}</tr>`;
   }).join('');
+}
+
+function exportAttPDF(){
+  const from = document.getElementById('att-rep-from')?.value||'';
+  const to   = document.getElementById('att-rep-to')?.value||'';
+  const table = document.getElementById('rep-att-table');
+  if(!table){ alert('No data to export'); return; }
+
+  // Build self-contained HTML for print
+  const styles = `
+    <style>
+      @page { size: A3 landscape; margin: 10mm; }
+      body { font-family: 'DM Mono', Courier, monospace; font-size: 8pt; color: #000; background: #fff; }
+      h2 { font-size: 11pt; margin: 0 0 4mm; }
+      .sub { font-size: 8pt; color: #555; margin-bottom: 6mm; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 0.3mm solid #ccc; padding: 2mm 2.5mm; text-align: center; white-space: nowrap; }
+      thead th { background: #1a1a2e; color: #fff; font-size: 7.5pt; }
+      thead tr:first-child th { background: #0d0d1a; font-size: 8.5pt; }
+      td:first-child, th:first-child { text-align: left; font-weight: 700; }
+      tr:nth-child(even) td { background: #f8f8f8; }
+      .in  { color: #007a55; font-weight: 700; }
+      .out { color: #0055aa; font-weight: 700; }
+      .tot { font-weight: 700; }
+      .absent { color: #aaa; }
+    </style>`;
+
+  // Clone table and clean inline styles/colors for print
+  const clone = table.cloneNode(true);
+  // Color the sub-header cells
+  clone.querySelectorAll('thead tr:nth-child(2) th').forEach((th,i) => {
+    const txt = th.textContent.trim();
+    if(txt==='IN')    th.className='in';
+    if(txt==='OUT')   th.className='out';
+    if(txt==='TOTAL') th.className='tot';
+  });
+  // Clean inline styles from body cells
+  clone.querySelectorAll('tbody td').forEach(td => {
+    const t = td.textContent.trim();
+    td.removeAttribute('style');
+    if(t==='—') td.className='absent';
+  });
+  clone.querySelectorAll('tbody tr').forEach(tr => tr.removeAttribute('style'));
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Attendance Report</title>${styles}</head>
+    <body>
+      <h2>&#9654; Attendance Report</h2>
+      <div class="sub">Period: ${from} to ${to} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-GB')}</div>
+      ${clone.outerHTML}
+    </body></html>`;
+
+  const win = window.open('','_blank','width=1200,height=800');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); }, 600);
+}
+
+function exportAttExcel(){
+  const from = document.getElementById('att-rep-from')?.value||'';
+  const to   = document.getElementById('att-rep-to')?.value||'';
+  const table = document.getElementById('rep-att-table');
+  if(!table){ alert('No data to export'); return; }
+
+  // Build CSV-style TSV that Excel opens natively
+  const rows = [];
+  // Title row
+  rows.push(['Attendance Report','Period: '+from+' to '+to]);
+  rows.push([]);
+
+  // Header rows
+  const headRows = table.querySelectorAll('thead tr');
+  headRows.forEach(tr => {
+    const cells = [];
+    tr.querySelectorAll('th').forEach(th => {
+      const span = +th.getAttribute('colspan')||1;
+      cells.push(th.textContent.trim());
+      for(let i=1;i<span;i++) cells.push('');
+    });
+    rows.push(cells);
+  });
+
+  // Body rows
+  table.querySelectorAll('tbody tr').forEach(tr => {
+    const cells = [];
+    tr.querySelectorAll('td').forEach(td => cells.push(td.textContent.trim()));
+    rows.push(cells);
+  });
+
+  // Convert to CSV
+  const esc = function(c){ return '"' + String(c||'').replace(/"/g,'""') + '"'; };
+  const csv = rows.map(function(r){ return r.map(esc).join(','); }).join('\r\n');
+  const bom = '﻿'; // UTF-8 BOM for Excel
+  const blob = new Blob([bom+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'attendance-'+from+'-to-'+to+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ═══════════════════════════════════════════════════════
