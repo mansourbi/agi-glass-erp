@@ -1326,20 +1326,6 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         </div>
       </div>
     </div>
-    <!-- Workers list view -->
-    <div id="wk-list-view">
-      <div class="card">
-        <div class="ch">
-          <span class="ct">&#9786; Workers</span>
-          <div style="display:flex;gap:6px">
-            <button class="btn bg bsm" onclick="OM('m-chgpass')">&#128274; Change Password</button>
-            <button class="btn bp bsm" onclick="openWorkerProfile(null)">+ Add Worker</button>
-          </div>
-        </div>
-        <div id="worker-list" class="cb"></div>
-      </div>
-    </div>
-
     <!-- VACATION BALANCE -->
     <div id="hrtab-vacation" style="display:none">
       <div class="card">
@@ -1357,6 +1343,25 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <thead><tr><th>Worker</th><th>Hire Date</th><th>Balance (days)</th><th>Accrual Rate/month</th><th>Actions</th></tr></thead>
           <tbody id="vac-bal-body"></tbody>
         </table></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tab: Workers -->
+  <div id="stab-workers" class="stab" style="display:none">
+
+    <!-- Workers list view -->
+    <div id="wk-list-view">
+      <div class="card">
+        <div class="ch">
+          <span class="ct">&#9786; Workers</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn bg bsm" onclick="OM('m-chgpass')">&#128274; Change Password</button>
+            <button class="btn bp bsm" onclick="openWorkerProfile(null)">+ Add Worker</button>
+          </div>
+        </div>
+        <div id="worker-list" class="cb"></div>
       </div>
     </div>
 
