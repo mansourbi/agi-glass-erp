@@ -322,7 +322,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     display:flex;flex-direction:column;break-inside:avoid;overflow:hidden}
   /* Screen label layout: QR on top, info below */
   .lbl-inner{display:flex;flex-direction:column;height:100%}
-  .lbl-qr{display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 4px 3px}
+  .lbl-qr{width:140px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 4px 3px}
   .lbl-sep{height:1px;background:var(--border);margin:0 6px}
   .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
   .lbl-uid{font-family:monospace;font-weight:700;font-size:.6rem;background:#111;color:#fff;
@@ -5434,10 +5434,10 @@ function renderCutLabels(){
         if(cv){
           const img=document.createElement('img');
           img.src=cv.toDataURL('image/png');
-          img.style.cssText='display:block;width:100%;height:auto;max-width:'+size+'px';
+          img.style.cssText='display:block;width:100%;height:100%;object-fit:contain';
           el.innerHTML=''; el.appendChild(img);
         }
-      },200);
+      },300);
     }catch(e){ el.textContent='QR'; }
   }
 
@@ -5581,7 +5581,7 @@ function renderCutLabels(){
               </div>
             </div>`;
           subCards.appendChild(card);
-          setTimeout(()=>renderQR(qid, qrText, 152), 60);
+          setTimeout(()=>renderQR(qid, qrText, 152), 400);
         });
         wrap.appendChild(subCards);
       }
