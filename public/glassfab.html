@@ -323,8 +323,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   /* Screen label layout: QR left, info right (horizontal) */
   .lbl-inner{display:flex;flex-direction:row;height:100%}
   .lbl-qr{width:90px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:4px}
-  .lbl-logo-bar{display:none!important}
-  .lbl-logo-img{display:none!important}
+  .lbl-logo-bar{display:flex;align-items:center;justify-content:center;width:28px;height:28px;flex-shrink:0}
+  .lbl-logo-img{width:28px!important;height:28px!important;max-width:28px!important;max-height:28px!important;object-fit:contain}
   .lbl-qr-wrap{width:82px;height:82px;display:flex;align-items:center;justify-content:center}
   .lbl-sep{width:1px;background:var(--border);margin:4px 0}
   .lbl-info{flex:1;display:flex;flex-direction:column;gap:2px;padding:5px 6px;overflow:hidden;min-width:0}
@@ -357,8 +357,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   /* QR column: 38mm, no gaps/padding */
   body.print-labels .lbl-qr{width:38mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0;margin:0;gap:0;box-sizing:border-box}
   /* Logo — ABOVE QR, transparent, order:0 forces it first visually */
-  body.print-labels .lbl-logo-bar{order:0;width:38mm;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:1mm 0 1.5mm 0;margin:0}
-  body.print-labels .lbl-logo-img{max-height:10mm;max-width:36mm;width:36mm;object-fit:contain;display:block}
+  body.print-labels .lbl-logo-bar{order:0;width:38mm;background:transparent;display:flex!important;align-items:center;justify-content:center;flex-shrink:0;padding:1mm 0 1.5mm 0;margin:0}
+  body.print-labels .lbl-logo-img{width:10mm!important;height:10mm!important;max-width:10mm!important;max-height:10mm!important;object-fit:contain;display:block!important}
   body.print-labels .lbl-logo-txt{font-family:'DM Mono',Courier,monospace;font-size:9pt;font-weight:700;color:#111;letter-spacing:0.5mm}
   /* QR below logo, order:1 forces it after logo */
   body.print-labels .lbl-qr-wrap{order:1;flex:1;width:38mm;display:flex;align-items:center;justify-content:center;padding:0 0 1.5mm 0;margin:0}
@@ -5506,6 +5506,7 @@ function renderCutLabels(){
     card.innerHTML=`
       <div class="lbl-inner">
         <div class="lbl-qr">
+          ${logoBarHtml}
           <div id="${qid}"></div>
         </div>
         <div class="lbl-sep"></div>
@@ -5614,6 +5615,7 @@ function renderCutLabels(){
           card.innerHTML=`
             <div class="lbl-inner">
               <div class="lbl-qr">
+                ${remLogoBarHtml}
                 <div id="${qid}"></div>
               </div>
               <div class="lbl-sep"></div>
