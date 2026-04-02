@@ -120,7 +120,8 @@ const Attendance = {
   log(type,note)    { return POST('/api/attendance',{type,note}); },
   override(id,d)    { return PTCH('/api/attendance/'+id+'/override',d); },
   adminCreate(d)    { return POST('/api/attendance/admin',d); },
-  setDayType(id,t)  { return PTCH('/api/attendance/'+id+'/day-type',{day_type:t}); }
+  setDayType(id,t)  { return PTCH('/api/attendance/'+id+'/day-type',{day_type:t}); },
+  delete(id)        { return DEL('/api/attendance/'+id); }
 };
 
 const HR = {

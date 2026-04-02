@@ -38,9 +38,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .nav-tabs{display:flex;flex:1;overflow-x:auto}
 .nt{height:52px;padding:0 13px;display:flex;align-items:center;gap:5px;
   font-family:'DM Mono',monospace;font-size:.63rem;letter-spacing:1.5px;text-transform:uppercase;
-  cursor:pointer;border:none;background:none;color:var(--mu);
+  cursor:pointer;border:none;background:none;color:var(--tx2);
   border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
-.nt:hover{color:var(--tx2)} .nt.on{color:var(--a);border-bottom-color:var(--a)}
+.nt:hover{color:var(--tx);background:rgba(255,255,255,.04)} .nt.on{color:var(--a);border-bottom-color:var(--a)}
 .nbadge{background:var(--a2);color:#fff;font-size:.55rem;padding:1px 4px;border-radius:6px}
 
 /* PAGES */
@@ -197,6 +197,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:1px solid var(--border2);
   color:var(--mu);background:transparent;transition:all .18s}
 .rtab.on{border-color:var(--a);color:var(--a);background:rgba(0,204,255,.07)}
+.hrb{padding:5px 12px;border-radius:var(--r);font-family:'DM Mono',monospace;font-size:.62rem;
+  letter-spacing:1px;text-transform:uppercase;cursor:pointer;
+  border:1px solid var(--border2);color:var(--tx2);background:transparent;transition:all .18s}
+.hrb:hover{color:var(--tx);border-color:var(--a3)}
+.hrb.on{border-color:var(--a);color:var(--a);background:rgba(0,204,255,.08)}
 .rpanel{display:none} .rpanel.on{display:block}
 
 /* SETTINGS */
@@ -1160,11 +1165,12 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   <div id="stab-hr" class="stab" style="display:none">
     <!-- HR Sub-tabs -->
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-      <button class="btn ba bsm hrb on" id="hrb-attendance" onclick="showHRTab('attendance')">&#9654; Attendance</button>
-      <button class="btn bg bsm hrb" id="hrb-overtime" onclick="showHRTab('overtime')">&#8987; Overtime</button>
-      <button class="btn bg bsm hrb" id="hrb-leave" onclick="showHRTab('leave')">&#9992; Leave</button>
-      <button class="btn bg bsm hrb" id="hrb-payroll" onclick="showHRTab('payroll')">&#9776; Payroll</button>
-      <button class="btn bg bsm hrb" id="hrb-schedule" onclick="showHRTab('schedule')">&#9881; Schedule</button>
+      <button class="hrb on" id="hrb-attendance" onclick="showHRTab('attendance')">&#9654; Attendance</button>
+      <button class="hrb" id="hrb-overtime" onclick="showHRTab('overtime')">&#8987; Overtime</button>
+      <button class="hrb" id="hrb-leave" onclick="showHRTab('leave')">&#9992; Leave</button>
+      <button class="hrb" id="hrb-payroll" onclick="showHRTab('payroll')">&#9776; Payroll</button>
+      <button class="hrb" id="hrb-schedule" onclick="showHRTab('schedule')">&#9881; Schedule</button>
+      <button class="hrb" id="hrb-vacation" onclick="showHRTab('vacation')">&#9956; Vacation</button>
     </div>
 
     <!-- ATTENDANCE -->
@@ -6913,10 +6919,10 @@ async function useRemnantForPiece(rem){
 let hrSchedule = null;
 
 function showHRTab(tab){
-  ['attendance','overtime','leave','payroll','schedule'].forEach(t=>{
+  ['attendance','overtime','leave','payroll','schedule','vacation'].forEach(t=>{
     const el=document.getElementById('hrtab-'+t); if(el) el.style.display=t===tab?'':'none';
     const btn=document.getElementById('hrb-'+t);
-    if(btn){ btn.classList.toggle('on',t===tab); btn.classList.toggle('ba',t===tab); btn.classList.toggle('bg',t!==tab); }
+    if(btn){ btn.classList.toggle('on',t===tab); }
   });
   if(tab==='attendance') renderHRAttendance();
   if(tab==='schedule') loadScheduleTab();

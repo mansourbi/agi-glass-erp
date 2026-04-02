@@ -193,6 +193,16 @@ router.post('/admin', requireAdmin, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Admin: delete attendance record ─────────────────────────────────────
+router.delete('/:id', requireAdmin, (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM attendance WHERE id=?').get(+req.params.id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    db.prepare('DELETE FROM attendance WHERE id=?').run(+req.params.id);
+    res.json({ deleted: true, id: +req.params.id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Legacy support ────────────────────────────────────────────────────────
 router.get('/all', (req, res) => res.redirect('/api/attendance?date='+todayStr()));
 
