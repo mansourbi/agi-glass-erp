@@ -194,10 +194,20 @@ router.patch('/:id/status', (req, res) => {
 router.delete('/:id', (req, res) => {
   try {
     const id = +req.params.id;
+    // Block delete if order is part of any active/done optimization
+    const optFiles = db.prepare("SELECT id, name, status, order_ids FROM opt_files WHERE status IN ('pending','done')").all();
+    const blockedBy = optFiles.find(f => {
+      try { return JSON.parse(f.order_ids||'[]').map(Number).includes(id); } catch(e) { return false; }
+    });
+    if (blockedBy) {
+      return res.status(409).json({
+        error: 'Cannot delete: order is included in optimization "' + blockedBy.name + '" (status: ' + blockedBy.status + '). Remove it from the optimization first.'
+      });
+    }
     // Delete child records first to avoid FK constraint failures
     db.prepare('DELETE FROM order_items WHERE order_id=?').run(id);
-    db.prepare('DELETE FROM labels WHERE order_id=?').run(id);
-    try { db.prepare('DELETE FROM label_scan_log WHERE label_uid IN (SELECT uid FROM labels WHERE order_id=?)').run(id); } catch(e){}
+    try { db.prepare('DELETE FROM label_scan_log WHERE label_uid IN (SELECT uid FROM label_items WHERE order_id=?)').run(id); } catch(e){}
+    try { db.prepare('DELETE FROM label_items WHERE order_id=?').run(id); } catch(e){}
     db.prepare('DELETE FROM orders WHERE id=?').run(id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
