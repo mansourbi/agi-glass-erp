@@ -20,7 +20,7 @@ try {
 } catch(e) {}
 
 // Add columns to existing table if missing
-['punch_in','punch_out','total_mins','date'].forEach(col => {
+['punch_in','punch_out','total_mins','date','day_type'].forEach(col => {
   try { db.prepare(`ALTER TABLE attendance ADD COLUMN ${col} TEXT`).run(); } catch(e) {}
 });
 
@@ -53,9 +53,16 @@ router.post('/punch-in', (req, res) => {
       "SELECT * FROM attendance WHERE worker_id=? AND date=?"
     ).get(req.user.id, today);
     if (existing) return res.status(400).json({ error: 'Already punched in today' });
+    // Auto-detect day type
+    const dayOfWeek = new Date(today).getDay();
+    const schedRow = db.prepare('SELECT weekend_day FROM work_schedule ORDER BY id LIMIT 1').get();
+    const weekendDayName = (schedRow && schedRow.weekend_day) || 'fri';
+    const dayMap = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
+    const dayName = dayMap[dayOfWeek];
+    const auto_day_type = (dayName === weekendDayName) ? 'weekend' : 'normal';
     const r = db.prepare(
-      "INSERT INTO attendance (worker_id,worker_name,date,punch_in,type) VALUES (?,?,?,?,?)"
-    ).run(req.user.id, req.user.name, today, nowStr(), 'sign_in');
+      "INSERT INTO attendance (worker_id,worker_name,date,punch_in,type,day_type) VALUES (?,?,?,?,?,?)"
+    ).run(req.user.id, req.user.name, today, nowStr(), 'sign_in', auto_day_type);
     res.status(201).json(db.prepare('SELECT * FROM attendance WHERE id=?').get(r.lastInsertRowid));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -147,6 +154,17 @@ router.patch('/:id/override', requireAdmin, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Admin: update day type ───────────────────────────────────────────────
+router.patch('/:id/day-type', requireAdmin, (req, res) => {
+  try {
+    const { day_type } = req.body;
+    const allowed = ['normal','weekend','holiday'];
+    if (!allowed.includes(day_type)) return res.status(400).json({ error: 'day_type must be: '+allowed.join(', ') });
+    db.prepare('UPDATE attendance SET day_type=? WHERE id=?').run(day_type, +req.params.id);
+    res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(+req.params.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/admin', requireAdmin, (req, res) => {
   try {
     const { worker_id, date, punch_in, punch_out } = req.body;
@@ -163,8 +181,13 @@ router.post('/admin', requireAdmin, (req, res) => {
         .run(pin, pout, total_mins, existing.id);
       res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(existing.id));
     } else {
-      const r = db.prepare("INSERT INTO attendance (worker_id,worker_name,date,punch_in,punch_out,total_mins,type) VALUES (?,?,?,?,?,?,?)")
-        .run(+worker_id, worker.name, date, pin, pout, total_mins, 'sign_in');
+      const dayOfWeek2 = new Date(date).getDay();
+    const schedRow2 = db.prepare('SELECT weekend_day FROM work_schedule ORDER BY id LIMIT 1').get();
+    const wdn2 = (schedRow2 && schedRow2.weekend_day) || 'fri';
+    const dm2 = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
+    const auto_dt = (dm2[dayOfWeek2] === wdn2) ? 'weekend' : 'normal';
+    const r = db.prepare("INSERT INTO attendance (worker_id,worker_name,date,punch_in,punch_out,total_mins,type,day_type) VALUES (?,?,?,?,?,?,?,?)")
+        .run(+worker_id, worker.name, date, pin, pout, total_mins, 'sign_in', auto_dt);
       res.status(201).json(db.prepare('SELECT * FROM attendance WHERE id=?').get(r.lastInsertRowid));
     }
   } catch(e) { res.status(500).json({ error: e.message }); }

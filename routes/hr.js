@@ -8,17 +8,35 @@ router.use(requireAuth);
 try {
   // Work schedule (global settings)
   db.prepare(`CREATE TABLE IF NOT EXISTS work_schedule (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT DEFAULT 'Default',
-    start_time  TEXT DEFAULT '08:00',
-    end_time    TEXT DEFAULT '16:30',
-    break_mins  INTEGER DEFAULT 30,
-    work_days   TEXT DEFAULT '["mon","tue","wed","thu","fri"]',
-    updated_at  DATETIME DEFAULT (datetime('now','localtime'))
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    name              TEXT DEFAULT 'Default',
+    start_time        TEXT DEFAULT '08:00',
+    end_time          TEXT DEFAULT '16:30',
+    thursday_end_time TEXT DEFAULT '15:00',
+    break_mins        INTEGER DEFAULT 30,
+    work_days         TEXT DEFAULT '["sun","mon","tue","wed","thu"]',
+    weekend_day       TEXT DEFAULT 'fri',
+    vacation_accrual  REAL DEFAULT 1.167,
+    updated_at        DATETIME DEFAULT (datetime('now','localtime'))
   )`).run();
   // Seed default if empty
   const cnt = db.prepare('SELECT COUNT(*) AS c FROM work_schedule').get().c;
-  if (!cnt) db.prepare(`INSERT INTO work_schedule (name) VALUES ('Default')`).run();
+  if (!cnt) db.prepare(`INSERT INTO work_schedule (name,start_time,end_time,thursday_end_time,break_mins,work_days,weekend_day) VALUES ('Default','08:00','16:30','15:00',30,'["sun","mon","tue","wed","thu"]','fri')`).run();
+  // Add new columns if missing
+  ['thursday_end_time','weekend_day','vacation_accrual'].forEach(col => {
+    try { db.prepare(`ALTER TABLE work_schedule ADD COLUMN ${col} TEXT`).run(); } catch(e) {}
+  });
+
+  // Vacation balance per worker
+  db.prepare(`CREATE TABLE IF NOT EXISTS vacation_balance (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    worker_id       INTEGER NOT NULL UNIQUE,
+    worker_name     TEXT NOT NULL,
+    balance_days    REAL DEFAULT 0,
+    accrual_rate    REAL DEFAULT 1.167,
+    last_accrued    TEXT,
+    updated_at      DATETIME DEFAULT (datetime('now','localtime'))
+  )`).run();
 
   // Overtime requests
   db.prepare(`CREATE TABLE IF NOT EXISTS overtime (
@@ -60,6 +78,14 @@ function getSchedule() {
   const s = db.prepare('SELECT * FROM work_schedule ORDER BY id LIMIT 1').get();
   return { ...s, work_days: JSON.parse(s.work_days || '[]') };
 }
+function stdMinsForDate(sched, dateStr) {
+  const day = new Date(dateStr).getDay(); // 0=Sun,4=Thu,5=Fri
+  const weekend = sched.weekend_day || 'fri';
+  const weekendDay = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}[weekend] ?? 5;
+  if (day === weekendDay) return null; // weekend
+  const endTime = (day === 4) ? (sched.thursday_end_time||'15:00') : (sched.end_time||'16:30');
+  return timeDiffMins(sched.start_time, endTime) - (+sched.break_mins||30);
+}
 function nowStr() { return new Date().toISOString().replace('T',' ').slice(0,19); }
 function todayStr() { return new Date().toISOString().slice(0,10); }
 function timeDiffMins(t1, t2) {
@@ -75,9 +101,9 @@ router.get('/schedule', (req, res) => {
 
 router.put('/schedule', requireAdmin, (req, res) => {
   try {
-    const { start_time, end_time, break_mins, work_days } = req.body;
-    db.prepare(`UPDATE work_schedule SET start_time=?,end_time=?,break_mins=?,work_days=?,updated_at=datetime('now','localtime') WHERE id=1`)
-      .run(start_time||'08:00', end_time||'16:30', +break_mins||30, JSON.stringify(work_days||[]));
+    const { start_time, end_time, thursday_end_time, break_mins, work_days, weekend_day, vacation_accrual } = req.body;
+    db.prepare(`UPDATE work_schedule SET start_time=?,end_time=?,thursday_end_time=?,break_mins=?,work_days=?,weekend_day=?,vacation_accrual=?,updated_at=datetime('now','localtime') WHERE id=1`)
+      .run(start_time||'08:00', end_time||'16:30', thursday_end_time||'15:00', +break_mins||30, JSON.stringify(work_days||[]), weekend_day||'fri', +vacation_accrual||1.167);
     res.json(getSchedule());
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -247,6 +273,60 @@ router.get('/payroll', requireAdmin, (req, res) => {
       };
     });
     res.json({ month: m, schedule: sched, workers: results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ VACATION BALANCE ═══════════════════════════════════════════════════════
+router.get('/vacation', requireAdmin, (req, res) => {
+  try {
+    const { worker_id } = req.query;
+    let sql = `SELECT vb.*, w.hire_date FROM vacation_balance vb
+      LEFT JOIN workers w ON w.id=vb.worker_id WHERE 1=1`;
+    const p = [];
+    if (worker_id) { sql += ' AND vb.worker_id=?'; p.push(+worker_id); }
+    sql += ' ORDER BY vb.worker_name';
+    const rows = db.prepare(sql).all(...p);
+    // Also include workers with no balance record
+    const allWorkers = db.prepare("SELECT id,name,hire_date FROM workers WHERE is_active=1").all();
+    const result = allWorkers.map(w => {
+      const b = rows.find(r => r.worker_id === w.id);
+      return b || { worker_id: w.id, worker_name: w.name, balance_days: 0, accrual_rate: 1.167, hire_date: w.hire_date };
+    });
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch('/vacation/:workerId', requireAdmin, (req, res) => {
+  try {
+    const { balance_days, accrual_rate } = req.body;
+    const wid = +req.params.workerId;
+    const worker = db.prepare('SELECT name FROM workers WHERE id=?').get(wid);
+    if (!worker) return res.status(404).json({ error: 'Worker not found' });
+    db.prepare(`INSERT INTO vacation_balance (worker_id,worker_name,balance_days,accrual_rate,updated_at)
+      VALUES (?,?,?,?,datetime('now','localtime'))
+      ON CONFLICT(worker_id) DO UPDATE SET balance_days=excluded.balance_days,
+      accrual_rate=excluded.accrual_rate, updated_at=excluded.updated_at`)
+      .run(wid, worker.name, +balance_days, +accrual_rate||1.167);
+    res.json(db.prepare('SELECT * FROM vacation_balance WHERE worker_id=?').get(wid));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Accrue vacation for all active workers (call monthly)
+router.post('/vacation/accrue', requireAdmin, (req, res) => {
+  try {
+    const sched = getSchedule();
+    const rate = +sched.vacation_accrual || 1.167;
+    const workers = db.prepare("SELECT id,name FROM workers WHERE is_active=1").all();
+    const today = todayStr();
+    workers.forEach(w => {
+      db.prepare(`INSERT INTO vacation_balance (worker_id,worker_name,balance_days,accrual_rate,last_accrued,updated_at)
+        VALUES (?,?,?,?,?,datetime('now','localtime'))
+        ON CONFLICT(worker_id) DO UPDATE SET
+          balance_days=balance_days+(SELECT COALESCE(accrual_rate,?) FROM vacation_balance WHERE worker_id=?),
+          last_accrued=?,updated_at=datetime('now','localtime')`)
+        .run(w.id, w.name, rate, rate, w.id, today);
+    });
+    res.json({ accrued: workers.length, rate, date: today });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

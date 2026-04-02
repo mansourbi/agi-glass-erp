@@ -20,7 +20,8 @@ async function api(path, opts={}){
 const GET  = p     => api(p);
 const POST = (p,b) => api(p,{method:'POST',  body:JSON.stringify(b)});
 const PUT  = (p,b) => api(p,{method:'PUT',   body:JSON.stringify(b)});
-const PTCH = (p,b) => api(p,{method:'PATCH', body:JSON.stringify(b)});
+const PTCH  = (p,b) => api(p,{method:'PATCH', body:JSON.stringify(b)});
+const PATCH = PTCH;
 const DEL  = p     => api(p,{method:'DELETE'});
 
 function setToken(t){ _token=t; if(t) localStorage.setItem(TOK_KEY,t); else localStorage.removeItem(TOK_KEY); }
@@ -50,23 +51,7 @@ const Orders = {
   get(id){ return GET('/api/orders/'+id); },
   create(d){ return POST('/api/orders',d); },
   update(id,d){ return PUT('/api/orders/'+id,d); },
-  setStatus(id,status,opts={}){ return PTCH('/api/orders/'+id+'/status',{status,...opts}); },
-  setCompletedAt(id,completedAt){ return PTCH('/api/orders/'+id+'/completed-at',{completedAt}); },
-  uploadFiles(orderRef, files){
-    const fd = new FormData();
-    files.forEach(f => fd.append('files', f));
-    const headers = {};
-    const tok = localStorage.getItem('agi_token');
-    if(tok) headers['Authorization'] = 'Bearer ' + tok;
-    return fetch('/api/uploads/' + encodeURIComponent(orderRef), {method:'POST', headers, body:fd})
-      .then(r => r.json());
-  },
-  deleteFile(orderRef, filename){
-    return fetch('/api/uploads/'+encodeURIComponent(orderRef)+'/'+encodeURIComponent(filename), {
-      method:'DELETE',
-      headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}
-    }).then(r=>r.json());
-  },
+  setStatus(id,status){ return PTCH('/api/orders/'+id+'/status',{status}); },
   delete(id){ return DEL('/api/orders/'+id); }
 };
 
@@ -127,12 +112,15 @@ const Purchases = {
 };
 
 const Attendance = {
-  list(p={})  { const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/attendance'+(qs?'?'+qs:'')); },
-  today()     { return GET('/api/attendance/today'); },
-  summary(p={}) { const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/attendance/summary'+(qs?'?'+qs:'')); },
-  punchIn()   { return POST('/api/attendance/punch-in',{}); },
-  punchOut()  { return POST('/api/attendance/punch-out',{}); },
-  log(type,note){ return POST('/api/attendance',{type,note}); }
+  list(p={})        { const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/attendance'+(qs?'?'+qs:'')); },
+  today()           { return GET('/api/attendance/today'); },
+  summary(p={})     { const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/attendance/summary'+(qs?'?'+qs:'')); },
+  punchIn()         { return POST('/api/attendance/punch-in',{}); },
+  punchOut()        { return POST('/api/attendance/punch-out',{}); },
+  log(type,note)    { return POST('/api/attendance',{type,note}); },
+  override(id,d)    { return PTCH('/api/attendance/'+id+'/override',d); },
+  adminCreate(d)    { return POST('/api/attendance/admin',d); },
+  setDayType(id,t)  { return PTCH('/api/attendance/'+id+'/day-type',{day_type:t}); }
 };
 
 const HR = {
@@ -147,7 +135,12 @@ const HR = {
     submit(d)  { return POST('/api/hr/leave',d); },
     review(id,status){ return PATCH('/api/hr/leave/'+id,{status}); }
   },
-  payroll(month){ return GET('/api/hr/payroll'+(month?'?month='+month:'')); }
+  payroll(month){ return GET('/api/hr/payroll'+(month?'?month='+month:'')); },
+  vacation: {
+    list(p={}){ const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/hr/vacation'+(qs?'?'+qs:'')); },
+    update(id,d){ return PTCH('/api/hr/vacation/'+id,d); },
+    accrue(){ return POST('/api/hr/vacation/accrue',{}); }
+  }
 };
 
 const Remnants = {

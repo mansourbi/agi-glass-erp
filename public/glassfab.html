@@ -1184,7 +1184,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           </div>
         </div>
         <div class="tw"><table>
-          <thead><tr><th>Date</th><th>Worker</th><th>Punch In</th><th>Punch Out</th><th>Total</th><th>Late</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Worker</th><th>Punch In</th><th>Punch Out</th><th>Total</th><th>Late</th><th>Day Type</th><th>Status</th><th></th></tr></thead>
           <tbody id="hr-att-body"></tbody>
         </table></div>
       </div>
@@ -1260,32 +1260,63 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 
     <!-- SCHEDULE -->
     <div id="hrtab-schedule" style="display:none">
-      <div class="card" style="max-width:480px">
-        <div class="ch"><span class="ct">&#9881; Work Schedule</span></div>
-        <div class="mb" style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="fg"><label class="lbl">Start Time</label><input type="time" id="sched-start" class="inp" value="08:00"></div>
-          <div class="fg"><label class="lbl">End Time</label><input type="time" id="sched-end" class="inp" value="16:30"></div>
-          <div class="fg"><label class="lbl">Break (minutes)</label><input type="number" id="sched-break" class="inp" value="30" min="0" max="120"></div>
-          <div class="fg"><label class="lbl">Work Days</label>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
-              <label style="display:flex;align-items:center;gap:3px;font-size:.72rem;cursor:pointer"><input type="checkbox" class="sched-day" value="mon" checked> Mon</label>
-              <label style="display:flex;align-items:center;gap:3px;font-size:.72rem;cursor:pointer"><input type="checkbox" class="sched-day" value="tue" checked> Tue</label>
-              <label style="display:flex;align-items:center;gap:3px;font-size:.72rem;cursor:pointer"><input type="checkbox" class="sched-day" value="wed" checked> Wed</label>
-              <label style="display:flex;align-items:center;gap:3px;font-size:.72rem;cursor:pointer"><input type="checkbox" class="sched-day" value="thu" checked> Thu</label>
-              <label style="display:flex;align-items:center;gap:3px;font-size:.72rem;cursor:pointer"><input type="checkbox" class="sched-day" value="fri" checked> Fri</label>
-              <label style="display:flex;align-items:center;gap:3px;font-size:.72rem;cursor:pointer"><input type="checkbox" class="sched-day" value="sat"> Sat</label>
-              <label style="display:flex;align-items:center;gap:3px;font-size:.72rem;cursor:pointer"><input type="checkbox" class="sched-day" value="sun"> Sun</label>
+      <div class="card" style="max-width:600px">
+        <div class="ch"><span class="ct">&#9881; Working Hours</span><button class="btn ba bsm" onclick="saveSchedule()">Save Schedule</button></div>
+        <div style="padding:16px;display:grid;gap:16px">
+          <!-- Regular days -->
+          <div>
+            <div style="font-size:.7rem;font-weight:700;color:var(--a);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Regular Days (Sun – Wed)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+              <div class="fg"><label class="lbl">Start Time</label><input type="time" id="sched-start" class="inp" value="08:00"></div>
+              <div class="fg"><label class="lbl">End Time</label><input type="time" id="sched-end" class="inp" value="16:30"></div>
+              <div class="fg"><label class="lbl">Break (mins)</label><input type="number" id="sched-break" class="inp" value="30" min="0" max="120"></div>
+            </div>
+            <div style="font-size:.68rem;color:var(--mu);margin-top:6px">&#10003; Net working day = 8 hours (break excluded from salary)</div>
+          </div>
+          <!-- Thursday -->
+          <div style="border-top:1px solid var(--border);padding-top:14px">
+            <div style="font-size:.7rem;font-weight:700;color:var(--a3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Thursday (shorter day — counts as full day)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="fg"><label class="lbl">Start Time</label><input type="time" id="sched-thu-start" class="inp" value="08:00" disabled style="opacity:.5"></div>
+              <div class="fg"><label class="lbl">End Time</label><input type="time" id="sched-thu-end" class="inp" value="15:00"></div>
+            </div>
+            <div style="font-size:.68rem;color:var(--mu);margin-top:6px">Thursday is shorter but paid as a full 8-hour day</div>
+          </div>
+          <!-- Weekend & Rates -->
+          <div style="border-top:1px solid var(--border);padding-top:14px">
+            <div style="font-size:.7rem;font-weight:700;color:var(--a2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Weekend & Pay Rates</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="fg">
+                <label class="lbl">Weekend Day</label>
+                <select id="sched-weekend" class="inp">
+                  <option value="fri">Friday</option>
+                  <option value="sat">Saturday</option>
+                  <option value="sun">Sunday</option>
+                </select>
+              </div>
+              <div class="fg"><label class="lbl">Vacation Accrual (days/month)</label><input type="number" id="sched-vacation-accrual" class="inp" value="1.167" step="0.001" min="0"></div>
+            </div>
+            <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+              <div style="background:var(--surf);border-radius:var(--r);padding:10px;font-size:.7rem">
+                <div style="color:var(--mu);margin-bottom:2px">Weekend Day Rate</div>
+                <div style="font-size:1rem;font-weight:700;color:var(--a2)">+50%</div>
+                <div style="color:var(--mu);font-size:.62rem">If worker attends on weekend</div>
+              </div>
+              <div style="background:var(--surf);border-radius:var(--r);padding:10px;font-size:.7rem">
+                <div style="color:var(--mu);margin-bottom:2px">Overtime Rate</div>
+                <div style="font-size:1rem;font-weight:700;color:var(--a3)">+25%</div>
+                <div style="color:var(--mu);font-size:.62rem">Extra hours on workdays</div>
+              </div>
+              <div style="background:var(--surf);border-radius:var(--r);padding:10px;font-size:.7rem">
+                <div style="color:var(--mu);margin-bottom:2px">Holiday Rate</div>
+                <div style="font-size:1rem;font-weight:700;color:var(--a4)">+50%</div>
+                <div style="color:var(--mu);font-size:.62rem">Admin-marked holiday attendance</div>
+              </div>
             </div>
           </div>
         </div>
-        <div style="padding:0 16px 16px">
-          <button class="btn ba" onclick="saveSchedule()">Save Schedule</button>
-        </div>
       </div>
     </div>
-  </div>
-
-  <div id="stab-workers" class="stab" style="display:none">
     <!-- Workers list view -->
     <div id="wk-list-view">
       <div class="card">
@@ -1297,6 +1328,26 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           </div>
         </div>
         <div id="worker-list" class="cb"></div>
+      </div>
+    </div>
+
+    <!-- VACATION BALANCE -->
+    <div id="hrtab-vacation" style="display:none">
+      <div class="card">
+        <div class="ch">
+          <span class="ct">&#9956; Vacation Balance</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn bg bsm" onclick="renderVacationBalance()">&#8635; Refresh</button>
+            <button class="btn ba bsm" onclick="accrueVacation()">+ Accrue This Month</button>
+          </div>
+        </div>
+        <div style="font-size:.7rem;color:var(--mu);padding:0 14px 10px">
+          Each worker accrues vacation days monthly. Balance increases automatically. Approve leaves, absences, and day-offs deduct from this balance. Admin can edit any balance.
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>Worker</th><th>Hire Date</th><th>Balance (days)</th><th>Accrual Rate/month</th><th>Actions</th></tr></thead>
+          <tbody id="vac-bal-body"></tbody>
+        </table></div>
       </div>
     </div>
 
@@ -6868,6 +6919,8 @@ function showHRTab(tab){
     if(btn){ btn.classList.toggle('on',t===tab); btn.classList.toggle('ba',t===tab); btn.classList.toggle('bg',t!==tab); }
   });
   if(tab==='attendance') renderHRAttendance();
+  if(tab==='schedule') loadScheduleTab();
+  if(tab==='vacation') renderVacationBalance();
   if(tab==='overtime')   renderHROT();
   if(tab==='leave')      renderHRLeave();
   if(tab==='payroll')    renderHRPayroll();
@@ -6906,6 +6959,8 @@ async function renderHRAttendance(){
     }
     const status=!r.punch_in?'Absent':!r.punch_out?'Working':'Done';
     const statusColor={Absent:'#ff6464',Working:'var(--a3)',Done:'var(--mu)'}[status];
+    const dayType=r.day_type||'normal';
+    const dayTypeColor={normal:'var(--mu)',weekend:'var(--a2)',holiday:'var(--a4)'}[dayType]||'var(--mu)';
     return `<tr>
       <td class="mn">${r.date}</td>
       <td>${r.worker_name}</td>
@@ -6913,8 +6968,9 @@ async function renderHRAttendance(){
       <td class="mn" style="color:var(--a)">${(r.punch_out||'').slice(11,16)||'—'}</td>
       <td class="mn">${totalH}${r.total_mins?' h':''}</td>
       <td class="mn" style="color:${lateColor}">${lateStr}</td>
+      <td class="mn" style="color:${dayTypeColor};text-transform:capitalize">${dayType}</td>
       <td class="mn" style="color:${statusColor}">${status}</td>
-      <td class="mn"><button class="btn bg bsm" onclick="openEditAttModal(${r.id},'${r.date}','${r.worker_id}','${r.worker_name}','${(r.punch_in||'').slice(11,16)}','${(r.punch_out||'').slice(11,16)}')">Edit</button></td>
+      <td class="mn"><button class="btn bg bsm" onclick="openEditAttModal(${r.id},'${r.date}','${r.worker_id}','${r.worker_name}','${(r.punch_in||'').slice(11,16)}','${(r.punch_out||'').slice(11,16)}','${dayType}')">Edit</button></td>
     </tr>`;
   }).join('');
 }
@@ -6932,12 +6988,13 @@ function openAddAttModal(){
   sel.disabled=false;
   document.getElementById('att-modal').style.display='flex';
 }
-function openEditAttModal(id,date,workerId,workerName,pin,pout){
+function openEditAttModal(id,date,workerId,workerName,pin,pout,dayType){
   document.getElementById('att-modal-title').textContent='Edit Attendance — '+workerName;
   document.getElementById('att-modal-date').value=date;
   document.getElementById('att-modal-date').dataset.attId=id;
   document.getElementById('att-modal-in').value=pin||'';
   document.getElementById('att-modal-out').value=pout||'';
+  document.getElementById('att-modal-daytype').value=dayType||'normal';
   // Set worker select and lock it
   const sel=document.getElementById('att-modal-worker');
   sel.innerHTML=`<option value="${workerId}">${workerName}</option>`;
@@ -6952,9 +7009,11 @@ async function saveAttModal(){
   const workerId=document.getElementById('att-modal-worker').value;
   if(!date){ alert('Date required'); return; }
   if(!workerId){ alert('Worker required'); return; }
+  const dayType=document.getElementById('att-modal-daytype').value||'normal';
   try{
     if(attId){
       await AGI.Attendance.override(+attId,{punch_in:pIn?date+' '+pIn:null,punch_out:pOut?date+' '+pOut:null});
+      await AGI.Attendance.setDayType(+attId, dayType);
     } else {
       await AGI.Attendance.adminCreate({worker_id:+workerId,date,punch_in:pIn||null,punch_out:pOut||null});
     }
@@ -6967,6 +7026,74 @@ function clearHRFilters(){
   ['hr-date-from','hr-date-to'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const wf=document.getElementById('hr-worker-filter'); if(wf) wf.value='';
   renderHRAttendance();
+}
+
+async function loadScheduleTab(){
+  try{
+    const s=await AGI.HR.schedule.get();
+    document.getElementById('sched-start').value=s.start_time||'08:00';
+    document.getElementById('sched-end').value=s.end_time||'16:30';
+    document.getElementById('sched-thu-end').value=s.thursday_end_time||'15:00';
+    document.getElementById('sched-break').value=s.break_mins||30;
+    document.getElementById('sched-vacation-accrual').value=s.vacation_accrual||1.167;
+    const wd=document.getElementById('sched-weekend');
+    if(wd) wd.value=s.weekend_day||'fri';
+  }catch(e){ console.warn('schedule load:',e.message); }
+}
+
+async function saveSchedule(){
+  const start=document.getElementById('sched-start').value;
+  const end=document.getElementById('sched-end').value;
+  const thuEnd=document.getElementById('sched-thu-end').value;
+  const brk=+document.getElementById('sched-break').value;
+  const weekend=document.getElementById('sched-weekend').value;
+  const accrual=+document.getElementById('sched-vacation-accrual').value;
+  try{
+    await AGI.HR.schedule.update({
+      start_time:start, end_time:end, thursday_end_time:thuEnd,
+      break_mins:brk, weekend_day:weekend, vacation_accrual:accrual,
+      work_days:['sun','mon','tue','wed','thu']
+    });
+    showToast('Schedule saved ✓');
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+async function renderVacationBalance(){
+  try{
+    const rows=await AGI.HR.vacation.list();
+    const tbody=document.getElementById('vac-bal-body'); if(!tbody) return;
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px">No workers found</td></tr>'; return; }
+    tbody.innerHTML=rows.map(r=>`<tr>
+      <td>${r.worker_name}</td>
+      <td class="mn">${r.hire_date||'—'}</td>
+      <td class="mn" style="color:var(--a);font-weight:700">${(+r.balance_days||0).toFixed(2)} days</td>
+      <td class="mn">${(+r.accrual_rate||1.167).toFixed(3)} days/month</td>
+      <td class="mn" style="display:flex;gap:6px">
+        <input type="number" step="0.01" value="${(+r.balance_days||0).toFixed(2)}" id="vb-bal-${r.worker_id}" class="inp" style="width:80px;padding:3px 6px;font-size:.72rem">
+        <input type="number" step="0.001" value="${(+r.accrual_rate||1.167).toFixed(3)}" id="vb-rate-${r.worker_id}" class="inp" style="width:80px;padding:3px 6px;font-size:.72rem">
+        <button class="btn ba bsm" onclick="saveVacationBalance(${r.worker_id})">Save</button>
+      </td>
+    </tr>`).join('');
+  }catch(e){ console.warn('vacation balance:',e.message); }
+}
+
+async function saveVacationBalance(workerId){
+  const bal=+document.getElementById('vb-bal-'+workerId).value;
+  const rate=+document.getElementById('vb-rate-'+workerId).value;
+  try{
+    await AGI.HR.vacation.update(workerId,{balance_days:bal, accrual_rate:rate});
+    showToast('Vacation balance updated ✓');
+    renderVacationBalance();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+async function accrueVacation(){
+  if(!confirm('Accrue vacation days for all active workers this month?')) return;
+  try{
+    const r=await AGI.HR.vacation.accrue();
+    showToast(`Accrued ${r.rate} days for ${r.accrued} workers ✓`);
+    renderVacationBalance();
+  }catch(e){ alert('Error: '+e.message); }
 }
 
 // ── OVERTIME ─────────────────────────────────────────────────────────────
@@ -8406,6 +8533,13 @@ window.addEventListener('agi:logout', showLoginOverlay);
           <div class="fg"><label class="lbl">Punch Out</label>
             <input type="time" id="att-modal-out" class="inp" style="width:100%">
           </div>
+        </div>
+        <div class="fg"><label class="lbl">Day Type</label>
+          <select id="att-modal-daytype" class="inp" style="width:100%">
+            <option value="normal">Normal</option>
+            <option value="weekend">Weekend</option>
+            <option value="holiday">Holiday</option>
+          </select>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
