@@ -5383,11 +5383,16 @@ function renderCutLabels(){
       const sessionList=labelItems.filter(l=>sessionUids.has(l.uid));
       if(!activeOptId){
         list=sessionList;
-      } else if(list&&!list.length){
+      } else if(!list||!list.length){
         list=sessionList; // fallback if optFileId match failed
       }
     }
     if(!list) list=[];
+    // Last resort: if still empty but we have pieces, match ALL labelItems by uid
+    if(!list.length&&(cutPieces.length||manualPieces.length)){
+      const allUids=new Set([...cutPieces.map(p=>p.uid),...manualPieces.map(p=>p.uid)]);
+      list=labelItems.filter(l=>allUids.has(l.uid));
+    }
   }
   const grid=document.getElementById('cut-lbl-grid'); if(!grid) return;
   if(!list.length){
@@ -5489,7 +5494,15 @@ function renderCutLabels(){
 
   // Machine cut labels — grouped by sheet, with Storage Remnants sub-row
   // Build free-rects map per sheet from last optimization results
-  const snap = window._lastOptResults;
+  // If _lastOptResults is null but we have an active opt file, restore from it
+  let snap = window._lastOptResults;
+  if(!snap && activeOptId){
+    const activeF=optFiles.find(f=>f.id===activeOptId);
+    if(activeF&&activeF.results){
+      snap={...activeF.results, rawSheet:activeF.rawSheet||activeF.raw_sheet_snap||null, date:activeF.date||activeF.createdAt||''};
+      window._lastOptResults=snap;
+    }
+  }
   const freeBySheet = {};
   // rawSheet may come back as a JSON string from the API — parse if needed
   const _rawSheetObj = snap&&snap.rawSheet ? (typeof snap.rawSheet==='string' ? JSON.parse(snap.rawSheet) : snap.rawSheet) : null;
