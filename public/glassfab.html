@@ -922,15 +922,16 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <div class="card">
       <div class="ch">
         <span class="ct">Worker Attendance</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="date" id="att-date-filter" class="inp" style="padding:4px 8px;font-size:.72rem;width:140px">
-          <button class="btn bg bsm" onclick="renderAttendanceReport()">&#8635; Load</button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="date" id="att-rep-from" class="inp" style="padding:4px 8px;font-size:.72rem;width:130px">
+          <span style="color:var(--mu);font-size:.7rem">to</span>
+          <input type="date" id="att-rep-to" class="inp" style="padding:4px 8px;font-size:.72rem;width:130px">
+          <button class="btn ba bsm" onclick="renderAttendanceReport()">&#8635; Load</button>
         </div>
       </div>
-      <div class="tw"><table>
-        <thead><tr><th>Worker</th><th>Sign In</th><th>Sign Out</th><th>Total Hours</th><th>Events</th></tr></thead>
-        <tbody id="rep-att-body"></tbody>
-      </table></div>
+      <div class="tw" id="rep-att-wrap" style="overflow-x:auto">
+        <table id="rep-att-table"><thead id="rep-att-head"></thead><tbody id="rep-att-body"></tbody></table>
+      </div>
     </div>
   </div>
   <div id="rpanel-fp-rep" class="rpanel">
@@ -5986,61 +5987,76 @@ async function renderFpReport(){
 }
 
 async function renderAttendanceReport(){
-  // Set default date to today
-  const dateEl = document.getElementById('att-date-filter');
-  if(dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
-  const date = dateEl ? dateEl.value : new Date().toISOString().slice(0,10);
+  // Default: last 7 days
+  const fromEl = document.getElementById('att-rep-from');
+  const toEl   = document.getElementById('att-rep-to');
+  const today  = new Date().toISOString().slice(0,10);
+  const week   = new Date(Date.now()-6*86400000).toISOString().slice(0,10);
+  if(fromEl && !fromEl.value) fromEl.value = week;
+  if(toEl   && !toEl.value)   toEl.value   = today;
+  const dateFrom = fromEl ? fromEl.value : week;
+  const dateTo   = toEl   ? toEl.value   : today;
 
   let rows = [];
-  try{ rows = await AGI.Attendance.list({date}); }catch(e){ console.warn('att report:',e.message); }
+  try{ rows = await AGI.Attendance.list({date_from:dateFrom, date_to:dateTo}); }
+  catch(e){ console.warn('att report:',e.message); }
 
+  const thead = document.getElementById('rep-att-head');
   const tbody = document.getElementById('rep-att-body');
+
   if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px">No attendance records for this date</td></tr>';
+    thead.innerHTML='<tr><th>Date</th></tr>';
+    tbody.innerHTML='<tr><td style="text-align:center;color:var(--mu);padding:16px">No attendance records for this period</td></tr>';
     return;
   }
 
-  // Group by worker
-  const byWorker = {};
+  // Collect all unique dates and workers (sorted)
+  const dates   = [...new Set(rows.map(r=>r.date))].sort();
+  const workerMap = {};
+  rows.forEach(r=>{ if(!workerMap[r.worker_id]) workerMap[r.worker_id]=r.worker_name; });
+  const workers = Object.entries(workerMap).sort((a,b)=>a[1].localeCompare(b[1]));
+
+  // Build lookup: date -> worker_id -> row
+  const lookup = {};
   rows.forEach(r=>{
-    if(!byWorker[r.worker_id]) byWorker[r.worker_id]={name:r.worker_name,events:[],signIn:null,signOut:null};
-    byWorker[r.worker_id].events.push(r);
-    if(r.type==='sign_in' && !byWorker[r.worker_id].signIn) byWorker[r.worker_id].signIn=r.ts;
-    if(r.type==='sign_out') byWorker[r.worker_id].signOut=r.ts;
+    if(!lookup[r.date]) lookup[r.date]={};
+    lookup[r.date][r.worker_id]=r;
   });
 
-  const typeLabel = {sign_in:'Sign In',sign_out:'Sign Out',leave:'Leave',return:'Return'};
-  const typeColor = {sign_in:'var(--a3)',sign_out:'#ff6464',leave:'var(--a4)',return:'var(--a)'};
+  // Header: Date | Worker1 (In/Out/Total) | Worker2 ...
+  thead.innerHTML = '<tr>' +
+    '<th style="min-width:90px">Date</th>' +
+    workers.map(([wid,name])=>
+      `<th colspan="3" style="text-align:center;border-left:1px solid var(--border2)">${name}</th>`
+    ).join('') +
+    '</tr>' +
+    '<tr>' +
+    '<th></th>' +
+    workers.map(()=>
+      '<th style="border-left:1px solid var(--border2);font-size:.6rem;color:var(--a3)">IN</th>' +
+      '<th style="font-size:.6rem;color:var(--a)">OUT</th>' +
+      '<th style="font-size:.6rem;color:var(--mu)">TOTAL</th>'
+    ).join('') +
+    '</tr>';
 
-  tbody.innerHTML = Object.values(byWorker).map(wk=>{
-    // Calculate total hours: sum of (return-leave) and (signout-signin) pairs
-    let totalMs = 0;
-    let lastIn = wk.signIn ? new Date(wk.signIn) : null;
-    const evts = [...wk.events].sort((a,b)=>a.ts.localeCompare(b.ts));
-    evts.forEach(e=>{
-      if(e.type==='sign_in'||e.type==='return') lastIn = new Date(e.ts);
-      if((e.type==='sign_out'||e.type==='leave') && lastIn){
-        totalMs += new Date(e.ts) - lastIn;
-        lastIn = null;
-      }
-    });
-    // If still signed in, count up to now
-    if(lastIn) totalMs += Date.now() - lastIn;
-    const hrs = Math.floor(totalMs/3600000);
-    const mins = Math.floor((totalMs%3600000)/60000);
-    const totalStr = totalMs>0 ? hrs+'h '+mins+'m' : '—';
-
-    const signInStr = wk.signIn ? new Date(wk.signIn).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '—';
-    const signOutStr = wk.signOut ? new Date(wk.signOut).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '—';
-    const evtBadges = evts.map(e=>`<span style="font-size:.62rem;color:${typeColor[e.type]||'var(--tx)'};margin-right:4px">${typeLabel[e.type]||e.type} ${new Date(e.ts).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>`).join('');
-
-    return `<tr>
-      <td><strong>${wk.name}</strong></td>
-      <td class="mn" style="color:var(--a3)">${signInStr}</td>
-      <td class="mn" style="color:#ff6464">${signOutStr}</td>
-      <td class="mn" style="color:var(--a);font-weight:700">${totalStr}</td>
-      <td style="font-size:.68rem">${evtBadges}</td>
-    </tr>`;
+  // Rows: one per date
+  tbody.innerHTML = dates.map(date=>{
+    const day = new Date(date+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
+    const isWeekend = new Date(date+'T00:00:00').getDay()===5; // Friday
+    const rowStyle = isWeekend ? 'background:rgba(255,180,0,.05)' : '';
+    const cells = workers.map(([wid])=>{
+      const r = lookup[date]?.[wid];
+      if(!r) return '<td style="border-left:1px solid var(--border2);color:var(--mu);text-align:center">—</td><td style="color:var(--mu);text-align:center">—</td><td style="color:var(--mu);text-align:center">—</td>';
+      const pin  = r.punch_in  ? r.punch_in.slice(11,16)  : '—';
+      const pout = r.punch_out ? r.punch_out.slice(11,16) : '—';
+      const tot  = r.total_mins ? (+(r.total_mins/60).toFixed(1))+'h' : (r.punch_in&&!r.punch_out?'<span style="color:var(--a3)">●</span>':'—');
+      const dayType = r.day_type||'normal';
+      const totColor = dayType==='weekend'?'var(--a2)':dayType==='holiday'?'var(--a4)':'var(--tx2)';
+      return `<td style="border-left:1px solid var(--border2);color:var(--a3);text-align:center;font-size:.72rem">${pin}</td>` +
+             `<td style="color:var(--a);text-align:center;font-size:.72rem">${pout}</td>` +
+             `<td style="color:${totColor};text-align:center;font-size:.72rem;font-weight:700">${tot}</td>`;
+    }).join('');
+    return `<tr style="${rowStyle}"><td class="mn" style="white-space:nowrap;color:${isWeekend?'var(--a2)':'var(--tx2)'}">${day}</td>${cells}</tr>`;
   }).join('');
 }
 
