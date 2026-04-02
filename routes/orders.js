@@ -179,80 +179,13 @@ router.put('/:id', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Schema migrations for cancel fields ──────────────────────────────────
-['cancel_reason','cancelled_at','cancelled_by','completed_at','completed_by'].forEach(col => {
-  try { db.prepare(`ALTER TABLE orders ADD COLUMN ${col} TEXT`).run(); } catch(e) {}
-});
-
-// ── Schema: cancel_reasons table ─────────────────────────────────────────
-try {
-  db.prepare(`CREATE TABLE IF NOT EXISTS cancel_reasons (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    label TEXT NOT NULL,
-    sort_order INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`).run();
-  // Seed defaults if empty
-  const cnt = db.prepare('SELECT COUNT(*) as n FROM cancel_reasons').get().n;
-  if(cnt === 0){
-    ['Customer Request','Duplicate Order','Pricing Issue','Material Unavailable','Design Change','Other'].forEach((l,i) => {
-      db.prepare('INSERT INTO cancel_reasons (label,sort_order) VALUES (?,?)').run(l, i);
-    });
-  }
-} catch(e) {}
-
-// GET /api/orders/cancel-reasons
-router.get('/cancel-reasons', (req, res) => {
-  try {
-    res.json(db.prepare('SELECT * FROM cancel_reasons ORDER BY sort_order,id').all());
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// POST /api/orders/cancel-reasons
-router.post('/cancel-reasons', (req, res) => {
-  try {
-    const { label } = req.body;
-    if(!label) return res.status(400).json({ error: 'label required' });
-    const cnt = db.prepare('SELECT COUNT(*) as n FROM cancel_reasons').get().n;
-    const r = db.prepare('INSERT INTO cancel_reasons (label,sort_order) VALUES (?,?)').run(label.trim(), cnt);
-    res.json(db.prepare('SELECT * FROM cancel_reasons WHERE id=?').get(r.lastInsertRowid));
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// PUT /api/orders/cancel-reasons/:id
-router.put('/cancel-reasons/:id', (req, res) => {
-  try {
-    const { label } = req.body;
-    db.prepare('UPDATE cancel_reasons SET label=? WHERE id=?').run(label.trim(), +req.params.id);
-    res.json(db.prepare('SELECT * FROM cancel_reasons WHERE id=?').get(+req.params.id));
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// DELETE /api/orders/cancel-reasons/:id
-router.delete('/cancel-reasons/:id', (req, res) => {
-  try {
-    db.prepare('DELETE FROM cancel_reasons WHERE id=?').run(+req.params.id);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
 // PATCH /api/orders/:id/status
 router.patch('/:id/status', (req, res) => {
   try {
-    const { status, cancel_reason, cancelled_by } = req.body;
-    if (!['pending','cutting','done','cancelled'].includes(status))
+    const { status } = req.body;
+    if (!['pending','cutting','done'].includes(status))
       return res.status(400).json({ error: 'Invalid status' });
-    if (status === 'cancelled') {
-      db.prepare(`UPDATE orders SET status=?,cancel_reason=?,cancelled_at=datetime('now'),cancelled_by=?,updated_at=datetime('now') WHERE id=?`)
-        .run('cancelled', cancel_reason||null, cancelled_by||null, +req.params.id);
-    } else if (status === 'done') {
-      db.prepare(`UPDATE orders SET status='done',completed_at=datetime('now'),completed_by=?,updated_at=datetime('now') WHERE id=?`)
-        .run(cancelled_by||null, +req.params.id);  // reuse cancelled_by param as actor
-    } else {
-      // Restoring to pending/cutting clears cancel fields
-      db.prepare(`UPDATE orders SET status=?,cancel_reason=NULL,cancelled_at=NULL,cancelled_by=NULL,updated_at=datetime('now') WHERE id=?`)
-        .run(status, +req.params.id);
-    }
+    db.prepare(`UPDATE orders SET status=?,updated_at=datetime('now') WHERE id=?`).run(status, +req.params.id);
     res.json({ ok: true, status });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -260,9 +193,53 @@ router.patch('/:id/status', (req, res) => {
 // DELETE /api/orders/:id
 router.delete('/:id', (req, res) => {
   try {
-    db.prepare('DELETE FROM orders WHERE id=?').run(+req.params.id);
+    const id = +req.params.id;
+    // Delete child records first to avoid FK constraint failures
+    db.prepare('DELETE FROM order_items WHERE order_id=?').run(id);
+    db.prepare('DELETE FROM labels WHERE order_id=?').run(id);
+    try { db.prepare('DELETE FROM label_scan_log WHERE label_uid IN (SELECT uid FROM labels WHERE order_id=?)').run(id); } catch(e){}
+    db.prepare('DELETE FROM orders WHERE id=?').run(id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Cancel Reasons CRUD ────────────────────────────────────────────────────
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS cancel_reasons (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    label      TEXT NOT NULL,
+    created_at DATETIME DEFAULT (datetime('now','localtime'))
+  )`).run();
+} catch(e) {}
+
+router.get('/cancel-reasons', (req, res) => {
+  try { res.json(db.prepare('SELECT * FROM cancel_reasons ORDER BY label').all()); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/cancel-reasons', (req, res) => {
+  try {
+    const { label } = req.body;
+    if (!label) return res.status(400).json({ error: 'label required' });
+    const r = db.prepare('INSERT INTO cancel_reasons (label) VALUES (?)').run(label.trim());
+    res.status(201).json(db.prepare('SELECT * FROM cancel_reasons WHERE id=?').get(r.lastInsertRowid));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/cancel-reasons/:id', (req, res) => {
+  try {
+    const { label } = req.body;
+    if (!label) return res.status(400).json({ error: 'label required' });
+    db.prepare('UPDATE cancel_reasons SET label=? WHERE id=?').run(label.trim(), +req.params.id);
+    res.json(db.prepare('SELECT * FROM cancel_reasons WHERE id=?').get(+req.params.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/cancel-reasons/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM cancel_reasons WHERE id=?').run(+req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;
