@@ -7965,7 +7965,7 @@ function printMode(mode){
   let styleEl = document.getElementById('print-page-style');
   if(!styleEl){ styleEl=document.createElement('style'); styleEl.id='print-page-style'; document.head.appendChild(styleEl); }
   if(mode==='labels'){
-    styleEl.textContent = '@page { size: 73mm 48mm; margin: 2mm 2mm 2mm 2mm; }';
+    styleEl.textContent = '@page { size: 100mm 50mm landscape; margin: 0; }';
   } else {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
   }
