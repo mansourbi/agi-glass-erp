@@ -3036,7 +3036,9 @@ function printOrderDetails(){
   const m=getOrderMetrics(o);
   const itemsHtml=(o.items||[]).map(item=>{
     const procs=(item.processes||[]).map(pid=>{const p=PROC_MAP[pid];return p?p.label:pid;}).join(', ');
-    return `<tr><td>${item.code}</td><td>${item.description||'—'}</td><td>${item.w} × ${item.h}</td><td>${item.thickness}mm</td><td>${item.qty}</td><td>${(item.w*item.h*item.qty/1e6).toFixed(3)}</td><td>${procs}</td></tr>`;
+    const uids=(item.pieceUIDs||item.piece_uids||[]);
+    const pieceRef=uids.length ? uids.join(', ') : (item.code||'—');
+    return `<tr><td style="font-family:monospace;font-weight:700">${pieceRef}</td><td>${item.code}</td><td>${item.description||'—'}</td><td>${item.w} × ${item.h}</td><td>${item.thickness}mm</td><td>${item.qty}</td><td>${(item.w*item.h*item.qty/1e6).toFixed(3)}</td><td>${procs}</td></tr>`;
   }).join('');
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>Order ${o.num}</title>
@@ -3057,7 +3059,7 @@ function printOrderDetails(){
     <div class="info-item"><label>Notes</label><span style="font-weight:400">${o.notes||'—'}</span></div>
   </div>
   <div class="totals">Pieces: <strong>${m.pcs}</strong> &nbsp;|&nbsp; SQM: <strong>${m.sqm.toFixed(3)}</strong> &nbsp;|&nbsp; Lin m: <strong>${m.lm.toFixed(1)}</strong> &nbsp;|&nbsp; Thickness: <strong>${m.thicks}</strong></div>
-  <table><thead><tr><th>Code</th><th>Description</th><th>W × H (mm)</th><th>Thick</th><th>Qty</th><th>SQM</th><th>Processes</th></tr></thead>
+  <table><thead><tr><th>Piece Ref</th><th>Code</th><th>Description</th><th>W × H (mm)</th><th>Thick</th><th>Qty</th><th>SQM</th><th>Processes</th></tr></thead>
   <tbody>${itemsHtml}</tbody></table>
   <div style="margin-top:20px;font-size:8pt;color:#999">Printed: ${new Date().toLocaleString()}</div>
   </body></html>`);
