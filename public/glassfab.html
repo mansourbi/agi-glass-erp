@@ -440,6 +440,25 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 @media(max-width:1100px){.cut-ws{grid-template-columns:1fr}}
 @media(max-width:700px){.frow{grid-template-columns:1fr!important}.srow{grid-template-columns:repeat(2,1fr)}}
 </style>
+  <style id="rtl-style" disabled>
+    /* Arabic RTL overrides */
+    body { direction: rtl; font-family: 'Tajawal', 'DM Sans', Arial, sans-serif !important; }
+    .nav { flex-direction: row-reverse; }
+    .nav-brand { margin-right: 0; margin-left: 20px; }
+    .nt { border-bottom: 2px solid transparent; }
+    .card .ch { flex-direction: row-reverse; }
+    .fg label { text-align: right; }
+    table { direction: rtl; }
+    th, td { text-align: right; }
+    .rtabs { flex-direction: row-reverse; }
+    .ph > div { text-align: right; }
+    input, select, textarea { text-align: right; direction: rtl; }
+    #lang-toggle-btn { margin-left: 0; margin-right: auto; }
+    .lbl-info { text-align: right; }
+    .tw { direction: rtl; }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -449,15 +468,16 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <span class="nav-title" style="color:#00ccff;font-family:'Bebas Neue',sans-serif;font-size:1.15rem;letter-spacing:3px">AGI Glass</span>
   </div>
   <div class="nav-tabs">
-    <button class="nt on" onclick="SP('dash')"    id="nt-dash">&#9642; Dashboard</button>
-    <button class="nt"    onclick="SP('crm')"     id="nt-crm">&#9786; Customers</button>
+    <button id="lang-toggle-btn" onclick="toggleLang()" style="margin-left:auto;padding:0 10px;height:32px;border:1px solid var(--border2);border-radius:var(--r);background:transparent;color:var(--tx2);font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:1px;cursor:pointer;transition:all .2s" title="Switch language / تغيير اللغة">AR</button>
+    <button class="nt on" onclick="SP('dash')"    id="nt-dash"><span data-i18n="nav.dashboard">&#9642; Dashboard</span></button>
+    <button class="nt"    onclick="SP('crm')"     id="nt-crm"><span data-i18n="nav.customers">&#9786; Customers</span></button>
     <button class="nt"    onclick="SP('orders')"  id="nt-orders">&#9741; Orders <span class="nbadge" id="nb-ord">0</span></button>
     <button class="nt"    onclick="SP('cutting')" id="nt-cutting">&#9906; Cutting</button>
-    <button class="nt"    onclick="SP('track')"   id="nt-track">&#9654; Tracking</button>
+    <button class="nt"    onclick="SP('track')"   id="nt-track"><span data-i18n="nav.tracking">&#9654; Tracking</span></button>
     
-    <button class="nt"    onclick="SP('reports')" id="nt-reports">&#9636; Reports</button>
-    <button class="nt"    onclick="SP('remnants')" id="nt-remnants">&#9632; Remnants</button>
-    <button class="nt"    onclick="SP('settings')"id="nt-settings">&#9881; Settings</button>
+    <button class="nt"    onclick="SP('reports')" id="nt-reports"><span data-i18n="nav.reports">&#9636; Reports</span></button>
+    <button class="nt"    onclick="SP('remnants')" id="nt-remnants"><span data-i18n="nav.remnants">&#9632; Remnants</span></button>
+    <button class="nt"    onclick="SP('settings')"id="nt-settings"><span data-i18n="nav.settings">&#9881; Settings</span></button>
   </div>
 </nav>
 
@@ -1015,15 +1035,15 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   <div class="ph"><div><div class="pt">Settings</div><div class="ps">Raw Materials, Workers &amp; System</div></div></div>
   <!-- Settings tabs -->
   <div class="rtabs" style="margin-bottom:16px">
-    <button class="rtab on" onclick="showSettingsTab('rawmat')">&#9642; Raw Materials</button>
-    <button class="rtab" onclick="showSettingsTab('hr')">&#9786; HR / Payroll</button>
-    <button class="rtab" onclick="showSettingsTab('workers')">&#9786; Workers</button>
-    <button class="rtab" onclick="showSettingsTab('glassfam')">&#9633; Glass Families</button>
-    <button class="rtab" onclick="showSettingsTab('remslots')">&#9632; Remnant Slots</button>
-    <button class="rtab" onclick="showSettingsTab('fpfields')">&#9776; FP Field Values</button>
-    <button class="rtab" onclick="showSettingsTab('finalprods')">&#11045; Final Products</button>
-    <button class="rtab" onclick="showSettingsTab('system')">&#9881; System</button>
-    <button class="rtab" onclick="showSettingsTab('cancelreasons')">&#10005; Cancel Reasons</button>
+    <button class="rtab on" onclick="showSettingsTab('rawmat')"><span data-i18n="stab.rawmat">&#9642; Raw Materials</span></button>
+    <button class="rtab" onclick="showSettingsTab('hr')"><span data-i18n="stab.hr">&#9786; HR / Payroll</span></button>
+    <button class="rtab" onclick="showSettingsTab('workers')"><span data-i18n="stab.workers">&#9786; Workers</span></button>
+    <button class="rtab" onclick="showSettingsTab('glassfam')"><span data-i18n="stab.glassfam">&#9633; Glass Families</span></button>
+    <button class="rtab" onclick="showSettingsTab('remslots')"><span data-i18n="stab.remslots">&#9632; Remnant Slots</span></button>
+    <button class="rtab" onclick="showSettingsTab('fpfields')"><span data-i18n="stab.fpfields">&#9776; FP Field Values</span></button>
+    <button class="rtab" onclick="showSettingsTab('finalprods')"><span data-i18n="stab.finalprods">&#11045; Final Products</span></button>
+    <button class="rtab" onclick="showSettingsTab('system')"><span data-i18n="stab.system">&#9881; System</span></button>
+    <button class="rtab" onclick="showSettingsTab('cancelreasons')"><span data-i18n="stab.cancelreasons">&#10005; Cancel Reasons</span></button>
   </div>
 
   <!-- Tab: Raw Materials -->
@@ -1168,12 +1188,12 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   <div id="stab-hr" class="stab" style="display:none">
     <!-- HR Sub-tabs -->
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-      <button class="hrb on" id="hrb-attendance" onclick="showHRTab('attendance')">&#9654; Attendance</button>
-      <button class="hrb" id="hrb-overtime" onclick="showHRTab('overtime')">&#8987; Overtime</button>
-      <button class="hrb" id="hrb-leave" onclick="showHRTab('leave')">&#9992; Leave</button>
-      <button class="hrb" id="hrb-payroll" onclick="showHRTab('payroll')">&#9776; Payroll</button>
-      <button class="hrb" id="hrb-schedule" onclick="showHRTab('schedule')">&#9881; Schedule</button>
-      <button class="hrb" id="hrb-vacation" onclick="showHRTab('vacation')">&#9956; Vacation</button>
+      <button class="hrb on" id="hrb-attendance" onclick="showHRTab('attendance')"><span data-i18n="hr.attendance">&#9654; Attendance</span></button>
+      <button class="hrb" id="hrb-overtime" onclick="showHRTab('overtime')"><span data-i18n="hr.overtime">&#8987; Overtime</span></button>
+      <button class="hrb" id="hrb-leave" onclick="showHRTab('leave')"><span data-i18n="hr.leave">&#9992; Leave</span></button>
+      <button class="hrb" id="hrb-payroll" onclick="showHRTab('payroll')"><span data-i18n="hr.payroll">&#9776; Payroll</span></button>
+      <button class="hrb" id="hrb-schedule" onclick="showHRTab('schedule')"><span data-i18n="hr.schedule">&#9881; Schedule</span></button>
+      <button class="hrb" id="hrb-vacation" onclick="showHRTab('vacation')"><span data-i18n="hr.vacation">&#9956; Vacation</span></button>
     </div>
 
     <!-- ATTENDANCE -->
@@ -2138,7 +2158,184 @@ const COLOR_MAP={
 // ═══════════════════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════════════════
-async function SP(id){
+async 
+// ══════════════════════════════════════════════════════════════
+// i18n — Interface Translation System
+// ══════════════════════════════════════════════════════════════
+const LANG = {
+  en: {
+    // Nav
+    'nav.dashboard': '&#9642; Dashboard',
+    'nav.customers': '&#9786; Customers',
+    'nav.orders':    '&#9910; Orders',
+    'nav.cutting':   '&#9913; Cutting',
+    'nav.tracking':  '&#9654; Tracking',
+    'nav.reports':   '&#9636; Reports',
+    'nav.remnants':  '&#9632; Remnants',
+    'nav.settings':  '&#9881; Settings',
+    // Settings tabs
+    'stab.rawmat':       '&#9642; Raw Materials',
+    'stab.hr':           '&#9786; HR / Payroll',
+    'stab.workers':      '&#9786; Workers',
+    'stab.glassfam':     '&#9633; Glass Families',
+    'stab.remslots':     '&#9632; Remnant Slots',
+    'stab.fpfields':     '&#9776; FP Field Values',
+    'stab.finalprods':   '&#11045; Final Products',
+    'stab.system':       '&#9881; System',
+    'stab.cancelreasons':'&#10005; Cancel Reasons',
+    // HR tabs
+    'hr.attendance': '&#9654; Attendance',
+    'hr.overtime':   '&#8987; Overtime',
+    'hr.leave':      '&#9992; Leave',
+    'hr.payroll':    '&#9776; Payroll',
+    'hr.schedule':   '&#9881; Schedule',
+    'hr.vacation':   '&#9956; Vacation',
+  },
+  ar: {
+    // Nav
+    'nav.dashboard': '&#9642; لوحة التحكم',
+    'nav.customers': '&#9786; العملاء',
+    'nav.orders':    '&#9910; الطلبات',
+    'nav.cutting':   '&#9913; القطع',
+    'nav.tracking':  '&#9654; التتبع',
+    'nav.reports':   '&#9636; التقارير',
+    'nav.remnants':  '&#9632; البواقي',
+    'nav.settings':  '&#9881; الإعدادات',
+    // Settings tabs
+    'stab.rawmat':       '&#9642; المواد الخام',
+    'stab.hr':           '&#9786; الموارد البشرية',
+    'stab.workers':      '&#9786; الموظفون',
+    'stab.glassfam':     '&#9633; عائلات الزجاج',
+    'stab.remslots':     '&#9632; خانات البواقي',
+    'stab.fpfields':     '&#9776; قيم الحقول',
+    'stab.finalprods':   '&#11045; المنتجات النهائية',
+    'stab.system':       '&#9881; النظام',
+    'stab.cancelreasons':'&#10005; أسباب الإلغاء',
+    // HR tabs
+    'hr.attendance': '&#9654; الحضور',
+    'hr.overtime':   '&#8987; العمل الإضافي',
+    'hr.leave':      '&#9992; الإجازات',
+    'hr.payroll':    '&#9776; الرواتب',
+    'hr.schedule':   '&#9881; الجدول',
+    'hr.vacation':   '&#9956; رصيد الإجازات',
+    // Pages / section headers
+    'page.dashboard':  'لوحة التحكم',
+    'page.customers':  'العملاء',
+    'page.orders':     'الطلبات',
+    'page.cutting':    'القطع',
+    'page.tracking':   'التتبع',
+    'page.reports':    'التقارير',
+    'page.remnants':   'البواقي',
+    'page.settings':   'الإعدادات',
+    // Common UI
+    'ui.search':     'بحث...',
+    'ui.filter':     'تصفية',
+    'ui.save':       'حفظ',
+    'ui.cancel':     'إلغاء',
+    'ui.delete':     'حذف',
+    'ui.edit':       'تعديل',
+    'ui.add':        'إضافة',
+    'ui.print':      'طباعة',
+    'ui.export':     'تصدير',
+    'ui.load':       'تحميل',
+    'ui.refresh':    'تحديث',
+    'ui.close':      'إغلاق',
+    'ui.back':       'رجوع',
+    'ui.date':       'التاريخ',
+    'ui.worker':     'الموظف',
+    'ui.status':     'الحالة',
+    'ui.total':      'المجموع',
+    'ui.actions':    'إجراءات',
+    'ui.notes':      'ملاحظات',
+    'ui.name':       'الاسم',
+    'ui.type':       'النوع',
+    'ui.color':      'اللون',
+    'ui.thickness':  'السماكة',
+    'ui.customer':   'العميل',
+    'ui.all':        'الكل',
+    'ui.clear':      'مسح',
+    'ui.pending':    'قيد الانتظار',
+    'ui.done':       'منجز',
+    'ui.active':     'نشط',
+    'ui.inactive':   'غير نشط',
+    // Attendance
+    'att.punchIn':   'دخول',
+    'att.punchOut':  'خروج',
+    'att.late':      'تأخر',
+    'att.dayType':   'نوع اليوم',
+    'att.normal':    'عادي',
+    'att.weekend':   'عطلة',
+    'att.holiday':   'إجازة',
+    'att.absent':    'غائب',
+    'att.working':   'يعمل',
+    'att.addRecord': '+ إضافة سجل',
+    // Orders
+    'ord.newOrder':  '+ طلب جديد',
+    'ord.pieces':    'القطع',
+    'ord.sqm':       'متر مربع',
+    // Reports
+    'rep.productivity': 'الإنتاجية',
+    'rep.orders':       'الطلبات',
+    'rep.workers':      'الموظفون',
+    'rep.attendance':   'الحضور',
+    'rep.finalProducts':'المنتجات النهائية',
+  }
+};
+
+let _currentLang = localStorage.getItem('agi_lang') || 'en';
+
+function setLang(lang) {
+  _currentLang = lang;
+  localStorage.setItem('agi_lang', lang);
+  const dict = LANG[lang] || LANG.en;
+  // Swap all data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key]) el.innerHTML = dict[key];
+  });
+  // RTL toggle
+  const rtlStyle = document.getElementById('rtl-style');
+  if (lang === 'ar') {
+    document.documentElement.setAttribute('dir', 'rtl');
+    document.documentElement.setAttribute('lang', 'ar');
+    if (rtlStyle) rtlStyle.removeAttribute('disabled');
+    document.title = 'AGI Glass — نظام إدارة المصنع';
+  } else {
+    document.documentElement.setAttribute('dir', 'ltr');
+    document.documentElement.setAttribute('lang', 'en');
+    if (rtlStyle) rtlStyle.setAttribute('disabled', '');
+    document.title = 'AGI Glass — Factory Management System';
+  }
+  // Update toggle button
+  const btn = document.getElementById('lang-toggle-btn');
+  if (btn) btn.textContent = lang === 'ar' ? 'EN' : 'AR';
+}
+
+function toggleLang() {
+  setLang(_currentLang === 'ar' ? 'en' : 'ar');
+}
+
+// Custom translation editor
+function openLangEditor() {
+  const dict = LANG[_currentLang] || {};
+  const rows = Object.entries(dict).map(([k,v]) =>
+    `<tr><td style="font-family:monospace;font-size:.65rem;color:var(--mu);padding:3px 8px">${k}</td>
+     <td><input type="text" value="${v.replace(/"/g,'&quot;')}" data-key="${k}"
+       class="inp" style="width:100%;padding:3px 6px;font-size:.75rem" oninput="LANG['${_currentLang}'][this.dataset.key]=this.value;setLang('${_currentLang}')"></td></tr>`
+  ).join('');
+  const m = document.getElementById('m-lang-editor');
+  if (m) {
+    m.querySelector('tbody').innerHTML = rows;
+    OM('m-lang-editor');
+  }
+}
+
+// Apply lang on page load
+document.addEventListener('DOMContentLoaded', () => {
+  if (_currentLang === 'ar') setLang('ar');
+});
+
+function SP(id){
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nt').forEach(t=>t.classList.remove('on'));
   document.getElementById('pg-'+id).classList.add('on');
@@ -8691,5 +8888,23 @@ window.addEventListener('agi:logout', showLoginOverlay);
       </div>
     </div>
   </div>
+
+  <!-- Language Editor Modal -->
+  <div id="m-lang-editor" class="modal" style="display:none">
+    <div class="modal-box" style="max-width:600px;width:90%">
+      <div class="mh"><span class="mt">&#127760; Translation Editor</span><button class="mc" onclick="CM('m-lang-editor')">&#10005;</button></div>
+      <div style="padding:14px">
+        <div style="font-size:.72rem;color:var(--mu);margin-bottom:10px">Edit Arabic translations. Changes apply immediately.</div>
+        <div class="tw" style="max-height:400px;overflow-y:auto">
+          <table style="width:100%"><thead><tr><th>Key</th><th>Translation</th></tr></thead>
+          <tbody></tbody></table>
+        </div>
+        <div style="margin-top:12px;display:flex;justify-content:flex-end">
+          <button class="btn ba" onclick="CM('m-lang-editor')">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
