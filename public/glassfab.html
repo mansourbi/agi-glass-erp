@@ -2247,9 +2247,12 @@ document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e
 // ═══════════════════════════════════════════════════════
 async function renderDash(){
   try{
-    [customers, orders] = await Promise.all([AGI.Customers.list(), AGI.Orders.list()]);
-    orders = await Promise.all(orders.map(o=>AGI.Orders.get(o.id)));
-    labelItems = await AGI.Labels.list();
+    [customers, orders, labelItems, scanLog] = await Promise.all([
+      AGI.Customers.list(),
+      AGI.Orders.list().then(list=>Promise.all(list.map(o=>AGI.Orders.get(o.id)))),
+      AGI.Labels.list(),
+      AGI.Labels.scanlog()
+    ]);
   }catch(e){ console.warn('[dash]',e.message); }
   const pend=orders.filter(o=>o.status==='pending').length;
   const cut=orders.filter(o=>o.status==='cutting').length;
@@ -2340,12 +2343,12 @@ function renderOrderMatrix(containerId, compact=false){
     procList.forEach(pid=>{
       if(!ordProcs.includes(pid)){html+=`<td class="mc-na">—</td>`;return}
       if(isCancelled){html+=`<td class="mc-cancel">✕</td>`;return}
-      // Count total pieces for this order+process from labelItems (actual cut pieces)
-      const orderLabels=labelItems.filter(l=>(l.orderId||l.order_id)===o.id&&(l.processes||[]).includes(pid));
-      // Fallback to order items qty if no labels yet
-      const total=orderLabels.length||((o.items||[]).filter(i=>(i.processes||[]).includes(pid)).reduce((a,i)=>a+(+i.qty||0),0));
+      // Total always from order_items — single source of truth, reflects edits immediately
+      const total=(o.items||[]).filter(i=>(i.processes||[]).includes(pid)).reduce((a,i)=>a+(+i.qty||0),0);
       if(total===0){html+=`<td class="mc-na">—</td>`;return}
-      const done=scanLog.filter(s=>(s.orderId===o.id||(s.pieceUid&&orderLabels.some(l=>l.uid===s.pieceUid)))&&s.process===pid&&s.action==='done').length;
+      // Done count from scanLog matched against piece UIDs for this order+process
+      const orderPieceUids=new Set((o.items||[]).filter(i=>(i.processes||[]).includes(pid)).flatMap(i=>i.pieceUIDs||i.piece_uids||[]));
+      const done=scanLog.filter(s=>orderPieceUids.has(s.pieceUid)&&s.process===pid&&s.action==='done').length;
       if(done>=total) html+=`<td class="mc-done">✓ ${done}/${total}</td>`;
       else            html+=`<td class="mc-pend">${done}/${total}</td>`;
     });
@@ -3142,7 +3145,9 @@ async function saveOrder(){
     order_type, type_reason_id, original_order_id, responsible_worker_id, remake_notes};
   try{
     await apiSaveOrder(orderData, _editOid||null);
-    CM('m-order'); renderOrders(); badges();
+    CM('m-order');
+    try{ scanLog = await AGI.Labels.scanlog(); }catch(e){}
+    renderOrders(); badges();
     showToast(_editOid?'Order updated':'Order created');
   }catch(e){ alert('Error saving order: '+e.message); }
 }
