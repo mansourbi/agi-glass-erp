@@ -52,7 +52,13 @@ const Orders = {
   create(d){ return POST('/api/orders',d); },
   update(id,d){ return PUT('/api/orders/'+id,d); },
   setStatus(id,status){ return PTCH('/api/orders/'+id+'/status',{status}); },
-  delete(id){ return DEL('/api/orders/'+id); }
+  delete(id){ return DEL('/api/orders/'+id); },
+  typeReasons: {
+    list(order_type){ return GET('/api/orders/type-reasons'+(order_type?'?order_type='+order_type:'')); },
+    create(d){ return POST('/api/orders/type-reasons',d); },
+    update(id,d){ return PUT('/api/orders/type-reasons/'+id,d); },
+    delete(id){ return DEL('/api/orders/type-reasons/'+id); }
+  }
 };
 
 const Workers = {
