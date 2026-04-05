@@ -176,16 +176,41 @@ router.post('/', (req, res) => {
     if (typeErr) return res.status(400).json({ error: typeErr });
     const customer = db.prepare('SELECT * FROM customers WHERE id=?').get(+customerId);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    if (original_order_id) {
-      const orig = db.prepare('SELECT id FROM orders WHERE id=?').get(+original_order_id);
+    // ── Auto-numbering by order type ──────────────────────────────────────
+    const TYPE_SUFFIX = { remake_agi:'RA', remake_cust:'RC', sample:'SA', warranty:'WA' };
+    const suffix = TYPE_SUFFIX[order_type] || null;
+    let orderNum;
+
+    if (REMAKE_TYPES.includes(order_type)) {
+      // Remake: derive from original order number
+      // REF-1 -> REF-1-RA, REF-1-RA2, REF-1-RA3...
+      const orig = db.prepare('SELECT id,num FROM orders WHERE id=?').get(+original_order_id);
       if (!orig) return res.status(400).json({ error: 'Original order not found' });
+      const base = orig.num + '-' + suffix;
+      if (!db.prepare('SELECT id FROM orders WHERE num=?').get(base)) {
+        orderNum = base;
+      } else {
+        let n = 2;
+        while (db.prepare('SELECT id FROM orders WHERE num=?').get(base + n)) n++;
+        orderNum = base + n;
+      }
+    } else if (suffix) {
+      // Sample / Warranty: REF-SA-1, REF-SA-2... REF-WA-1...
+      const existing = db.prepare("SELECT num FROM orders WHERE customer_id=? AND order_type=?").all(+customerId, order_type);
+      let maxN = 0;
+      existing.forEach(r => { const n=parseInt(r.num.split('-').pop()); if(!isNaN(n)&&n>maxN) maxN=n; });
+      let nextN = maxN + 1;
+      orderNum = customer.code + '-' + suffix + '-' + nextN;
+      while (db.prepare('SELECT id FROM orders WHERE num=?').get(orderNum)) { nextN++; orderNum = customer.code+'-'+suffix+'-'+nextN; }
+    } else {
+      // Normal: REF-1, REF-2...
+      const existing = db.prepare("SELECT num FROM orders WHERE customer_id=? AND (order_type='normal' OR order_type IS NULL)").all(+customerId);
+      let maxN = 0;
+      existing.forEach(r => { const n=parseInt(r.num.split('-').pop()); if(!isNaN(n)&&n>maxN) maxN=n; });
+      let nextN = maxN + 1;
+      orderNum = customer.code + '-' + nextN;
+      while (db.prepare('SELECT id FROM orders WHERE num=?').get(orderNum)) { nextN++; orderNum=customer.code+'-'+nextN; }
     }
-    const existing = db.prepare("SELECT num FROM orders WHERE customer_id=? ORDER BY id DESC").all(+customerId);
-    let maxN = 0;
-    existing.forEach(r => { const n=parseInt(r.num.split('-').pop()); if(!isNaN(n)&&n>maxN) maxN=n; });
-    let nextN = maxN+1;
-    let orderNum = customer.code+'-'+nextN;
-    while (db.prepare('SELECT id FROM orders WHERE num=?').get(orderNum)) { nextN++; orderNum=customer.code+'-'+nextN; }
 
     const orderId = db.transaction(() => {
       const r = db.prepare(`

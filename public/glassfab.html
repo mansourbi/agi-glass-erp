@@ -2488,22 +2488,39 @@ async function renderCust(){
 // ═══════════════════════════════════════════════════════
 let _editOid=null, _oic=0;
 
-function getNextOrderNum(customerId){
+const FRONTEND_TYPE_SUFFIX = { remake_agi:'RA', remake_cust:'RC', sample:'SA', warranty:'WA' };
+
+function getNextOrderNum(customerId, orderType, originalOrderNum){
   const cust=customers.find(x=>x.id===customerId);
-  if(!cust) return 'ORD-'+String(_oid).padStart(4,'0');
-  // Find highest existing number for this customer to avoid duplicates
-  const custOrders=orders.filter(o=>o.customerId===customerId&&o.id!==_editOid);
-  let maxN=0;
-  custOrders.forEach(o=>{
-    const parts=(o.num||'').split('-');
-    const n=parseInt(parts[parts.length-1]);
-    if(!isNaN(n)&&n>maxN) maxN=n;
-  });
-  let nextN=maxN+1;
-  let num=cust.code+'-'+nextN;
-  // Skip any that already exist
-  while(orders.some(o=>o.num===num&&o.id!==_editOid)){nextN++;num=cust.code+'-'+nextN;}
-  return num;
+  if(!cust) return 'ORD-?';
+  const suffix = FRONTEND_TYPE_SUFFIX[orderType] || null;
+
+  if((orderType==='remake_agi'||orderType==='remake_cust') && originalOrderNum){
+    // Derive from original: REF-1-RA, REF-1-RA2, REF-1-RA3...
+    const base = originalOrderNum + '-' + suffix;
+    if(!orders.some(o=>o.num===base&&o.id!==_editOid)) return base;
+    let n=2;
+    while(orders.some(o=>o.num===(base+n)&&o.id!==_editOid)) n++;
+    return base+n;
+  } else if(suffix) {
+    // Sample/Warranty: REF-SA-1, REF-WA-1...
+    const typed=orders.filter(o=>o.customerId===customerId&&(o.order_type||o.orderType)===orderType&&o.id!==_editOid);
+    let maxN=0;
+    typed.forEach(o=>{ const n=parseInt((o.num||'').split('-').pop()); if(!isNaN(n)&&n>maxN) maxN=n; });
+    let nextN=maxN+1;
+    let num=cust.code+'-'+suffix+'-'+nextN;
+    while(orders.some(o=>o.num===num&&o.id!==_editOid)){nextN++;num=cust.code+'-'+suffix+'-'+nextN;}
+    return num;
+  } else {
+    // Normal: REF-1, REF-2... (only count normal orders)
+    const normalOrders=orders.filter(o=>o.customerId===customerId&&(!o.order_type||o.order_type==='normal')&&o.id!==_editOid);
+    let maxN=0;
+    normalOrders.forEach(o=>{ const n=parseInt((o.num||'').split('-').pop()); if(!isNaN(n)&&n>maxN) maxN=n; });
+    let nextN=maxN+1;
+    let num=cust.code+'-'+nextN;
+    while(orders.some(o=>o.num===num&&o.id!==_editOid)){nextN++;num=cust.code+'-'+nextN;}
+    return num;
+  }
 }
 
 function refreshPieceCodes(){
@@ -2528,7 +2545,9 @@ function refreshPieceCodes(){
 
 function onCustChange(val){
   if(!val){document.getElementById('o-ref').value='';refreshPieceCodes();return}
-  const num=getNextOrderNum(parseInt(val));
+  const type = document.getElementById('o-order-type')?.value || 'normal';
+  const origNum = document.getElementById('o-original-order-num')?.value?.trim() || null;
+  const num=getNextOrderNum(parseInt(val), type, origNum);
   document.getElementById('o-ref').value=num;
   refreshPieceCodes();
 }
@@ -3013,6 +3032,15 @@ function onOrderTypeChange() {
     reasonSel.innerHTML = '<option value="">Select reason...</option>' +
       filtered.map(r => `<option value="${r.id}">${r.label}</option>`).join('');
   }
+
+  // Refresh order number preview
+  const custId = parseInt(document.getElementById('o-cust')?.value);
+  if (custId) {
+    const origNum = document.getElementById('o-original-order-num')?.value?.trim() || null;
+    const num = getNextOrderNum(custId, type, origNum);
+    document.getElementById('o-ref').value = num;
+    refreshPieceCodes();
+  }
 }
 
 async function searchOriginalOrder(val) {
@@ -3025,22 +3053,22 @@ async function searchOriginalOrder(val) {
   }
   // Search in already-loaded orders first
   const match = orders.find(o => o.num && o.num.toLowerCase() === val.toLowerCase().trim());
-  if (match) {
-    resultEl.innerHTML = `&#10003; Found: <strong>${match.num}</strong> — ${match.customer_name||''} (${match.date||''})`;
+  const found = match || orders.find(o => o.num && o.num.toLowerCase().startsWith(val.toLowerCase().trim()));
+  if (found) {
+    resultEl.innerHTML = `&#10003; Found: <strong>${found.num}</strong> — ${found.customer_name||''} (${found.date||''})`;
     resultEl.style.color = 'var(--a3)';
-    hiddenId.value = match.id;
+    hiddenId.value = found.id;
   } else {
-    // Try partial match
-    const partial = orders.find(o => o.num && o.num.toLowerCase().startsWith(val.toLowerCase().trim()));
-    if (partial) {
-      resultEl.innerHTML = `&#10003; Found: <strong>${partial.num}</strong> — ${partial.customer_name||''} (${partial.date||''})`;
-      resultEl.style.color = 'var(--a3)';
-      hiddenId.value = partial.id;
-    } else {
-      resultEl.innerHTML = '&#10005; Order not found';
-      resultEl.style.color = 'var(--a2)';
-      hiddenId.value = '';
-    }
+    resultEl.innerHTML = '&#10005; Order not found';
+    resultEl.style.color = 'var(--a2)';
+    hiddenId.value = '';
+  }
+  // Refresh order number preview
+  const custId = parseInt(document.getElementById('o-cust')?.value);
+  const type = document.getElementById('o-order-type')?.value || 'normal';
+  if (custId && found) {
+    document.getElementById('o-ref').value = getNextOrderNum(custId, type, found.num);
+    refreshPieceCodes();
   }
 }
 
