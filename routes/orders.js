@@ -95,6 +95,46 @@ router.get('/', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Cancel Reasons CRUD ────────────────────────────────────────────────────
+try { db.prepare(`CREATE TABLE IF NOT EXISTS cancel_reasons (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, created_at DATETIME DEFAULT (datetime('now','localtime')))`).run(); } catch(e){}
+router.get('/cancel-reasons',    (req,res)=>{try{res.json(db.prepare('SELECT * FROM cancel_reasons ORDER BY label').all());}catch(e){res.status(500).json({error:e.message});}});
+router.post('/cancel-reasons',   (req,res)=>{try{const{label}=req.body;if(!label)return res.status(400).json({error:'label required'});const r=db.prepare('INSERT INTO cancel_reasons (label) VALUES (?)').run(label.trim());res.status(201).json(db.prepare('SELECT * FROM cancel_reasons WHERE id=?').get(r.lastInsertRowid));}catch(e){res.status(500).json({error:e.message});}});
+router.put('/cancel-reasons/:id',(req,res)=>{try{const{label}=req.body;if(!label)return res.status(400).json({error:'label required'});db.prepare('UPDATE cancel_reasons SET label=? WHERE id=?').run(label.trim(),+req.params.id);res.json(db.prepare('SELECT * FROM cancel_reasons WHERE id=?').get(+req.params.id));}catch(e){res.status(500).json({error:e.message});}});
+router.delete('/cancel-reasons/:id',(req,res)=>{try{db.prepare('DELETE FROM cancel_reasons WHERE id=?').run(+req.params.id);res.json({ok:true});}catch(e){res.status(500).json({error:e.message});}});
+
+// ── Order Type Reasons CRUD ────────────────────────────────────────────────
+router.get('/type-reasons', (req,res)=>{
+  try{
+    const{order_type}=req.query;
+    let sql='SELECT * FROM order_type_reasons WHERE active=1';
+    const params=[];
+    if(order_type){sql+=' AND order_type=?';params.push(order_type);}
+    sql+=' ORDER BY order_type,sort_order,label';
+    res.json(db.prepare(sql).all(...params));
+  }catch(e){res.status(500).json({error:e.message});}
+});
+router.post('/type-reasons',(req,res)=>{
+  try{
+    const{order_type,label,sort_order}=req.body;
+    if(!order_type||!label) return res.status(400).json({error:'order_type and label required'});
+    if(!ORDER_TYPES.includes(order_type)||order_type==='normal') return res.status(400).json({error:'Invalid order_type'});
+    const r=db.prepare('INSERT INTO order_type_reasons (order_type,label,sort_order) VALUES (?,?,?)').run(order_type,label.trim(),+sort_order||0);
+    res.status(201).json(db.prepare('SELECT * FROM order_type_reasons WHERE id=?').get(r.lastInsertRowid));
+  }catch(e){res.status(500).json({error:e.message});}
+});
+router.put('/type-reasons/:id',(req,res)=>{
+  try{
+    const{label,sort_order,active}=req.body;
+    if(!label) return res.status(400).json({error:'label required'});
+    db.prepare('UPDATE order_type_reasons SET label=?,sort_order=?,active=? WHERE id=?').run(label.trim(),+sort_order||0,active===false?0:1,+req.params.id);
+    res.json(db.prepare('SELECT * FROM order_type_reasons WHERE id=?').get(+req.params.id));
+  }catch(e){res.status(500).json({error:e.message});}
+});
+router.delete('/type-reasons/:id',(req,res)=>{
+  try{db.prepare('DELETE FROM order_type_reasons WHERE id=?').run(+req.params.id);res.json({ok:true});}
+  catch(e){res.status(500).json({error:e.message});}
+});
+
 // ── GET /api/orders/:id ────────────────────────────────────────────────────
 router.get('/:id', (req, res) => {
   try {
@@ -248,46 +288,6 @@ router.delete('/:id', (req, res) => {
     db.prepare('DELETE FROM orders WHERE id=?').run(id);
     res.json({ ok:true });
   } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ── Cancel Reasons CRUD ────────────────────────────────────────────────────
-try { db.prepare(`CREATE TABLE IF NOT EXISTS cancel_reasons (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, created_at DATETIME DEFAULT (datetime('now','localtime')))`).run(); } catch(e){}
-router.get('/cancel-reasons',    (req,res)=>{try{res.json(db.prepare('SELECT * FROM cancel_reasons ORDER BY label').all());}catch(e){res.status(500).json({error:e.message});}});
-router.post('/cancel-reasons',   (req,res)=>{try{const{label}=req.body;if(!label)return res.status(400).json({error:'label required'});const r=db.prepare('INSERT INTO cancel_reasons (label) VALUES (?)').run(label.trim());res.status(201).json(db.prepare('SELECT * FROM cancel_reasons WHERE id=?').get(r.lastInsertRowid));}catch(e){res.status(500).json({error:e.message});}});
-router.put('/cancel-reasons/:id',(req,res)=>{try{const{label}=req.body;if(!label)return res.status(400).json({error:'label required'});db.prepare('UPDATE cancel_reasons SET label=? WHERE id=?').run(label.trim(),+req.params.id);res.json(db.prepare('SELECT * FROM cancel_reasons WHERE id=?').get(+req.params.id));}catch(e){res.status(500).json({error:e.message});}});
-router.delete('/cancel-reasons/:id',(req,res)=>{try{db.prepare('DELETE FROM cancel_reasons WHERE id=?').run(+req.params.id);res.json({ok:true});}catch(e){res.status(500).json({error:e.message});}});
-
-// ── Order Type Reasons CRUD ────────────────────────────────────────────────
-router.get('/type-reasons', (req,res)=>{
-  try{
-    const{order_type}=req.query;
-    let sql='SELECT * FROM order_type_reasons WHERE active=1';
-    const params=[];
-    if(order_type){sql+=' AND order_type=?';params.push(order_type);}
-    sql+=' ORDER BY order_type,sort_order,label';
-    res.json(db.prepare(sql).all(...params));
-  }catch(e){res.status(500).json({error:e.message});}
-});
-router.post('/type-reasons',(req,res)=>{
-  try{
-    const{order_type,label,sort_order}=req.body;
-    if(!order_type||!label) return res.status(400).json({error:'order_type and label required'});
-    if(!ORDER_TYPES.includes(order_type)||order_type==='normal') return res.status(400).json({error:'Invalid order_type'});
-    const r=db.prepare('INSERT INTO order_type_reasons (order_type,label,sort_order) VALUES (?,?,?)').run(order_type,label.trim(),+sort_order||0);
-    res.status(201).json(db.prepare('SELECT * FROM order_type_reasons WHERE id=?').get(r.lastInsertRowid));
-  }catch(e){res.status(500).json({error:e.message});}
-});
-router.put('/type-reasons/:id',(req,res)=>{
-  try{
-    const{label,sort_order,active}=req.body;
-    if(!label) return res.status(400).json({error:'label required'});
-    db.prepare('UPDATE order_type_reasons SET label=?,sort_order=?,active=? WHERE id=?').run(label.trim(),+sort_order||0,active===false?0:1,+req.params.id);
-    res.json(db.prepare('SELECT * FROM order_type_reasons WHERE id=?').get(+req.params.id));
-  }catch(e){res.status(500).json({error:e.message});}
-});
-router.delete('/type-reasons/:id',(req,res)=>{
-  try{db.prepare('DELETE FROM order_type_reasons WHERE id=?').run(+req.params.id);res.json({ok:true});}
-  catch(e){res.status(500).json({error:e.message});}
 });
 
 module.exports = router;
