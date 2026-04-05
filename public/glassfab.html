@@ -2217,8 +2217,7 @@ const COLOR_MAP={
 // ═══════════════════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════════════════
-async 
-function SP(id){
+async function SP(id){
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nt').forEach(t=>t.classList.remove('on'));
   document.getElementById('pg-'+id).classList.add('on');
@@ -2332,7 +2331,7 @@ function renderOrderMatrix(containerId, compact=false){
       <td class="mn" style="color:var(--a);cursor:pointer" onclick="showOrderDetail(${o.id})">${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}${o.extref?`<div style="font-size:.6rem;color:var(--mu)">${o.extref}</div>`:''}</td>
       <td style="font-size:.72rem">${(cMap[o.customerId]||{}).name||'?'}</td>
       <td><span class="bge" style="background:${isDone?'rgba(54,255,138,.15)':isCancelled?'rgba(255,90,90,.15)':'rgba(0,204,255,.1)'};color:${isDone?'var(--a3)':isCancelled?'var(--a2)':'var(--a)'};font-size:.6rem;padding:2px 6px;border-radius:3px">${isDone?'Done':isCancelled?'Cancelled':o.status==='cutting'?'Cutting':'Pending'}</span></td>
-      <td style="white-space:nowrap">${(()=>{const m=ORDER_TYPE_META[o.order_type||o.orderType||'normal'];return m&&m.badge?`<span class="ot-badge ${m.cls}">${m.badge}</span>`:'<span style="font-size:.6rem;color:var(--mu)">Normal</span>';})()}</td>\`;
+      <td style="white-space:nowrap">${(()=>{const m=ORDER_TYPE_META[o.order_type||o.orderType||'normal'];return m&&m.badge?`<span class="ot-badge ${m.cls}">${m.badge}</span>`:'<span style="font-size:.6rem;color:var(--mu)">Normal</span>';})()}</td>`;
     if(!compact){
       const compAt=o.completedAt||o.cancelledAt||'';
       const compBy=o.completedBy||o.cancelledBy||'';
