@@ -5851,8 +5851,49 @@ function renderCutLabels(){
 
   // Build URL that phones can open when scanning
   function buildPieceUrl(uid){
-    const lanHost = '192.168.1.15:3444';
-    return 'https://'+lanHost+'/piece/'+encodeURIComponent(uid);
+    // Encode piece data as plain text so:
+    //   - Outside LAN: any QR reader shows the text directly (no server needed)
+    //   - Inside factory: worker app extracts "PIECE ID: xxx" and does live API lookup
+    const item    = (typeof labelItems !== 'undefined' ? labelItems : []).find(l=>l.uid===uid) || {};
+    const orderId = item.orderId || item.order_id;
+    const order   = (typeof orders !== 'undefined' && orderId) ? orders.find(o=>o.id===orderId) || {} : {};
+
+    // Processes — labels only, no cut type
+    const procs   = Array.isArray(item.processes) ? item.processes : [];
+    const PROC_LABELS = {
+      cutting:'Cutting', arrising:'Arrising', flatpolish:'Flat Polish',
+      roundpolish:'Round Polish', bevel:'Bevelling', drilling:'Drilling',
+      tempering:'Tempering', laminating:'Laminating', paint:'Paint',
+      sandblasting:'Sand Blasting', poly:'Poly', igu:'IGU'
+    };
+    const procStr = procs.map(p=>PROC_LABELS[p]||p).join(', ');
+
+    const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : '';
+    const cut_w = item.cutW || item.cut_w || item.w || '';
+    const cut_h = item.cutH || item.cut_h || item.h || '';
+    const hasComp = (cut_w && cut_w != item.w) || (cut_h && cut_h != item.h);
+
+    let t = '';
+    t += 'PIECE ID: '  + uid + '\n';
+    t += 'Order    : '  + (order.num || item.orderNum || item.order_num || '') + '\n';
+    if (order.extref)
+      t += 'Reference: ' + order.extref + '\n';
+    if (order.date || item.date)
+      t += 'Date     : '  + (order.date || item.date || '') + '\n';
+    t += '---\n';
+    t += 'Size     : '  + (item.w||'') + ' x ' + (item.h||'') + ' mm\n';
+    if (hasComp)
+      t += 'Cut Size : '  + cut_w + ' x ' + cut_h + ' mm\n';
+    t += 'Thickness: '  + (item.thickness||'') + ' mm\n';
+    t += 'Glass    : '  + cap(item.glassType||item.glass_type||'') + (item.color ? ' / ' + cap(item.color) : '') + '\n';
+    if (item.bevelMM || item.bevel_mm)
+      t += 'Bevel    : '  + (item.bevelMM||item.bevel_mm) + ' mm\n';
+    if (procStr)
+      t += 'Processes: '  + procStr + '\n';
+    if (order.notes)
+      t += '---\nNotes    : ' + order.notes + '\n';
+    t += 'AGI GLASS FACTORY';
+    return t;
   }
 
   // Logo overlay removed — logo shown below QR code instead
@@ -5870,14 +5911,18 @@ function renderCutLabels(){
     ctx.fillText('AGI',x+ls/2,y+ls/2);
   }
 
-  function renderQR(containerId, text, size){
-    const el=document.getElementById(containerId); if(!el) return;
+  function renderQR(containerIdOrEl, text, size){
+    // Accept either an element id string or a direct DOM element
+    const el = (typeof containerIdOrEl === 'string')
+      ? document.getElementById(containerIdOrEl)
+      : containerIdOrEl;
+    if(!el) return;
     el.innerHTML='';
-    const uidMatch=text.match(/(?:ID|Piece ID|Remnant ID):\s*([^\s|]+)/i)||text.match(/^([A-Z0-9-]+)/);
-    const uid=uidMatch?uidMatch[1].trim():'';
-    const qrText=uid?buildPieceUrl(uid):text;
+    // If bare UID passed (e.g. remnant), build text block; otherwise use text as-is
+    const isBareUid = /^[A-Z0-9][A-Z0-9-]+$/.test((text||'').trim()) && !text.includes(':') && !text.includes('\n');
+    const qrText = isBareUid ? buildPieceUrl(text.trim()) : text;
     try{
-      new QRCode(el,{text:qrText,width:size,height:size,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});
+      new QRCode(el,{text:qrText,width:size,height:size,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
       setTimeout(()=>{
         const cv=el.querySelector('canvas');
         if(cv){
@@ -5887,7 +5932,7 @@ function renderCutLabels(){
           el.innerHTML=''; el.appendChild(img);
         }
       },300);
-    }catch(e){ el.textContent='QR'; }
+    }catch(e){ console.warn('QR error:',e.message,text.slice(0,40)); el.textContent=''; }
   }
 
   function makeLabel(item, returnCard=false){
@@ -5897,14 +5942,25 @@ function renderCutLabels(){
     const procNames=(item.processes||[]).map(pid=>{const p=PROC_MAP[pid];return p?p.label:pid}).filter(Boolean);
     const typeStr=(item.glassType||'glass').charAt(0).toUpperCase()+(item.glassType||'glass').slice(1);
     const colorStr=(item.color||'clear').charAt(0).toUpperCase()+(item.color||'clear').slice(1);
-    const qrPayload={
-      'ID':item.uid,
-      'Size':item.w+'x'+item.h+' mm','Thickness':item.thickness+'mm',
-      'Type':typeStr,'Color':colorStr,
-      'Processes':procNames.join(', '),
-      'Cut':isManual?'Manual':'Machine','Date':item.date||''
-    };
-    const qrText=Object.entries(qrPayload).filter(([,v])=>v).map(([k,v])=>k+': '+v).join(' | ');
+    // Build QR text block — readable by any QR reader outside LAN, parseable by worker app inside factory
+    const orderId = item.orderId || item.order_id;
+    const ord = (typeof orders!=='undefined'&&orderId) ? orders.find(o=>o.id===orderId)||{} : {};
+    const cut_w = item.cutW||item.cut_w||item.w, cut_h=item.cutH||item.cut_h||item.h;
+    const hasComp = cut_w!=item.w || cut_h!=item.h;
+    let qrText = '';
+    qrText += 'PIECE ID: '  + item.uid + '\n';
+    qrText += 'Order    : '  + (ord.num||item.orderNum||item.order_num||'') + '\n';
+    if(ord.extref) qrText += 'Reference: ' + ord.extref + '\n';
+    if(ord.date||item.date) qrText += 'Date     : ' + (ord.date||item.date||'') + '\n';
+    qrText += '---\n';
+    qrText += 'Size     : ' + item.w + ' x ' + item.h + ' mm\n';
+    if(hasComp) qrText += 'Cut Size : ' + cut_w + ' x ' + cut_h + ' mm\n';
+    qrText += 'Thickness: ' + (item.thickness||'') + ' mm\n';
+    qrText += 'Glass    : ' + typeStr + (item.color?' / '+colorStr:'') + '\n';
+    if(item.bevelMM||item.bevel_mm) qrText += 'Bevel    : '+(item.bevelMM||item.bevel_mm)+' mm\n';
+    if(procNames.length) qrText += 'Processes: ' + procNames.join(', ') + '\n';
+    if(ord.notes) qrText += '---\nNotes    : ' + ord.notes + '\n';
+    qrText += 'AGI GLASS FACTORY';
 
     // Logo for print labels
     const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
@@ -5933,7 +5989,12 @@ function renderCutLabels(){
           ${descHtml}
         </div>
       </div>`;
-    if(returnCard){ setTimeout(()=>renderQR(qid, qrText, 152), 60); return card; }
+    if(returnCard){
+      // Pass element reference directly — avoids getElementById timing issue with detached DOM
+      const qrEl = card.querySelector('#'+qid);
+      if(qrEl) setTimeout(()=>renderQR(qrEl, qrText, 152), 60);
+      return card;
+    }
     grid.appendChild(card);
     setTimeout(()=>renderQR(qid, qrText, 152), 60);
   }
