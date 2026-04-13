@@ -1275,15 +1275,44 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 
     <!-- Sub-tab: Stock Ledger -->
     <div id="rstab-ledger" style="display:none">
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <!-- Sheet list -->
-        <div style="width:280px;flex-shrink:0">
-          <div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);margin-bottom:8px">Raw Sheets</div>
-          <div id="ledger-sheet-list" style="display:flex;flex-direction:column;gap:4px"></div>
+      <div class="card">
+        <div class="ch" style="flex-wrap:wrap;gap:8px">
+          <span class="ct">&#128200; Stock Ledger</span>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="ledger-f-sheet" onchange="renderLedgerTab()" style="font-size:.72rem;padding:4px 8px">
+              <option value="">All Sheets</option>
+            </select>
+            <select id="ledger-f-type" onchange="renderLedgerTab()" style="font-size:.72rem;padding:4px 8px">
+              <option value="">All Types</option>
+              <option value="opening">Opening Stock</option>
+              <option value="purchase">Purchase</option>
+              <option value="optimization_use">Optimization Cut</option>
+              <option value="sale">Sale</option>
+              <option value="adjustment">Adjustment</option>
+            </select>
+            <input type="date" id="ledger-f-from" onchange="renderLedgerTab()" style="font-size:.72rem;padding:4px 8px">
+            <input type="date" id="ledger-f-to" onchange="renderLedgerTab()" style="font-size:.72rem;padding:4px 8px">
+            <button class="btn bg bsm" onclick="clearLedgerFilters()" style="font-size:.62rem">&#10005; Clear</button>
+          </div>
         </div>
-        <!-- Transaction detail -->
-        <div style="flex:1;min-width:0">
-          <div id="ledger-detail" style="color:var(--mu);font-size:.82rem;padding:20px 0">Select a sheet to view its ledger.</div>
+        <div class="tw">
+          <table id="ledger-table">
+            <thead>
+              <tr style="background:var(--s1);border-bottom:2px solid var(--border)">
+                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;letter-spacing:.5px;white-space:nowrap">DATE</th>
+                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">RAW SHEET</th>
+                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">DESCRIPTION</th>
+                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">TYPE</th>
+                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">REFERENCE</th>
+                <th style="padding:8px 12px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600">QTY</th>
+                <th style="padding:8px 12px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600">BALANCE</th>
+                <th style="padding:8px 12px;text-align:center;color:var(--mu);font-size:.62rem;font-weight:600">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="ledger-tbody">
+              <tr><td colspan="8" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -5620,7 +5649,7 @@ async function renderOptFiles(){
   }
   const sorted=list;
   el.innerHTML=sorted.map((f,idx)=>{
-    const serial=sorted.length-idx;
+    const serial=f.id;
     const isDone=f.status==='done';
     const cutArr=Array.isArray(f.cutPieces)?f.cutPieces:(Array.isArray(f.cut_pieces)?f.cut_pieces:[]);
     const manArr=Array.isArray(f.manualPieces)?f.manualPieces:(Array.isArray(f.manual_pieces)?f.manual_pieces:[]);
@@ -7808,32 +7837,108 @@ async function useRemnantForPiece(rem){
 // STOCK LEDGER
 // ═══════════════════════════════════════════════════════
 let _ledgerSheetId = null;
+let _ledgerAllTx = []; // all transactions across all sheets
 
 async function renderLedgerTab(){
-  const listEl = document.getElementById('ledger-sheet-list');
-  if(!listEl) return;
-  // Load sheets with live balances
-  let sheets = [];
-  try{ sheets = await AGI.RawSheets.list(); }catch(e){ listEl.innerHTML='<div style="color:var(--a2)">'+e.message+'</div>'; return; }
-  rawSheetCatalog = sheets; // keep in sync
+  const tbody = document.getElementById('ledger-tbody');
+  if(!tbody) return;
 
-  listEl.innerHTML = sheets.map(s=>{
-    const bal = s.balance ?? 0;
-    const balColor = bal <= 0 ? 'var(--a2)' : bal <= 3 ? 'var(--a4)' : 'var(--a3)';
-    const isSelected = s.id === _ledgerSheetId;
-    return `<div onclick="ledgerSelectSheet(${s.id})"
-      style="padding:9px 12px;border-radius:var(--r);border:1px solid ${isSelected?'var(--a)':'var(--border)'};background:${isSelected?'var(--s2)':'var(--surf)'};cursor:pointer;transition:.1s"
-      onmouseover="if(${s.id}!==_ledgerSheetId)this.style.background='var(--s1)'" onmouseout="if(${s.id}!==_ledgerSheetId)this.style.background='var(--surf)'">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:.72rem;font-weight:600;color:var(--tx)">${s.thickness}mm ${s.color} ${s.glass_type}</div>
-        <div style="font-size:.82rem;font-weight:700;color:${balColor}">${bal}</div>
-      </div>
-      <div style="font-size:.62rem;color:var(--mu);margin-top:2px">${s.code||''} &bull; ${s.w}×${s.h}mm</div>
-    </div>`;
+  // Load all sheets if needed
+  try{ rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
+
+  // Populate sheet filter
+  const sheetSel = document.getElementById('ledger-f-sheet');
+  if(sheetSel && sheetSel.options.length <= 1){
+    rawSheetCatalog.forEach(s=>{
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = (s.notes||s.code||'') + ' — ' + s.code;
+      sheetSel.appendChild(o);
+    });
+  }
+
+  const fSheet = document.getElementById('ledger-f-sheet')?.value||'';
+  const fType  = document.getElementById('ledger-f-type')?.value||'';
+  const fFrom  = document.getElementById('ledger-f-from')?.value||'';
+  const fTo    = document.getElementById('ledger-f-to')?.value||'';
+
+  tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+
+  // Fetch transactions for all sheets (or filtered sheet)
+  const sheetsToLoad = fSheet ? rawSheetCatalog.filter(s=>String(s.id)===fSheet) : rawSheetCatalog;
+  const TYPE_LABELS = {opening:'Opening Stock',purchase:'Purchase',optimization_use:'Optimization Cut',sale:'Sale',adjustment:'Adjustment'};
+  const TYPE_COLORS = {opening:'var(--mu)',purchase:'var(--a3)',optimization_use:'var(--a2)',sale:'var(--a4)',adjustment:'var(--tx2)'};
+
+  // Build per-sheet running balances, then merge and sort by date
+  const allRows = [];
+  await Promise.all(sheetsToLoad.map(async s=>{
+    try{
+      const {transactions} = await AGI.RawSheets.transactions(s.id);
+      let running = 0;
+      transactions.forEach(tx=>{
+        running += tx.qty;
+        allRows.push({...tx, _sheet:s, _running:running});
+      });
+    }catch(e){}
+  }));
+
+  // Sort by date asc, then id asc
+  allRows.sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+
+  // Apply filters
+  let filtered = allRows;
+  if(fType)  filtered = filtered.filter(r=>r.type===fType);
+  if(fFrom)  filtered = filtered.filter(r=>r.date>=fFrom);
+  if(fTo)    filtered = filtered.filter(r=>r.date<=fTo);
+
+  if(!filtered.length){
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--mu)">No transactions match filters</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(tx=>{
+    const s = tx._sheet;
+    const isOut = tx.qty < 0;
+    const balColor = tx._running <= 0 ? 'var(--a2)' : tx._running <= 3 ? 'var(--a4)' : 'var(--a3)';
+    const dot = COLOR_MAP[s.color]||'#888';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:7px 12px;font-family:monospace;font-size:.72rem;color:var(--mu);white-space:nowrap">${tx.date}</td>
+      <td style="padding:7px 12px;font-size:.72rem">
+        <div style="font-weight:600;color:var(--tx)">${s.notes||s.code||''}</div>
+        <div style="font-size:.62rem;color:var(--mu);display:flex;align-items:center;gap:4px">
+          <span class="color-dot" style="background:${dot}"></span>${s.code||''}
+        </div>
+      </td>
+      <td style="padding:7px 12px;font-size:.72rem;color:var(--tx2)">${tx.ref_label||tx.notes||'—'}</td>
+      <td style="padding:7px 12px;font-size:.72rem">
+        <span style="background:${TYPE_COLORS[tx.type]||'var(--mu)'}22;color:${TYPE_COLORS[tx.type]||'var(--tx2)'};padding:2px 7px;border-radius:3px;font-size:.62rem;font-weight:600">
+          ${TYPE_LABELS[tx.type]||tx.type}
+        </span>
+      </td>
+      <td style="padding:7px 12px;font-size:.72rem;color:var(--tx2)">
+        ${tx.type==='optimization_use'&&tx.ref_id?
+          `<span style="cursor:pointer;color:var(--a);text-decoration:underline;font-family:monospace" 
+            onclick="SP('cutting');setTimeout(()=>loadOptFile(${tx.ref_id}),400)" 
+            title="Open optimization #${tx.ref_id}">#${tx.ref_id} &#128279;</span>`:
+          (tx.buyer||'—')}
+      </td>
+      <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:700;font-size:.82rem;color:${isOut?'var(--a2)':'var(--a3)'}">
+        ${isOut?'':'+'}${tx.qty}
+      </td>
+      <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:700;font-size:.82rem;color:${balColor}">
+        ${tx._running}
+      </td>
+      <td style="padding:7px 12px;text-align:center">
+        ${['sale','adjustment'].includes(tx.type)?`<button class="btn bs bsm" onclick="ledgerDeleteTx(${tx.id},${s.id})">&times;</button>`:''}
+      </td>
+    </tr>`;
   }).join('');
+}
 
-  if(_ledgerSheetId) await ledgerLoadDetail(_ledgerSheetId);
-  else document.getElementById('ledger-detail').innerHTML='<div style="color:var(--mu);font-size:.82rem;padding:20px 0">Select a sheet to view its ledger.</div>';
+function clearLedgerFilters(){
+  ['ledger-f-sheet','ledger-f-type','ledger-f-from','ledger-f-to'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  renderLedgerTab();
 }
 
 async function ledgerSelectSheet(id){
@@ -7842,67 +7947,8 @@ async function ledgerSelectSheet(id){
 }
 
 async function ledgerLoadDetail(sheetId){
-  const detEl = document.getElementById('ledger-detail');
-  detEl.innerHTML = '<div style="color:var(--mu);padding:20px 0">Loading...</div>';
-  try{
-    const sheet = rawSheetCatalog.find(s=>s.id===sheetId)||{};
-    const {balance, transactions} = await AGI.RawSheets.transactions(sheetId);
-
-    const TYPE_LABELS = {opening:'Opening Stock',purchase:'Purchase',optimization_use:'Optimization Cut',sale:'Sale',adjustment:'Adjustment'};
-    const TYPE_COLORS = {opening:'var(--mu)',purchase:'var(--a3)',optimization_use:'var(--a2)',sale:'var(--a4)',adjustment:'var(--tx2)'};
-    const TYPE_SIGN   = {opening:'+',purchase:'+',optimization_use:'−',sale:'−',adjustment:''};
-
-    // Running balance rows
-    let running = 0;
-    const rows = transactions.map(tx=>{
-      running += tx.qty;
-      const isOut = tx.qty < 0;
-      return `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:7px 12px;font-family:monospace;font-size:.72rem;color:var(--mu)">${tx.date}</td>
-        <td style="padding:7px 12px;font-size:.72rem;color:${TYPE_COLORS[tx.type]||'var(--tx2)'}">${TYPE_LABELS[tx.type]||tx.type}</td>
-        <td style="padding:7px 12px;font-size:.78rem;color:var(--tx2)">${tx.ref_label||tx.notes||'—'}</td>
-        <td style="padding:7px 12px;font-size:.78rem;color:var(--tx2)">${tx.buyer||'—'}</td>
-        <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:700;font-size:.82rem;color:${isOut?'var(--a2)':'var(--a3)'}">${isOut?'':'+'}${tx.qty}</td>
-        <td style="padding:7px 12px;text-align:right;font-family:monospace;font-size:.78rem;color:var(--tx)">${running}</td>
-        <td style="padding:7px 12px;text-align:center">
-          ${['sale','adjustment'].includes(tx.type)?`<button class="btn bs bsm" onclick="ledgerDeleteTx(${tx.id},${sheetId})">&times;</button>`:''}
-        </td>
-      </tr>`;
-    }).join('');
-
-    detEl.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-        <div>
-          <div style="font-size:1rem;font-weight:700">${sheet.thickness}mm ${sheet.color} ${sheet.glass_type}</div>
-          <div style="font-size:.72rem;color:var(--mu)">${sheet.code||''} &bull; ${sheet.w}×${sheet.h}mm</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="text-align:right">
-            <div style="font-size:.62rem;color:var(--mu);letter-spacing:1px">BALANCE</div>
-            <div style="font-size:1.6rem;font-weight:900;color:${balance<=0?'var(--a2)':balance<=3?'var(--a4)':'var(--a3)'}">${balance}</div>
-            <div style="font-size:.65rem;color:var(--mu)">sheets</div>
-          </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn ba bsm" onclick="ledgerOpenSale(${sheetId})">− Sale</button>
-            <button class="btn bs bsm" onclick="ledgerOpenAdjust(${sheetId})">± Adjust</button>
-          </div>
-        </div>
-      </div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:.78rem">
-          <thead><tr style="background:var(--s1);border-bottom:2px solid var(--border)">
-            <th style="padding:7px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;letter-spacing:.5px">DATE</th>
-            <th style="padding:7px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">TYPE</th>
-            <th style="padding:7px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">REFERENCE</th>
-            <th style="padding:7px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">BUYER</th>
-            <th style="padding:7px 12px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600">QTY</th>
-            <th style="padding:7px 12px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600">BALANCE</th>
-            <th style="padding:7px 12px"></th>
-          </tr></thead>
-          <tbody>${rows||'<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--mu)">No transactions yet</td></tr>'}</tbody>
-        </table>
-      </div>`;
-  }catch(e){ detEl.innerHTML='<div style="color:var(--a2)">Error: '+e.message+'</div>'; }
+  // kept for compatibility — just re-render the full table
+  await renderLedgerTab();
 }
 
 function ledgerOpenSale(sheetId){
