@@ -39,6 +39,7 @@ app.use('/api/glassfamilies', require('./routes/glassfamilies'));
 app.use('/api/finalproducts', require('./routes/finalproducts'));
 app.use('/api/fpfields', require('./routes/fpfields'));
 app.use('/api/remnants', require('./routes/remnants'));
+app.use('/api/deliveries', require('./routes/deliveries'));
 
 // ── Config ────────────────────────────────────────────────
 const { requireAuth, requireAdmin } = require('./middleware/auth');

@@ -58,7 +58,9 @@ const REMAKE_TYPES = ['remake_agi','remake_cust'];
 function validateOrderType(body) {
   const type = body.order_type || 'normal';
   if (!ORDER_TYPES.includes(type))             return 'Invalid order_type';
-  if (type !== 'normal' && !body.type_reason_id) return 'Reason is required for this order type';
+  // Reason required only for remake and warranty, not sample
+  const requiresReason = ['remake_agi','remake_cust','warranty'].includes(type);
+  if (requiresReason && !body.type_reason_id) return 'Reason is required for this order type';
   if (REMAKE_TYPES.includes(type) && !body.original_order_id) return 'Original order is required for remake orders';
   if (type === 'remake_agi' && !body.responsible_worker_id)    return 'Responsible worker is required for AGI remakes';
   return null;

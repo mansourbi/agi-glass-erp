@@ -297,6 +297,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bnh-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn" id="bnh-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn" id="bnh-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
+    <button class="bn" id="bnh-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bnh-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
   </nav>
 </div>
@@ -341,6 +342,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn on" id="bna-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn" id="bna-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn" id="bna-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
+    <button class="bn" id="bna-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bna-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
   </nav>
 </div>
@@ -378,6 +380,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bns-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn on" id="bns-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn" id="bns-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
+    <button class="bn" id="bns-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bns-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
   </nav>
 </div>
@@ -403,6 +406,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bnq-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn" id="bnq-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn on" id="bnq-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
+    <button class="bn" id="bnq-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bnq-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
   </nav>
 </div>
@@ -432,10 +436,135 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bnh2-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn" id="bnh2-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn" id="bnh2-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
+    <button class="bn" id="bnh2-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn on" id="bnh2-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
   </nav>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SCREEN: DELIVER                                        -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="screen" id="scr-deliver">
+  <div class="topbar">
+    <div class="topbar-brand" id="dlv-topbar-title">Deliver</div>
+    <div class="topbar-worker" id="wn-dlv"></div>
+    <button class="topbar-logout" onclick="doLogout()">Logout</button>
+  </div>
+
+  <!-- Home: 3 option cards -->
+  <div id="dlv-home" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px">
+    <button onclick="dlvStartNew()" style="padding:18px 16px;background:rgba(0,204,255,.08);border:1.5px solid rgba(0,204,255,.3);border-radius:var(--r);color:var(--a);text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px;-webkit-appearance:none">
+      <div style="font-size:.9rem;font-weight:700">&#128666; New Delivery</div>
+      <div style="font-size:.72rem;color:var(--tx2)">Start scanning pieces for a new delivery</div>
+    </button>
+    <button onclick="dlvShowPending()" style="padding:18px 16px;background:rgba(255,210,63,.07);border:1.5px solid rgba(255,210,63,.25);border-radius:var(--r);color:var(--a4);text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px;-webkit-appearance:none">
+      <div style="font-size:.9rem;font-weight:700">&#9978; Pending Deliveries <span id="dlv-pending-badge" style="font-size:.7rem;background:var(--a4);color:#000;border-radius:10px;padding:0 7px;margin-left:4px"></span></div>
+      <div style="font-size:.72rem;color:var(--tx2)">Resume or view open delivery sessions</div>
+    </button>
+    <button onclick="dlvShowRecent()" style="padding:18px 16px;background:rgba(54,255,138,.07);border:1.5px solid rgba(54,255,138,.2);border-radius:var(--r);color:var(--a3);text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px;-webkit-appearance:none">
+      <div style="font-size:.9rem;font-weight:700">&#128203; Recent Deliveries</div>
+      <div style="font-size:.72rem;color:var(--tx2)">View recently finalised deliveries</div>
+    </button>
+    <div id="dlv-home-list" style="margin-top:4px"></div>
+  </div>
+
+  <!-- Scanning session -->
+  <div id="dlv-session" style="display:none;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--s2);border-bottom:1px solid var(--br);flex-shrink:0">
+      <button onclick="dlvBackToHome()" style="background:none;border:none;color:var(--tx2);font-size:.8rem;cursor:pointer;padding:4px 8px 4px 0">&#8592; Back</button>
+      <div style="flex:1">
+        <div style="font-size:.7rem;color:var(--mu)">Delivery</div>
+        <div style="font-family:monospace;font-weight:700;color:var(--a);font-size:.85rem" id="dlv-sess-serial">—</div>
+      </div>
+      <div style="font-size:.7rem;color:var(--tx2)" id="dlv-sess-count">0 pieces</div>
+    </div>
+    <!-- Camera area -->
+    <div id="dlv-scan-area" style="display:none">
+      <div class="scan-hero" style="padding:12px 16px 0">
+        <div class="scan-frame">
+          <video id="dlv-cam-video" playsinline autoplay muted></video>
+          <canvas id="dlv-cam-canvas"></canvas>
+          <div class="scan-corners">
+            <div class="sc-corner tl"></div><div class="sc-corner tr"></div>
+            <div class="sc-corner bl"></div><div class="sc-corner br"></div>
+            <div class="scan-line"></div>
+          </div>
+        </div>
+        <div class="scan-status" id="dlv-scan-status">Point camera at a piece QR code</div>
+      </div>
+      <div class="manual-input-row" style="margin:8px 16px">
+        <input class="inp" type="text" id="dlv-manual-uid" placeholder="Or type piece ID..." autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter') dlvLookupManual()">
+        <button class="btn-scan-manual" onclick="dlvLookupManual()">Look up</button>
+      </div>
+      <button onclick="dlvStopCamera()" style="width:calc(100% - 32px);margin:0 16px 8px;padding:9px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx2);font-size:.75rem;cursor:pointer">&#9632; Stop Camera</button>
+    </div>
+    <!-- Scan button -->
+    <div style="padding:8px 16px">
+      <button onclick="dlvStartCamera()" style="width:100%;padding:12px;background:rgba(0,204,255,.1);border:1.5px solid rgba(0,204,255,.3);border-radius:var(--r);color:var(--a);font-size:.82rem;font-weight:600;cursor:pointer">&#9906; Scan Piece</button>
+    </div>
+    <!-- Pieces list -->
+    <div style="padding:0 16px 8px">
+      <div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);margin-bottom:6px">Pieces Scanned</div>
+      <div id="dlv-sess-pieces"></div>
+    </div>
+    <!-- Finalise button -->
+    <div style="padding:8px 16px 20px">
+      <button onclick="dlvOpenFinalise()" id="dlv-finalise-btn" style="width:100%;padding:14px;background:var(--a3);border:none;border-radius:var(--r);color:#000;font-size:.88rem;font-weight:700;cursor:pointer;opacity:.5" disabled>&#10003; Finalise Delivery</button>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="bn" id="bndlv-home" onclick="switchTab('home')"><span class="bni">&#8962;</span>Home</button>
+    <button class="bn" id="bndlv-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
+    <button class="bn" id="bndlv-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
+    <button class="bn" id="bndlv-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
+    <button class="bn on" id="bndlv-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
+    <button class="bn" id="bndlv-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
+  </nav>
+</div>
+
+<!-- Deliver: piece warning modal -->
+<div id="m-dlv-warn" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:1px solid var(--br);border-radius:var(--r);padding:20px;width:92%;max-width:380px">
+    <div style="font-weight:700;font-size:.9rem;color:var(--a4);margin-bottom:10px">&#9888; Incomplete Processes</div>
+    <div id="dlv-warn-uid" style="font-family:monospace;font-size:.85rem;color:var(--a);margin-bottom:8px"></div>
+    <div id="dlv-warn-procs" style="font-size:.78rem;color:var(--tx2);margin-bottom:16px;line-height:1.7"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="dlvWarnCancel()" style="flex:1;padding:10px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer;font-size:.78rem">Cancel</button>
+      <button onclick="dlvWarnComplete()" style="flex:1;padding:10px;background:var(--a3);border:none;border-radius:var(--r);color:#000;font-weight:700;cursor:pointer;font-size:.78rem">&#10003; Complete &amp; Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Deliver: finalise modal -->
+<div id="m-dlv-finalise" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:1px solid var(--br);border-radius:var(--r);padding:20px;width:92%;max-width:380px;max-height:85vh;overflow-y:auto">
+    <div style="font-weight:700;font-size:.9rem;margin-bottom:4px">&#128666; Finalise Delivery</div>
+    <div id="dlv-fin-customer" style="font-size:.75rem;color:var(--tx2);margin-bottom:14px"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:4px">Receiver Name</label>
+        <select id="dlv-fin-receiver" class="inp" style="padding:10px 12px" onchange="dlvReceiverChange()">
+          <option value="">— Select receiver —</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:4px">Company</label>
+        <input type="text" id="dlv-fin-company" class="inp" style="padding:10px 12px" placeholder="Company name (optional)">
+      </div>
+      <div>
+        <label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:4px">Notes (optional)</label>
+        <textarea id="dlv-fin-notes" rows="2" class="inp" style="padding:10px 12px;resize:none" placeholder="Any notes..."></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="document.getElementById('m-dlv-finalise').style.display='none'" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer">Cancel</button>
+      <button onclick="dlvPrintNote()" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer">&#128438; Print</button>
+      <button onclick="dlvConfirmFinalise()" style="flex:2;padding:12px;background:var(--a3);border:none;border-radius:var(--r);color:#000;font-weight:700;cursor:pointer">&#10003; Confirm Delivery</button>
+    </div>
+  </div>
+</div>
 <!-- MODALS -->
 <div id="m-overtime" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center">
   <div style="background:var(--bg);border:1px solid var(--br);border-radius:var(--r);padding:20px;width:90%;max-width:360px">
@@ -615,19 +744,16 @@ function showScreen(id){
 }
 
 function switchTab(tab){
-  stopCamera();
-  ['home','attendance','scan','queue','history'].forEach(t=>{
+  stopCamera(); if(typeof dlvStopCamera==='function') dlvStopCamera();
+  ['home','attendance','scan','queue','history','deliver'].forEach(t=>{
     const s=document.getElementById('scr-'+t); if(s) s.classList.remove('on');
   });
   const target=document.getElementById('scr-'+tab);
   if(target) target.classList.add('on');
-  // Update ALL nav buttons (prefix-agnostic)
   document.querySelectorAll('.bn').forEach(btn=>{
     const id=btn.id||'';
-    // Extract tab name from id like bnh-home, bna-att, bns-scan, etc.
-    const parts = id.split('-'); const btnTab = parts.slice(1).join('-');
-    // Map short names back to tab names
-    const tabMap = {home:'home',att:'attendance',scan:'scan',queue:'queue',hist:'history'};
+    const parts=id.split('-'); const btnTab=parts.slice(1).join('-');
+    const tabMap={home:'home',att:'attendance',scan:'scan',queue:'queue',hist:'history',dlv:'deliver'};
     btn.classList.toggle('on', tabMap[btnTab]===tab || btnTab===tab);
   });
   if(tab==='scan')       startCamera();
@@ -635,6 +761,7 @@ function switchTab(tab){
   if(tab==='queue')      renderQueue();
   if(tab==='attendance') loadAttendance();
   if(tab==='home')       loadHomeStatus();
+  if(tab==='deliver')    dlvInit();
 }
 
 // ════════════════════════════════════════════════════════
@@ -826,7 +953,7 @@ function loadJsQR(){
   return new Promise((res,rej)=>{
     if(window.jsQR){res();return}
     const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
+    s.src='/jsqr.min.js';
     s.onload=res; s.onerror=rej; document.head.appendChild(s);
   });
 }
@@ -935,10 +1062,15 @@ function renderPieceCard(piece,missingUid='',orderData){
       const d=new Date(doneLog.ts);
       const time=d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
       const date=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
-      rightHTML='<div style="text-align:right"><div style="color:var(--a3);font-size:1.1rem">&#10003;</div>'+
+      rightHTML='<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px">'+
+        '<div style="color:var(--a3);font-size:1.1rem">&#10003;</div>'+
         '<div style="font-size:.65rem;color:var(--a3);font-family:monospace">'+time+'</div>'+
         '<div style="font-size:.6rem;color:var(--mu)">'+date+'</div>'+
-        '<div style="font-size:.6rem;color:var(--tx2)">'+wkName(doneLog.workerId)+'</div></div>';
+        '<div style="font-size:.6rem;color:var(--tx2)">'+wkName(doneLog.workerId)+'</div>'+
+        '<button class="proc-btn" data-uid="'+piece.uid+'" data-pid="'+pid+'" data-act="undo" '+
+        'style="margin-top:4px;padding:4px 10px;font-size:.62rem;border-color:var(--a2);color:var(--a2);background:rgba(255,100,100,.07)">'+
+        '&#10005; Undo</button>'+
+        '</div>';
     } else if(canAct){
       rightHTML='<button class="proc-btn proc-btn-done" data-uid="'+piece.uid+'" data-pid="'+pid+'" data-act="done">Mark Done</button>';
     }
@@ -979,7 +1111,10 @@ function renderPieceCard(piece,missingUid='',orderData){
     '</div>';
 
   container.querySelectorAll('.proc-btn').forEach(btn=>{
-    btn.onclick=()=>markProcess(btn.dataset.uid,btn.dataset.pid,btn.dataset.act);
+    btn.onclick=()=>{
+      if(btn.dataset.act==='undo') unmarkProcess(btn.dataset.uid,btn.dataset.pid);
+      else markProcess(btn.dataset.uid,btn.dataset.pid,btn.dataset.act);
+    };
   });
   setTimeout(()=>{ const c=document.getElementById('active-piece-card'); if(c) c.classList.remove('highlight'); },600);
 }
@@ -1004,13 +1139,20 @@ async function markProcess(uid,pid,act){
     renderPieceCard(fresh,'',orderData);
   }catch(e){
     scanLog=scanLog.filter(s=>!(s.pieceUid===uid&&s.process===pid&&s.action==='done'));
-    scanLog.push({workerId:currentWorker.id,workerName:currentWorker.name,pieceUid:uid,process:pid,action:'done',ts:new Date().toISOString()});
+    scanLog.push({workerId:currentWorker.id,workerName:currentWorker.name,pieceUid:uid,process:pid,action:'done',ts:nowUTC3()});
     const piece=labelItems.find(l=>l.uid===uid);
     if(piece) renderPieceCard(piece,'',null);
   }
 }
 
 // ════════════════════════════════════════════════════════
+// UTC+3 timestamp helper
+function nowUTC3(){
+  const d = new Date();
+  d.setTime(d.getTime() + 3*60*60*1000);
+  return d.toISOString().replace('Z','+03:00');
+}
+
 // HISTORY TAB — with full timestamps and filter
 // ════════════════════════════════════════════════════════
 function setHistFilter(filter, btn){
@@ -1199,6 +1341,460 @@ function downloadAtt(){
 document.getElementById('l-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
 document.getElementById('l-email').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('l-pass').focus(); });
 document.getElementById('manual-uid').addEventListener('keydown',e=>{ if(e.key==='Enter') lookupManual(); });
+
+// ════════════════════════════════════════════════════════
+// DELIVERY TAB
+// ════════════════════════════════════════════════════════
+let _dlvDelivery  = null;
+let _dlvCamStream = null;
+let _dlvScanInt   = null;
+let _dlvCooldown  = false;
+let _dlvLastScan  = null;
+let _dlvWarnPiece = null;
+let _dlvReceivers = [];
+
+async function dlvInit(){
+  document.getElementById('wn-dlv').textContent = currentWorker.name;
+  document.getElementById('dlv-home').style.display    = '';
+  document.getElementById('dlv-session').style.display = 'none';
+  document.getElementById('dlv-topbar-title').textContent = 'Deliver';
+  dlvStopCamera();
+  try{ _dlvReceivers = await AGI.Deliveries.receivers.list(); }catch(e){}
+  await dlvLoadHomeList('pending');
+}
+
+async function dlvLoadHomeList(mode){
+  const listEl = document.getElementById('dlv-home-list');
+  try{
+    const all = await AGI.Deliveries.list(mode==='recent'?{status:'finalised'}:{status:'open'});
+    const badge = document.getElementById('dlv-pending-badge');
+    if(mode!=='recent') badge.textContent = all.length ? all.length : '';
+    if(!all.length){ listEl.innerHTML=''; return; }
+    listEl.innerHTML = '<div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);margin-bottom:6px">'+(mode==='recent'?'Recent Finalised':'Open Deliveries')+'</div>'+
+      all.slice(0,10).map(d=>`
+        <div style="padding:10px 14px;background:var(--s1);border:1px solid var(--br);border-radius:var(--r);margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div onclick="dlvResumeDelivery(${d.id})" style="flex:1;cursor:pointer">
+              <div style="font-family:monospace;font-weight:700;color:var(--a);font-size:.82rem">${d.serial}</div>
+              <div style="font-size:.72rem;color:var(--tx2);margin-top:2px">${d.customer_name||''} &bull; ${d.piece_count||0} piece${(d.piece_count||0)!==1?'s':''}</div>
+              <div style="font-size:.65rem;color:var(--mu);margin-top:1px">${(d.created_at||'').slice(0,16).replace('T',' ')}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:8px">
+              <div style="font-size:.65rem;padding:2px 7px;border-radius:10px;border:1px solid;${d.status==='open'?'color:var(--a4);border-color:var(--a4)':'color:var(--a3);border-color:var(--a3)'}">${d.status==='open'?'Open':'Done'}</div>
+              ${d.status==='open'?`<button onclick="event.stopPropagation();dlvDeleteDelivery(${d.id},'${d.serial}')" style="background:none;border:none;color:var(--a2);font-size:.68rem;cursor:pointer;padding:2px 0">&#128465; Delete</button>`:''}
+            </div>
+          </div>
+        </div>`).join('');
+  }catch(e){ listEl.innerHTML=''; }
+}
+
+async function dlvDeleteDelivery(id, serial){
+  if(!confirm('Delete delivery '+serial+'?\nThis will remove it permanently.')) return;
+  try{
+    await AGI.Deliveries.delete(id);
+    showToast('Deleted '+serial);
+    await dlvLoadHomeList('pending');
+  }catch(e){ showFlash('&#9888;','Error',e.message,'var(--a2)'); }
+}
+
+async function dlvShowPending(){ await dlvLoadHomeList('pending'); }
+async function dlvShowRecent(){  await dlvLoadHomeList('recent'); }
+
+function dlvBackToHome(){
+  dlvStopCamera();
+  document.getElementById('dlv-home').style.display    = '';
+  document.getElementById('dlv-session').style.display = 'none';
+  document.getElementById('dlv-topbar-title').textContent = 'Deliver';
+  dlvLoadHomeList('pending');
+}
+
+async function dlvStartNew(){
+  _dlvDelivery = null;
+  dlvShowSession();
+}
+
+async function dlvResumeDelivery(id){
+  try{ _dlvDelivery = await AGI.Deliveries.get(id); dlvShowSession(); }
+  catch(e){ showFlash('&#9888;','Error',e.message,'var(--a2)'); }
+}
+
+function dlvShowSession(){
+  document.getElementById('dlv-home').style.display    = 'none';
+  document.getElementById('dlv-session').style.display = '';
+  document.getElementById('dlv-topbar-title').textContent = 'Delivery';
+  dlvUpdateSessionUI();
+}
+
+function dlvUpdateSessionUI(){
+  const d = _dlvDelivery;
+  document.getElementById('dlv-sess-serial').textContent = d ? d.serial : 'New — scan first piece';
+  const items = d ? (d.items||[]) : [];
+  document.getElementById('dlv-sess-count').textContent  = items.length+' piece'+(items.length!==1?'s':'');
+  const finBtn = document.getElementById('dlv-finalise-btn');
+  const isFinalised = d && d.status==='finalised';
+  finBtn.disabled = !items.length || isFinalised;
+  finBtn.style.opacity = (items.length && !isFinalised) ? '1' : '.5';
+  finBtn.textContent = isFinalised ? 'Finalised' : '✓ Finalise Delivery';
+
+  // Show/hide print button
+  let printBtn = document.getElementById('dlv-print-btn');
+  if(!printBtn){
+    printBtn = document.createElement('button');
+    printBtn.id = 'dlv-print-btn';
+    printBtn.onclick = dlvPrintNote;
+    printBtn.style.cssText = 'width:100%;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);font-size:.88rem;cursor:pointer;margin-top:8px';
+    printBtn.textContent = '🖨 Print Delivery Note';
+    finBtn.parentNode.insertBefore(printBtn, finBtn.nextSibling);
+  }
+  printBtn.style.display = items.length ? '' : 'none';
+
+  const byOrder = {};
+  items.forEach(i=>{ const k=i.order_num||'—'; if(!byOrder[k]) byOrder[k]=[]; byOrder[k].push(i); });
+  const el = document.getElementById('dlv-sess-pieces');
+  if(!items.length){ el.innerHTML='<div style="color:var(--mu);font-size:.78rem;padding:8px 0">No pieces yet. Scan to add.</div>'; return; }
+  el.innerHTML = Object.entries(byOrder).map(([ord,pieces])=>`
+    <div style="margin-bottom:10px">
+      <div style="font-size:.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--a2);margin-bottom:4px">Order ${ord}</div>
+      ${pieces.map(p=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--s1);border:1px solid var(--br);border-radius:6px;margin-bottom:3px">
+          <div style="flex:1">
+            <div style="font-family:monospace;font-size:.75rem;font-weight:700;color:var(--a)">${p.piece_code||p.piece_uid}</div>
+            <div style="font-size:.65rem;color:var(--tx2)">${p.piece_uid} &bull; ${p.w}x${p.h}mm</div>
+          </div>
+          ${d&&d.status==='open'?`<button onclick="dlvRemovePiece('${p.piece_uid}')" style="background:none;border:none;color:var(--mu);font-size:.9rem;cursor:pointer;padding:2px 6px">&times;</button>`:''}
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function dlvStopCamera(){
+  clearInterval(_dlvScanInt); _dlvScanInt=null;
+  if(_dlvCamStream){ _dlvCamStream.getTracks().forEach(t=>t.stop()); _dlvCamStream=null; }
+  const area=document.getElementById('dlv-scan-area'); if(area) area.style.display='none';
+}
+
+async function dlvStartCamera(){
+  const area=document.getElementById('dlv-scan-area'); if(!area) return;
+  area.style.display='';
+  document.getElementById('dlv-scan-status').textContent='Starting camera...';
+  try{
+    _dlvCamStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:640}}});
+    const video=document.getElementById('dlv-cam-video');
+    video.srcObject=_dlvCamStream; await video.play();
+    document.getElementById('dlv-scan-status').textContent='Point camera at a piece QR code';
+    _dlvStartQRScan();
+  }catch(e){ document.getElementById('dlv-scan-status').textContent='Camera unavailable — use manual entry'; }
+}
+
+function _dlvStartQRScan(){
+  clearInterval(_dlvScanInt);
+  if('BarcodeDetector' in window){
+    const det=new BarcodeDetector({formats:['qr_code']});
+    const video=document.getElementById('dlv-cam-video');
+    _dlvScanInt=setInterval(async()=>{
+      if(_dlvCooldown||!_dlvCamStream) return;
+      try{ const codes=await det.detect(video); if(codes.length) dlvHandleQR(codes[0].rawValue); }catch(e){}
+    },300);
+  } else {
+    loadJsQR().then(()=>{
+      const video=document.getElementById('dlv-cam-video'), canvas=document.getElementById('dlv-cam-canvas'), ctx=canvas.getContext('2d');
+      _dlvScanInt=setInterval(()=>{
+        if(_dlvCooldown||!_dlvCamStream||!video.videoWidth) return;
+        canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+        ctx.drawImage(video,0,0);
+        const id=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const code=window.jsQR&&window.jsQR(id.data,canvas.width,canvas.height);
+        if(code&&code.data) dlvHandleQR(code.data);
+      },300);
+    });
+  }
+}
+
+function dlvHandleQR(rawText){
+  if(_dlvCooldown) return;
+  let uid=null;
+  const urlMatch=rawText.match(/\/piece\/([^?\s\/]+)/i);
+  if(urlMatch){ uid=decodeURIComponent(urlMatch[1]).toUpperCase(); }
+  else {
+    try{ const p=JSON.parse(rawText); uid=p.uid||p['PIECE ID']||null; }
+    catch{ const m=rawText.match(/PIECE\s*ID[:\s]+([^\n]+)/i); uid=m?m[1].trim():rawText.trim().toUpperCase(); }
+  }
+  if(!uid||uid===_dlvLastScan) return;
+  _dlvLastScan=uid; _dlvCooldown=true;
+  setTimeout(()=>{ _dlvCooldown=false; _dlvLastScan=null; },2500);
+  document.getElementById('dlv-scan-status').textContent='Detected: '+uid;
+  dlvProcessScan(uid);
+}
+
+function dlvLookupManual(){
+  const inp=document.getElementById('dlv-manual-uid');
+  const uid=(inp?.value||'').trim().toUpperCase();
+  if(!uid) return;
+  if(inp) inp.value='';
+  dlvProcessScan(uid);
+}
+
+async function dlvProcessScan(uid){
+  if(_dlvDelivery && (_dlvDelivery.items||[]).some(p=>p.piece_uid===uid)){
+    showFlash('&#9888;','Already Added',uid+' already in this delivery','var(--a4)'); vibrate([50,30,50]); return;
+  }
+  try{
+    const piece=await AGI.Labels.get(uid);
+    const logs=piece.scanLog||[], procs=piece.processes||[];
+    const pending=procs.filter(pid=>!logs.some(s=>s.process===pid&&s.action==='done'));
+    if(pending.length){
+      _dlvWarnPiece={piece,pending};
+      document.getElementById('dlv-warn-uid').textContent=uid;
+      document.getElementById('dlv-warn-procs').innerHTML='These processes are not yet done:<br><br>'+
+        pending.map(p=>'&bull; '+procLabel(p)).join('<br>')+'<br><br>Mark them done and add to delivery?';
+      document.getElementById('m-dlv-warn').style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;align-items:center;justify-content:center';
+      vibrate([30,20,30]);
+    } else {
+      await dlvAddPiece(piece);
+    }
+  }catch(e){ showFlash('&#9888;','Not Found',uid+' not found','var(--a2)'); vibrate([50,30,50,30,50]); }
+}
+
+function dlvWarnCancel(){ _dlvWarnPiece=null; document.getElementById('m-dlv-warn').style.display='none'; }
+
+async function dlvWarnComplete(){
+  if(!_dlvWarnPiece) return;
+  const {piece,pending}=_dlvWarnPiece; _dlvWarnPiece=null;
+  document.getElementById('m-dlv-warn').style.display='none';
+  for(const pid of pending){ try{ await AGI.Labels.scan(piece.uid,pid,'done'); }catch(e){} }
+  try{ const fresh=await AGI.Labels.get(piece.uid); await dlvAddPiece(fresh); }
+  catch(e){ await dlvAddPiece(piece); }
+}
+
+async function dlvAddPiece(piece){
+  let customerId=null, customerCode='', customerName='';
+  const orderId=piece.orderId||piece.order_id||null, orderNum=piece.orderNum||piece.order_num||'';
+  if(orderId){
+    let order=orders.find(o=>o.id===orderId)||null;
+    if(!order){ try{ order=await AGI.Orders.get(orderId); }catch(e){} }
+    if(order){ customerId=order.customerId||order.customer_id; customerCode=order.customer_code||''; customerName=order.customer_name||''; }
+  }
+  if(!customerId){ showFlash('&#9888;','No Order','Piece has no order assigned','var(--a4)'); return; }
+  if(!_dlvDelivery){
+    try{ _dlvDelivery=await AGI.Deliveries.create({customer_id:customerId,customer_code:customerCode,customer_name:customerName}); }
+    catch(e){ showFlash('&#9888;','Error','Could not create delivery: '+e.message,'var(--a2)'); return; }
+  }
+  try{
+    const item=await AGI.Deliveries.addItem(_dlvDelivery.id,{
+      piece_uid:piece.uid, order_id:orderId, order_num:orderNum,
+      customer_id:customerId, customer_code:customerCode,
+      w:piece.w, h:piece.h, thickness:piece.thickness,
+      glass_type:piece.glassType||piece.glass_type||'glass',
+      color:piece.color||'clear', processes:piece.processes||[]
+    });
+    if(!_dlvDelivery.items) _dlvDelivery.items=[];
+    _dlvDelivery.items.push(item);
+    showFlash('&#128666;','Added',item.piece_code+' — '+piece.uid,'var(--a3)');
+    vibrate([30,20,30]);
+    dlvUpdateSessionUI();
+  }catch(e){
+    if(e.message&&e.message.includes('already in')) showFlash('&#9888;','Already Added',piece.uid+' already in delivery','var(--a4)');
+    else showFlash('&#9888;','Error',e.message,'var(--a2)');
+  }
+}
+
+async function dlvRemovePiece(uid){
+  if(!_dlvDelivery) return;
+  try{
+    await AGI.Deliveries.removeItem(_dlvDelivery.id,uid);
+    _dlvDelivery.items=(_dlvDelivery.items||[]).filter(p=>p.piece_uid!==uid);
+    dlvUpdateSessionUI(); showToast('Removed '+uid);
+  }catch(e){ showFlash('&#9888;','Error',e.message,'var(--a2)'); }
+}
+
+function dlvOpenFinalise(){
+  if(!_dlvDelivery||!(_dlvDelivery.items||[]).length){ showToast('No pieces to finalise'); return; }
+  const sel=document.getElementById('dlv-fin-receiver');
+  sel.innerHTML='<option value="">— Select receiver —</option>'+
+    _dlvReceivers.map(r=>`<option value="${r.id}" data-company="${r.company||''}">${r.name}${r.company?' ('+r.company+')':''}</option>`).join('');
+  document.getElementById('dlv-fin-customer').textContent=(_dlvDelivery.customer_name||'')+' — '+(_dlvDelivery.items||[]).length+' piece'+((_dlvDelivery.items||[]).length!==1?'s':'');
+  document.getElementById('dlv-fin-company').value='';
+  document.getElementById('dlv-fin-notes').value='';
+  document.getElementById('m-dlv-finalise').style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;align-items:center;justify-content:center';
+}
+
+function dlvReceiverChange(){
+  const sel=document.getElementById('dlv-fin-receiver');
+  const opt=sel.options[sel.selectedIndex];
+  document.getElementById('dlv-fin-company').value=opt?opt.dataset.company||'':'';
+}
+
+function dlvPrintNote(){
+  if(!_dlvDelivery) return;
+  const d = _dlvDelivery;
+  const logo = (typeof cfg!=='undefined'&&cfg&&cfg.factory_logo) ? cfg.factory_logo : null;
+  const logoHtml = logo
+    ? `<img src="${logo}" style="max-height:60px;max-width:160px;object-fit:contain">`
+    : `<div style="font-size:26px;font-weight:700;letter-spacing:2px">AGI GLASS</div>`;
+  const date = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const pieces = d.items||[];
+  let totalSqm = 0;
+  let rowNum = 0;
+
+  // Group pieces by order
+  const orderGroups = {};
+  const orderOrder = [];
+  pieces.forEach(p=>{
+    const key = p.order_num||'—';
+    if(!orderGroups[key]){ orderGroups[key]=[]; orderOrder.push(key); }
+    orderGroups[key].push(p);
+  });
+
+  // Get extref per order from loaded orders cache
+  const getExtref = (orderNum) => {
+    if(typeof orders!=='undefined'&&orders.length){
+      const o = orders.find(x=>x.num===orderNum);
+      return o ? (o.extref||o.ext_ref||'') : '';
+    }
+    return '';
+  };
+
+  let rows = '';
+  orderOrder.forEach(orderNum=>{
+    const grpPieces = orderGroups[orderNum];
+    const extref = getExtref(orderNum);
+    rows += `<tr><td colspan="6" style="padding:10px 0 4px 0;font-size:10px;font-weight:700;color:#111;letter-spacing:1px;border-bottom:1px solid #aaa">
+      ORDER: ${orderNum}${extref?' — '+extref:''}
+    </td></tr>`;
+    grpPieces.forEach(p=>{
+      rowNum++;
+      const w = p.w||0, h = p.h||0;
+      totalSqm += (w*h)/1e6;
+      const procsRaw = p.processes||'[]';
+      const procsArr = Array.isArray(procsRaw) ? procsRaw : JSON.parse(procsRaw);
+      const procs = procsArr.map(pr=>pr.charAt(0).toUpperCase()+pr.slice(1)).join(', ');
+      const typeStr = (p.glass_type||'').charAt(0).toUpperCase()+(p.glass_type||'').slice(1);
+      const colorStr = (p.color||'').charAt(0).toUpperCase()+(p.color||'').slice(1);
+      rows += `<tr style="border-bottom:0.5px solid #e0e0e0">
+        <td style="padding:7px 8px 7px 0;color:#555;font-size:11px">${rowNum}</td>
+        <td style="padding:7px 8px 7px 0;font-weight:600;font-size:11px">${p.piece_uid||p.uid||''}</td>
+        <td style="padding:7px 8px 7px 0;font-size:11px;color:#555">${p.piece_code||p.piece_uid||''}</td>
+        <td style="padding:7px 8px 7px 0;text-align:center;font-size:11px">${w} × ${h}</td>
+        <td style="padding:7px 8px 7px 0;font-size:11px;color:#555">${p.thickness||''}mm ${typeStr} ${colorStr}</td>
+        <td style="padding:7px 0 7px 0;font-size:11px;color:#555">${procs}</td>
+      </tr>`;
+    });
+  });
+
+  const notesHtml = d.notes ? `<div style="margin:0 32px 16px;background:#f8f8f8;border-radius:6px;padding:10px 14px;font-size:12px;color:#555">
+    <strong style="color:#111">Notes:</strong> ${d.notes}
+  </div>` : '';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Delivery Note — ${d.serial||''}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;color:#111;background:#fff}
+    @page{size:A4 portrait;margin:12mm}
+    @media print{body{-webkit-print-color-adjust:exact}}
+  </style>
+  </head><body>
+  <div style="max-width:720px;margin:0 auto">
+    <!-- Letterhead -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #111;margin-bottom:16px">
+      <div>
+        ${logoHtml}
+        <div style="font-size:11px;color:#666;margin-top:6px">Glass Fabrication Factory</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:18px;font-weight:700">Delivery Note</div>
+        <table style="margin-top:8px;font-size:12px;color:#555;margin-left:auto">
+          <tr><td style="padding:2px 8px 2px 0;color:#888">No:</td><td style="font-weight:600;color:#111">${d.serial||''}</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;color:#888">Date:</td><td style="font-weight:600;color:#111">${date}</td></tr>
+          ${orderOrder.length===1?`<tr><td style="padding:2px 8px 2px 0;color:#888">Order:</td><td style="font-weight:600;color:#111">${orderOrder[0]}</td></tr>`:''}
+          ${(()=>{const refs=[...new Set(orderOrder.map(getExtref).filter(Boolean))];return refs.length?`<tr><td style="padding:2px 8px 2px 0;color:#888">Ref:</td><td style="font-weight:600;color:#111">${refs.join(', ')}</td></tr>`:'';})()} 
+        </table>
+      </div>
+    </div>
+    <!-- Customer -->
+    <div style="display:flex;gap:48px;padding-bottom:14px;border-bottom:0.5px solid #ddd;margin-bottom:16px">
+      <div>
+        <div style="font-size:10px;font-weight:600;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Deliver to</div>
+        <div style="font-size:14px;font-weight:600">${d.customer_name||d.customerName||''}</div>
+        ${d.receiver_name?`<div style="font-size:12px;color:#555">Attn: ${d.receiver_name}</div>`:''}
+      </div>
+      ${d.receiver_company?`<div>
+        <div style="font-size:10px;font-weight:600;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Company</div>
+        <div style="font-size:13px;font-weight:600">${d.receiver_company}</div>
+      </div>`:''}
+    </div>
+    <!-- Pieces table -->
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+      <thead>
+        <tr style="border-bottom:1px solid #111">
+          <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">#</th>
+          <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Piece ID</th>
+          <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Description</th>
+          <th style="text-align:center;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">W × H (mm)</th>
+          <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Glass</th>
+          <th style="text-align:left;padding:6px 0 8px 0;font-size:10px;color:#888;font-weight:600">Processes</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <!-- Totals -->
+    <div style="display:flex;justify-content:flex-end;gap:32px;font-size:12px;padding-top:10px;border-top:1px solid #ddd;margin-bottom:16px">
+      <div style="color:#555">Total pieces: <strong style="color:#111">${pieces.length}</strong></div>
+      <div style="color:#555">Total sqm: <strong style="color:#111">${totalSqm.toFixed(3)} m²</strong></div>
+    </div>
+    ${notesHtml}
+    <!-- Signature block -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;padding-top:20px;border-top:0.5px solid #ddd;margin-top:8px">
+      <div>
+        <div style="font-size:10px;font-weight:600;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:48px">Delivered by</div>
+        <div style="border-top:1px solid #aaa;padding-top:6px;font-size:11px;color:#888">Name &amp; Signature</div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:48px">Received by</div>
+        <div style="border-top:1px solid #aaa;padding-top:6px;font-size:11px;color:#888">Name &amp; Signature</div>
+      </div>
+    </div>
+    <!-- Footer -->
+    <div style="margin-top:24px;padding-top:12px;border-top:2px solid #111;text-align:center;font-size:10px;color:#888">
+      AGI Glass Factory — This document serves as proof of delivery
+    </div>
+  </div>
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`;
+
+  const w = window.open('','_blank','width=800,height=1000');
+  w.document.write(html);
+  w.document.close();
+}
+
+async function dlvConfirmFinalise(){
+  const receiverId=document.getElementById('dlv-fin-receiver').value;
+  if(!receiverId){ alert('Please select a receiver'); return; }
+  const sel=document.getElementById('dlv-fin-receiver');
+  const receiverName=(sel.options[sel.selectedIndex]?.text||'').replace(/ \(.*\)$/,'');
+  const company=document.getElementById('dlv-fin-company').value.trim();
+  const notes=document.getElementById('dlv-fin-notes').value.trim();
+  try{
+    await AGI.Deliveries.finalise(_dlvDelivery.id,{receiver_id:+receiverId,receiver_name:receiverName,receiver_company:company,notes});
+    document.getElementById('m-dlv-finalise').style.display='none';
+    showFlash('&#10003;','Delivery Finalised',_dlvDelivery.serial+' — '+receiverName,'var(--a3)');
+    vibrate([50,30,50,30,100]);
+    _dlvDelivery=null; dlvBackToHome();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+async function unmarkProcess(uid, pid){
+  if(!confirm('Remove "'+procLabel(pid)+'" done mark from '+uid+'?\nThis allows it to be marked again.')) return;
+  try{
+    await AGI.Labels.unscan(uid, pid);
+    showFlash('&#10005;','Unmarked',procLabel(pid)+' — '+uid,'var(--a2)');
+    vibrate([30,20,30]);
+    const fresh=await AGI.Labels.get(uid);
+    scanLog=fresh.scanLog||scanLog;
+    let orderData=orders.find(o=>o.id===fresh.orderId)||null;
+    if(!orderData&&fresh.orderId){ try{ orderData=await AGI.Orders.get(fresh.orderId); }catch(e){} }
+    renderPieceCard(fresh,'',orderData);
+  }catch(e){ showFlash('&#9888;','Error',e.message,'var(--a2)'); }
+}
 
 (async()=>{
   const ok=await restoreSession();

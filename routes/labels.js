@@ -232,4 +232,16 @@ router.get('/:uid', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// DELETE /api/labels/:uid/process/:pid — unmark a process as done (admin/correction)
+router.delete('/:uid/process/:pid', (req, res) => {
+  try {
+    const { uid, pid } = req.params;
+    // Delete all scan_log entries for this piece+process with action='done'
+    const result = db.prepare(
+      "DELETE FROM scan_log WHERE piece_uid=? AND process=? AND action='done'"
+    ).run(uid, pid);
+    res.json({ ok: true, removed: result.changes });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

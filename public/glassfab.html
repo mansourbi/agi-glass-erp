@@ -4,6 +4,69 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>AGI Glass — Factory Management System</title>
+<!-- ── Admin Delivery Modal — New Delivery ─────────────────────────────── -->
+<div class="modal mbg" id="m-new-delivery">
+  <div class="mc" style="max-width:560px;width:95%">
+    <div class="mh"><span class="mt">&#128666; New Delivery</span><button class="mx" onclick="CM('m-new-delivery')">&times;</button></div>
+    <div class="mb" style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:4px">Customer</label>
+        <select id="adlv-customer" class="inp" style="padding:8px 12px;width:100%" onchange="adlvCustomerChange()">
+          <option value="">— Select customer —</option>
+        </select>
+      </div>
+      <div id="adlv-open-warning" style="display:none;font-size:.75rem;color:var(--a4);background:rgba(255,210,63,.08);border:1px solid rgba(255,210,63,.25);border-radius:6px;padding:8px 12px">
+        &#9888; This customer already has an open delivery. Adding pieces will go into that delivery.
+      </div>
+      <div>
+        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:4px">Add Piece by UID</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="adlv-piece-input" class="inp" placeholder="e.g. REF-1-5" style="flex:1;padding:8px 12px" autocomplete="off" autocorrect="off" spellcheck="false"
+            onkeydown="if(event.key==='Enter') adlvAddPiece()">
+          <button class="btn ba" onclick="adlvAddPiece()">Add</button>
+        </div>
+        <div id="adlv-piece-msg" style="font-size:.72rem;min-height:18px;margin-top:4px"></div>
+      </div>
+      <div id="adlv-pieces-list" style="display:none">
+        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:6px">Pieces in this delivery</label>
+        <div id="adlv-pieces-body" style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;max-height:220px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <div class="mf" style="display:flex;gap:8px">
+      <button class="btn bs" onclick="CM('m-new-delivery')">Cancel</button>
+      <button class="btn ba" onclick="adlvFinalise()" id="adlv-finalise-btn" disabled>&#10003; Finalise Delivery</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Admin Delivery Modal — Finalise ──────────────────────────────────── -->
+<div class="modal mbg" id="m-adlv-finalise">
+  <div class="mc" style="max-width:440px;width:95%">
+    <div class="mh"><span class="mt">Finalise Delivery</span><button class="mx" onclick="CM('m-adlv-finalise')">&times;</button></div>
+    <div class="mb" style="display:flex;flex-direction:column;gap:12px">
+      <div id="adlv-fin-summary" style="font-size:.82rem;color:var(--tx2)"></div>
+      <div>
+        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:4px">Receiver</label>
+        <select id="adlv-fin-receiver" class="inp" style="padding:8px 12px;width:100%" onchange="adlvFinReceiverChange()">
+          <option value="">— Select receiver —</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:4px">Company</label>
+        <input type="text" id="adlv-fin-company" class="inp" style="padding:8px 12px;width:100%" placeholder="Company (optional)">
+      </div>
+      <div>
+        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:4px">Notes</label>
+        <input type="text" id="adlv-fin-notes" class="inp" style="padding:8px 12px;width:100%" placeholder="Optional notes...">
+      </div>
+    </div>
+    <div class="mf" style="display:flex;gap:8px">
+      <button class="btn bs" onclick="CM('m-adlv-finalise')">Cancel</button>
+      <button class="btn ba" onclick="adlvConfirmFinalise()">&#10003; Confirm</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="/qrcode.min.js"></script>
 <script src="/agi-api.js"></script>
@@ -241,7 +304,6 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   body.print-labels #cut-results{display:none!important}
   body.print-labels #cut-stats{display:none!important}
   body.print-labels #cut-view-ws .ph{display:none!important}
-  @page{margin:5mm;size:A4 portrait}
   body{background:#fff;color:#000;font-family:'DM Sans',sans-serif}
   body::before,.nav,.no-print,#opt-toast,#agi-toast,[style*="position:fixed"]{display:none!important}
   .pg{display:block!important;padding:0;max-width:100%}
@@ -350,7 +412,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   /* ── Print layout: 100mm×50mm labels, one per page ── */
   body.print-labels{margin:0;padding:0;background:#fff;}
   body.print-labels .lg{display:block;}
-  /* Each label card = exactly one page: 100mm × 50mm */
+  /* Each label card = exactly one label-sized page */
   body.print-labels .lcard{
     width:100mm!important;height:50mm!important;
     box-sizing:border-box;
@@ -362,42 +424,34 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     page-break-inside:avoid;break-inside:avoid;
     overflow:hidden;border-radius:0;
   }
-  /* lbl-inner fills the full card — no padding */
-  body.print-labels .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100%;height:100%;padding:0;margin:0;box-sizing:border-box}
-  /* QR column: 38mm, no gaps/padding */
+  /* lbl-inner fills the full card */
+  body.print-labels .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100mm;height:50mm;padding:0;margin:0;box-sizing:border-box}
+  /* QR column: 38mm */
   body.print-labels .lbl-qr{width:38mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0;margin:0;gap:0;box-sizing:border-box}
-  /* Logo — ABOVE QR, transparent, order:0 forces it first visually */
+  /* Logo above QR */
   body.print-labels .lbl-logo-bar{order:0;width:38mm;background:transparent;display:flex!important;align-items:center;justify-content:center;flex-shrink:0;padding:1mm 0 0 0;margin:0 0 3mm 0}
   body.print-labels .lbl-logo-img{width:10mm!important;height:10mm!important;max-width:10mm!important;max-height:10mm!important;object-fit:contain;display:block!important}
   body.print-labels .lbl-logo-txt{font-family:'DM Mono',Courier,monospace;font-size:9pt;font-weight:700;color:#111;letter-spacing:0.5mm}
-  /* QR below logo, order:1 forces it after logo */
+  /* QR wrap */
   body.print-labels .lbl-qr-wrap{order:1;flex:1;width:38mm;display:flex;align-items:center;justify-content:center;padding:0 0 1.5mm 0;margin:0}
   body.print-labels .lbl-qr canvas,body.print-labels .lbl-qr img{display:block;width:36mm!important;height:36mm!important}
   /* Separator */
   body.print-labels .lbl-sep{width:0.3mm;background:#ccc;flex-shrink:0;margin:0}
-  /* Info column — 1mm padding inside */
-  body.print-labels .lbl-info{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;gap:0.8mm;padding:1.5mm 1.5mm 1.5mm 1.5mm;box-sizing:border-box}
-  /* UID badge */
+  /* Info column */
+  body.print-labels .lbl-info{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;gap:0.8mm;padding:1.5mm 2mm 1.5mm 1.5mm;box-sizing:border-box;width:0}
   body.print-labels .lbl-uid{font-family:'DM Mono',Courier,monospace;font-size:11.5pt;font-weight:700;background:#111!important;color:#fff!important;padding:0.8mm 1.5mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center}
-  /* Size */
   body.print-labels .lbl-size{font-family:'DM Mono',Courier,monospace;font-size:13pt;font-weight:700;color:#111;text-align:center;display:block}
-  /* Glass spec */
   body.print-labels .lbl-glass{font-family:'DM Mono',Courier,monospace;font-size:9pt;color:#444;text-align:center;display:block}
-  /* Raw code pill */
   body.print-labels .lbl-rawcode{font-family:'DM Mono',Courier,monospace;font-size:8.5pt;background:#f0f0f0;border:0.2mm solid #ddd;border-radius:0.5mm;padding:0.3mm 1mm;color:#555;display:block;text-align:center}
-  /* Divider */
   body.print-labels .lbl-divider{border:none;border-top:0.2mm solid #eee;margin:0}
-  /* Processes */
   body.print-labels .lbl-procs{font-family:'DM Sans',Arial,sans-serif;font-size:8.5pt;color:#555;text-align:center;display:block;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-  /* Description */
   body.print-labels .lbl-desc{font-family:'DM Sans',Arial,sans-serif;font-size:8pt;color:#888;font-style:italic;text-align:center;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  /* Date */
   body.print-labels .lbl-date{font-family:'DM Mono',Courier,monospace;font-size:8pt;color:#888;text-align:right;display:block;margin-top:auto}
-  /* Sheet group wrapper — just a block container */
-  body.print-labels .lg{ display:block; }
+  /* Sheet group — block container, no extra breaks */
   body.print-labels .lbl-sheet-group{ display:block; }
   body.print-labels .lbl-sheet-screen-hdr{ display:none!important; }
-  /* SHEET TITLE PAGE — full page, centered, own page */
+  body.print-labels .lbl-sheet-cards{ display:block; padding:0; margin:0; }
+  /* SHEET TITLE PAGE: own label-sized page, sits before cards */
   body.print-labels .lbl-sheet-print-hdr{
     display:flex!important;
     width:100mm;height:50mm;
@@ -405,18 +459,17 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     align-items:center;justify-content:center;
     font-family:'DM Mono',Courier,monospace;
     font-size:18pt;font-weight:700;letter-spacing:4px;text-transform:uppercase;
-    color:#000;
-    border:none;
+    color:#000;border:none;
     page-break-before:always;break-before:page;
-    page-break-after:always;break-after:page;
+    page-break-after:avoid;break-after:avoid;
     page-break-inside:avoid;break-inside:avoid;
     margin:0;padding:0;
   }
-  /* No blank page before first sheet */
+  /* First group: no blank page before its title */
   body.print-labels .lbl-sheet-group:first-child .lbl-sheet-print-hdr{
     page-break-before:avoid;break-before:avoid;
   }
-  /* STORAGE REMNANTS TITLE PAGE — full page, centered, green */
+  /* SECTION TITLE (Manual Cut / Remnants etc.) */
   body.print-labels .lbl-sub-hdr{
     display:flex!important;
     width:100mm;height:50mm;
@@ -424,14 +477,12 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     align-items:center;justify-content:center;text-align:center;
     font-family:'DM Mono',Courier,monospace;
     font-size:13pt;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-    color:#1a6a3a;
-    border:none;
+    color:#1a6a3a;border:none;
     page-break-before:always;break-before:page;
-    page-break-after:always;break-after:page;
+    page-break-after:avoid;break-after:avoid;
     page-break-inside:avoid;break-inside:avoid;
     margin:0;padding:4mm;
   }
-  body.print-labels .lbl-sheet-cards{ display:block; padding:0; margin:0; }
   body.print-labels .lbl-section-hdr{ display:none!important; height:0!important; min-height:0!important; max-height:0!important; padding:0!important; margin:0!important; border:none!important; overflow:hidden!important; line-height:0!important; }
   body.print-labels .no-print{ display:none!important; }
   /* Non-label print */
@@ -462,6 +513,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     
     <button class="nt"    onclick="SP('reports')" id="nt-reports">&#9636; Reports</button>
     <button class="nt"    onclick="SP('remnants')" id="nt-remnants">&#9632; Remnants</button>
+    <button class="nt"    onclick="SP('deliveries')" id="nt-deliveries">&#128666; Deliveries</button>
     <button class="nt"    onclick="SP('settings')"id="nt-settings">&#9881; Settings</button>
   </div>
 </nav>
@@ -543,9 +595,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             </th>
             <th class="ord-th xcol" id="xh-date">
               <div class="xcol-hd" onclick="sortOrders('date')">Date <span class="sort-arrow" id="sa-date">&#9660;</span></div>
-              <div class="xcol-filter" style="display:flex;gap:2px">
-                <input class="xinp" id="xf-date-from" type="date" onchange="renderOrders()" title="From" style="width:50%">
-                <input class="xinp" id="xf-date-to"   type="date" onchange="renderOrders()" title="To"   style="width:50%">
+              <div class="xcol-filter">
+                <input class="xinp" id="xf-date-from" type="date" onchange="renderOrders()" title="Date" style="width:100%">
               </div>
             </th>
             <th class="ord-th xcol" id="xh-status">
@@ -593,7 +644,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
                 <option value="bronze">Bronze</option><option value="grey">Grey</option>
                 <option value="green">Green</option><option value="blue">Blue</option>
                 <option value="black">Black</option><option value="white">White</option>
-                <option value="other">Other</option>
+                <option value="antique">Antique</option><option value="silver">Silver</option><option value="other">Other</option>
               </select></div>
             </th>
             <th class="ord-th xcol" id="xh-sqm">
@@ -1027,6 +1078,61 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   </div>
 </div>
 
+<div class="pg" id="pg-deliveries">
+  <!-- List view -->
+  <div id="dlv-pg-list">
+    <div class="ph">
+      <div><div class="pt">Deliveries</div><div class="ps">Customer delivery notes &amp; history</div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="dlv-search" class="inp" placeholder="Search serial, customer..." style="padding:6px 12px;width:180px" oninput="renderDeliveriesPage()">
+        <select id="dlv-status-filter" class="inp" style="padding:6px 10px" onchange="renderDeliveriesPage()">
+          <option value="">All Status</option>
+          <option value="open">Open</option>
+          <option value="finalised">Finalised</option>
+        </select>
+        <button class="btn ba" onclick="openNewDeliveryModal()" style="white-space:nowrap">+ New Delivery</button>
+      </div>
+    </div>
+    <div style="padding:0 20px 20px;overflow-x:auto">
+      <table id="dlv-table" style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border)">
+            <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">SERIAL</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">CUSTOMER</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">PIECES</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">RECEIVER</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">STATUS</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">DATE</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">CREATED BY</th>
+          </tr>
+        </thead>
+        <tbody id="dlv-table-body">
+          <tr><td colspan="7" style="padding:40px;text-align:center;color:var(--mu)">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Detail view (hidden by default) -->
+  <div id="dlv-pg-detail" style="display:none">
+    <div class="ph">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn bs bsm" onclick="dlvShowList()">&#8592; Back</button>
+        <div>
+          <div class="pt" id="dlv-detail-title">Delivery</div>
+          <div class="ps" id="dlv-detail-sub"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center" id="dlv-detail-actions"></div>
+    </div>
+    <div style="padding:0 20px 20px;display:grid;grid-template-columns:1fr 340px;gap:20px" id="dlv-detail-body">
+      <div id="dlv-detail-pieces"></div>
+      <div id="dlv-detail-sidebar"></div>
+    </div>
+  </div>
+</div>
+
+
 <div class="pg" id="pg-settings">
   <div class="ph"><div><div class="pt">Settings</div><div class="ps">Raw Materials, Workers &amp; System</div></div></div>
   <!-- Settings tabs -->
@@ -1041,6 +1147,16 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="rtab" onclick="showSettingsTab('system')">&#9881; System</button>
     <button class="rtab" onclick="showSettingsTab('cancelreasons')">&#10005; Cancel Reasons</button>
     <button class="rtab" onclick="showSettingsTab('typereasons')">&#9670; Order Types</button>
+    <button class="rtab" onclick="showSettingsTab('receivers')">&#128666; Receivers</button>
+  </div>
+
+  <!-- Tab: Receivers -->
+  <div id="stab-receivers" class="stab" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--mu)">Delivery Receivers</div>
+      <button class="btn ba bsm" onclick="openAddReceiver()">+ Add Receiver</button>
+    </div>
+    <div id="receiver-list"></div>
   </div>
 
   <!-- Tab: Raw Materials -->
@@ -1048,9 +1164,10 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 
     <!-- Sub-tabs -->
     <div style="display:flex;gap:6px;margin-bottom:12px">
-      <button class="rtab on" id="rsmt-cat"  onclick="showRSTab('catalog')">&#9642; Sheet Catalog</button>
-      <button class="rtab"    id="rsmt-stock" onclick="showRSTab('stock')">&#128230; Stock &amp; Purchases</button>
-      <button class="rtab"    id="rsmt-usage" onclick="showRSTab('usage')">&#9906; Usage by Optimization</button>
+      <button class="rtab on" id="rsmt-cat"    onclick="showRSTab('catalog')">&#9642; Sheet Catalog</button>
+      <button class="rtab"    id="rsmt-stock"  onclick="showRSTab('stock')">&#128230; Stock &amp; Purchases</button>
+      <button class="rtab"    id="rsmt-usage"  onclick="showRSTab('usage')">&#9906; Usage by Optimization</button>
+      <button class="rtab"    id="rsmt-ledger" onclick="showRSTab('ledger')">&#128200; Stock Ledger</button>
     </div>
 
     <!-- Sub-tab: Catalog -->
@@ -1072,7 +1189,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <option value="bronze">Bronze</option><option value="grey">Grey</option>
               <option value="green">Green</option><option value="blue">Blue</option>
               <option value="black">Black</option><option value="white">White</option>
-              <option value="other">Other</option>
+              <option value="antique">Antique</option><option value="silver">Silver</option><option value="other">Other</option>
             </select>
             <select id="rs-f-thick" onchange="renderSettingsRSCatalog()" style="font-size:.7rem;padding:5px 8px;width:auto">
               <option value="">All Thicknesses</option>
@@ -1155,6 +1272,21 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       </div>
     </div>
 
+
+    <!-- Sub-tab: Stock Ledger -->
+    <div id="rstab-ledger" style="display:none">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <!-- Sheet list -->
+        <div style="width:280px;flex-shrink:0">
+          <div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);margin-bottom:8px">Raw Sheets</div>
+          <div id="ledger-sheet-list" style="display:flex;flex-direction:column;gap:4px"></div>
+        </div>
+        <!-- Transaction detail -->
+        <div style="flex:1;min-width:0">
+          <div id="ledger-detail" style="color:var(--mu);font-size:.82rem;padding:20px 0">Select a sheet to view its ledger.</div>
+        </div>
+      </div>
+    </div>
     <!-- Sub-tab: Usage by Optimization -->
     <div id="rstab-usage" style="display:none">
       <div class="card">
@@ -1859,9 +1991,16 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               </div>
             </div>
             <label class="lbl">Glass Family * — ALL pieces in this order must match</label>
-            <select id="o-family" style="font-size:.76rem;border-color:var(--a2)" onchange="onFamilyChange(this.value)">
-              <option value="">Select thickness / type / color...</option>
-            </select>
+            <div id="fam-picker" style="position:relative">
+              <input type="text" id="fam-search-inp" autocomplete="off"
+                class="inp" style="font-size:.76rem;border-color:var(--a2);width:100%;cursor:pointer"
+                placeholder="Select thickness / type / color..."
+                oninput="famPickerFilter()" onfocus="famPickerOpen()" onblur="setTimeout(famPickerClose,200)">
+              <input type="hidden" id="o-family">
+              <div id="fam-picker-list" style="display:none;position:absolute;z-index:9999;left:0;right:0;top:100%;
+                background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);
+                max-height:260px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+            </div>
           </div>
           <div id="o-family-badge" style="font-family:'DM Mono',monospace;font-size:.65rem;padding:6px 10px;border-radius:var(--r);background:rgba(0,204,255,.07);border:1px solid rgba(0,204,255,.2);color:var(--a);display:none;white-space:nowrap"></div>
         </div>
@@ -1926,7 +2065,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <option value="bronze">Bronze</option><option value="grey">Grey</option>
             <option value="green">Green</option><option value="blue">Blue</option>
             <option value="black">Black</option><option value="white">White</option>
-            <option value="other">Other</option>
+            <option value="antique">Antique</option><option value="silver">Silver</option><option value="other">Other</option>
           </select></div>
         <div class="fg"><label class="lbl">Thickness mm</label>
           <select id="rs-thick"></select></div>
@@ -1989,7 +2128,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <option value="contract">Employment Contract</option>
           <option value="certificate">Certificate</option>
           <option value="medical">Medical Report</option>
-          <option value="other">Other</option>
+          <option value="antique">Antique</option><option value="silver">Silver</option><option value="other">Other</option>
         </select></div>
       <div class="fg"><label class="lbl">Document Name / Number</label>
         <input type="text" id="doc-name" class="inp" placeholder="e.g. Passport #A1234567"></div>
@@ -2210,6 +2349,8 @@ const THICKNESSES = [4,5,6,8,10,12,15,19,22,25];
 const COLOR_MAP={
   'clear':'#c8eeff','low-iron':'#d0f5e8','bronze':'#c8a878','grey':'#a0a8b0',
   'green':'#7dc87d','blue':'#6090d8','black':'#333840','white':'#f0f4f8',
+  'antique':'#b8a090',
+  'silver':'#c0c0c0',
   'other':'#888'
 };
 
@@ -2226,6 +2367,7 @@ async function SP(id){
            track:renderTrack,labels:renderLabels,reports:renderReports,settings:renderSettings};
   if(r[id]) r[id]();
   if(id==='remnants'){ remnantSlots=await AGI.Remnants.slots.list().catch(()=>[]); await renderRemnants(); }
+  if(id==='deliveries') await renderDeliveriesPage();
   badges();
 }
 async function badges(){
@@ -2240,7 +2382,9 @@ async function badges(){
 // ═══════════════════════════════════════════════════════
 function OM(id){document.getElementById(id).classList.add('on')}
 function CM(id){document.getElementById(id).classList.remove('on')}
-document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('on')}));
+document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{
+  if(e.target===m && m.id!=='m-order') m.classList.remove('on');
+}));
 
 // ═══════════════════════════════════════════════════════
 // DASHBOARD
@@ -2318,7 +2462,7 @@ function renderOrderMatrix(containerId, compact=false){
   let html=`<table class="matrix"><thead><tr>
     <th class="ord-col">Order Date</th>
     <th class="ord-col">Order Ref</th>
-    <th class="ord-col">Customer</th>
+    <th class="ord-col">Final Product</th>
     <th class="ord-col">Status</th>`;
   if(!compact) html+=`<th class="ord-col">Completed / Cancelled</th>`;
   if(!compact) html+=`<th class="ord-col">Classification</th>`;
@@ -2331,9 +2475,9 @@ function renderOrderMatrix(containerId, compact=false){
     const isCancelled=o.status==='cancelled';
     const isDone=o.status==='done';
     html+=`<tr style="${isCancelled?'opacity:.65':''}">
-      <td style="font-size:.72rem">${(o.date||'').slice(0,10)}</td>
+      <td style="font-size:.72rem;white-space:nowrap">${(o.date||'').slice(0,10)}${!compact?`<div style="margin-top:3px;display:flex;gap:3px"><button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="View order" style="font-size:.6rem">&#128065;</button>${(o.attachments&&o.attachments.length)?`<button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="${o.attachments.length} attachment(s)" style="font-size:.6rem">&#128206; ${o.attachments.length}</button>`:''}</div>`:''}</td>
       <td class="mn" style="color:var(--a);cursor:pointer" onclick="showOrderDetail(${o.id})">${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}${o.extref?`<div style="font-size:.6rem;color:var(--mu)">${o.extref}</div>`:''}</td>
-      <td style="font-size:.72rem">${(cMap[o.customerId]||{}).name||'?'}</td>
+      <td style="font-size:.72rem">${(()=>{const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));return fp?`<span style="color:var(--a4);font-size:.68rem">${fp.label}</span>`:'<span style="color:var(--mu)">—</span>';})()}</td>
       <td><span class="bge" style="background:${isDone?'rgba(54,255,138,.15)':isCancelled?'rgba(255,90,90,.15)':'rgba(0,204,255,.1)'};color:${isDone?'var(--a3)':isCancelled?'var(--a2)':'var(--a)'};font-size:.6rem;padding:2px 6px;border-radius:3px">${isDone?'Done':isCancelled?'Cancelled':o.status==='cutting'?'Cutting':'Pending'}</span></td>
       ${!compact?(()=>{const m=ORDER_TYPE_META[o.order_type||o.orderType||'normal'];return `<td style="white-space:nowrap">${m&&m.badge?`<span class="ot-badge ${m.cls}">${m.badge}</span>`:'<span style="font-size:.6rem;color:var(--mu)">—</span>'}</td>`;})():''}`;
     if(!compact){
@@ -2356,8 +2500,7 @@ function renderOrderMatrix(containerId, compact=false){
     if(!compact){
       if(!isDone&&!isCancelled){
         html+=`<td style="white-space:nowrap">
-          <button class="btn ba bsm" onclick="quickOrderStatus(${o.id},'done')" style="font-size:.6rem;margin-right:3px">✓ Complete</button>
-          <button class="btn bd bsm" onclick="openCancelModal(${o.id})" style="font-size:.6rem" title="Cancel order">&#10005; Cancel</button>
+          <button class="btn ba bsm" onclick="completeOrderWithPieces(${o.id})" style="font-size:.6rem;margin-right:3px">✓ Complete</button>
           <div style="margin-top:3px"><button class="btn bg bsm" onclick="showOrderDetail(${o.id})" style="font-size:.6rem">✎ Edit</button></div>
         </td>`;
       } else if(isCancelled){
@@ -2410,7 +2553,7 @@ function showOrderDetail(oid){
         const done=scanLog.find(s=>s.pieceUid===uid&&s.process===pid&&s.action==='done');
         if(done){
           const who=done.workerName?` (${done.workerName})`:'';
-          html+=`<td class="mc-done" title="${done.ts||''}">✓ <span style="font-size:.55rem">${done.ts?done.ts.slice(11,16):''}${who}</span></td>`;
+          html+=`<td class="mc-done" title="Click to unmark — ${done.ts||''}${who}" style="cursor:pointer" onclick="adminUnmarkPieceDone('${uid}','${pid}')">✓ <span style="font-size:.55rem">${done.ts?done.ts.slice(11,16):''}${who}</span><span style="font-size:.5rem;display:block;color:var(--a2)">✕ undo</span></td>`;
         } else if(!isDone){
           html+=`<td class="mc-pend" style="cursor:pointer;color:var(--a4)" title="Click to mark done" onclick="adminMarkPieceDone('${uid}','${pid}')">○ Mark</td>`;
         } else {
@@ -2508,12 +2651,13 @@ function getNextOrderNum(customerId, orderType, originalOrderNum){
     return base+n;
   } else if(suffix) {
     // Sample/Warranty: REF-SA-1, REF-WA-1...
-    const typed=orders.filter(o=>o.customerId===customerId&&(o.order_type||o.orderType)===orderType&&o.id!==_editOid);
+    const expectedPrefix = cust.code+'-'+suffix+'-';
+    const typed=orders.filter(o=>+o.customerId===+customerId&&(o.order_type||o.orderType)===orderType&&o.id!==_editOid&&(o.num||'').startsWith(expectedPrefix));
     let maxN=0;
-    typed.forEach(o=>{ const n=parseInt((o.num||'').split('-').pop()); if(!isNaN(n)&&n>maxN) maxN=n; });
+    typed.forEach(o=>{ const n=parseInt((o.num||'').slice(expectedPrefix.length)); if(!isNaN(n)&&n>maxN) maxN=n; });
     let nextN=maxN+1;
-    let num=cust.code+'-'+suffix+'-'+nextN;
-    while(orders.some(o=>o.num===num&&o.id!==_editOid)){nextN++;num=cust.code+'-'+suffix+'-'+nextN;}
+    let num=expectedPrefix+nextN;
+    while(orders.some(o=>o.num===num&&o.id!==_editOid)){nextN++;num=expectedPrefix+nextN;}
     return num;
   } else {
     // Normal: REF-1, REF-2... (only count normal orders)
@@ -2576,6 +2720,70 @@ function buildFamilyOptions(){
     }
   });
   return [...families.entries()].map(([k,v])=>({key:k,...v}));
+}
+
+// ── Glass Family Picker ────────────────────────────────────────────────────
+let _famPickerOpen = false;
+
+function famPickerOpen(){
+  _famPickerOpen = true;
+  famPickerFilter();
+  document.getElementById('fam-picker-list').style.display = '';
+}
+
+function famPickerClose(){
+  _famPickerOpen = false;
+  document.getElementById('fam-picker-list').style.display = 'none';
+  // If input doesn't match a valid family, clear it
+  const val = document.getElementById('o-family').value;
+  if(!val) document.getElementById('fam-search-inp').value = '';
+}
+
+function famPickerFilter(){
+  const inp = document.getElementById('fam-search-inp');
+  const query = (inp.value||'').toLowerCase();
+  const listEl = document.getElementById('fam-picker-list');
+  const fams = buildFamilyOptions();
+
+  // Group by thickness
+  const groups = {};
+  fams.forEach(f => {
+    const t = f.thickness + 'mm';
+    if(!groups[t]) groups[t] = [];
+    groups[t].push(f);
+  });
+  // Sort groups by thickness
+  const sortedThick = Object.keys(groups).sort((a,b)=>parseFloat(a)-parseFloat(b));
+
+  let html = '';
+  sortedThick.forEach(thick => {
+    const items = groups[thick].filter(f =>
+      !query || f.label.toLowerCase().includes(query) ||
+      f.type.toLowerCase().includes(query) ||
+      f.color.toLowerCase().includes(query)
+    );
+    if(!items.length) return;
+    html += `<div style="padding:4px 10px;font-size:.58rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);background:var(--s1);border-bottom:1px solid var(--border)">${thick}</div>`;
+    items.sort((a,b)=>a.label.localeCompare(b.label)).forEach(f => {
+      const cur = document.getElementById('o-family').value === f.key;
+      html += `<div onclick="famPickerSelect('${f.key}','${f.label.replace(/'/g,"\'")}');event.stopPropagation()"
+        style="padding:7px 14px;font-size:.76rem;cursor:pointer;${cur?'background:rgba(0,204,255,.12);color:var(--a)':''}
+        "
+        onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background='${cur?'rgba(0,204,255,.12)':''}'"
+        >${f.label}</div>`;
+    });
+  });
+
+  if(!html) html = '<div style="padding:10px 14px;font-size:.75rem;color:var(--mu)">No match</div>';
+  listEl.innerHTML = html;
+  listEl.style.display = '';
+}
+
+function famPickerSelect(key, label){
+  document.getElementById('o-family').value = key;
+  document.getElementById('fam-search-inp').value = label;
+  document.getElementById('fam-picker-list').style.display = 'none';
+  onFamilyChange(key);
 }
 
 function onFamilyChange(val){
@@ -2689,14 +2897,10 @@ async function openOrderModal(id=null){
   document.getElementById('o-final-product').value='';
   document.getElementById('fp-search-inp').value='';
   // Populate glass family dropdown
-  const famSel=document.getElementById('o-family');
-  if(famSel){
-    const fams=buildFamilyOptions();
-    famSel.innerHTML='<option value="">Select thickness / type / color...</option>'+
-      fams.map(f=>'<option value="'+f.key+'">'+f.label+'</option>').join('');
-    famSel.value='';
-    const badge=document.getElementById('o-family-badge'); if(badge) badge.style.display='none';
-  }
+  document.getElementById('o-family').value = '';
+  document.getElementById('fam-search-inp').value = '';
+  document.getElementById('fam-picker-list').style.display = 'none';
+  const badge=document.getElementById('o-family-badge'); if(badge) badge.style.display='none';
     // Build bulk process chips (all ON by default for new orders)
   const bp=document.getElementById('bulk-procs');
   const defaultOn=['cutting'];
@@ -2758,15 +2962,11 @@ async function openOrderModal(id=null){
     const fi=(o.items||[])[0];
     if(fi){
       const fkey=(fi.thickness||6)+'|'+(fi.glassType||'glass')+'|'+(fi.color||'clear');
-      const famSel=document.getElementById('o-family');
-      if(famSel){
-        // Ensure option exists
-        if(![...famSel.options].some(op=>op.value===fkey)){
-          famSel.innerHTML+='<option value="'+fkey+'">'+fkey+'</option>';
-        }
-        famSel.value=fkey;
-        onFamilyChange(fkey);
-      }
+      const fams2=buildFamilyOptions();
+      const fobj=fams2.find(f=>f.key===fkey);
+      document.getElementById('o-family').value=fkey;
+      document.getElementById('fam-search-inp').value=fobj?fobj.label:fkey;
+      onFamilyChange(fkey);
     }
     (o.items||[]).forEach(item=>addOI(item));
     setTimeout(refreshPieceCodes,30);
@@ -3012,9 +3212,10 @@ function onOrderTypeChange() {
   const isRemake    = REMAKE_TYPES.includes(type);
   const isAGI       = type === 'remake_agi';
 
-  // Show/hide reason dropdown
+  // Show/hide reason dropdown — only for remake and warranty, not sample
+  const needsReason = isRemake || type === 'warranty';
   const reasonWrap = document.getElementById('o-type-reason-wrap');
-  if (reasonWrap) reasonWrap.style.display = isNonNormal ? '' : 'none';
+  if (reasonWrap) reasonWrap.style.display = needsReason ? '' : 'none';
 
   // Show/hide remake fields
   const remakeFields = document.getElementById('o-remake-fields');
@@ -3132,7 +3333,7 @@ async function saveOrder(){
   const isRemakeType = REMAKE_TYPES.includes(order_type);
 
   // Validation
-  if (order_type !== 'normal' && !type_reason_id) {
+  if (['remake_agi','remake_cust','warranty'].includes(order_type) && !type_reason_id) {
     alert('Please select a reason for this order type.'); return;
   }
   if (isRemakeType && !original_order_id) {
@@ -3543,6 +3744,13 @@ async function renderOrders(){
     return;
   }
 
+  // Build set of order IDs already in any opt file
+  const _coveredByOpt=new Set();
+  (optFiles||[]).forEach(f=>{
+    const arr=Array.isArray(f.cutPieces)?f.cutPieces:(Array.isArray(f.cut_pieces)?f.cut_pieces:[]);
+    arr.forEach(p=>{ if(p.orderId) _coveredByOpt.add(p.orderId); if(p.order_id) _coveredByOpt.add(p.order_id); });
+  });
+
   tbody.innerHTML=list.map(o=>{
     const c2=cMap[o.customerId]||{};
     const m=getOrderMetrics(o);
@@ -3561,7 +3769,7 @@ async function renderOrders(){
         <div style="display:flex;gap:3px;align-items:center">
           <button class="btn bg bsm" onclick="viewOrder(${o.id})" title="View order">&#128065;</button>
           <button class="btn bg bsm" onclick="openOrderModal(${o.id})" title="Edit order">&#9998;</button>
-          <button class="btn bs bsm" onclick="sendToCutting(${o.id})" title="Send to cutting" style="${o.status==='done'||o.status==='cancelled'?'display:none':''}">&#9906;</button>
+          <button class="btn bs bsm" onclick="sendToCutting(${o.id})" title="Send to cutting" style="${(o.status==='done'||o.status==='cancelled'||_coveredByOpt.has(o.id))?'display:none':''}">&#9906;</button>
           ${o.status!=='cancelled'&&o.status!=='done'?`<button class="btn bd bsm" onclick="openCancelModal(${o.id})" title="Cancel order" style="font-size:.7rem;padding:2px 5px">&#10005;</button>`:''}
           ${o.status==='cancelled'?`<span style="font-size:.6rem;color:var(--a2)">&#10005;</span>`:''}
         </div>
@@ -3571,6 +3779,7 @@ async function renderOrders(){
       <td class="mn" style="color:var(--tx2);font-size:.7rem">${o.extref||'&#8212;'}</td>
       <td class="mn" style="color:var(--mu);white-space:nowrap">${o.date}</td>
       <td><span class="bge bg-${o.status}">${o.status}</span></td>
+      <td style="font-size:.72rem">${(()=>{const m=ORDER_TYPE_META[o.order_type||o.orderType||'normal'];return m&&m.badge?`<span class="ot-badge ${m.cls}">${m.badge}</span>`:'<span style="color:var(--mu)">—</span>';})()}</td>
       <td style="font-size:.72rem;color:var(--a4);white-space:nowrap">${(()=>{const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));return fp?`<span style="background:rgba(0,180,140,.1);border:1px solid rgba(0,180,140,.2);border-radius:3px;padding:1px 5px;color:var(--a4)">${fp.label}</span>`:'<span style="color:var(--mu)">—</span>'})()}</td>
       <td class="mn" style="color:var(--tx2)">${m.thicks}</td>
       <td style="font-size:.72rem">${m.types.split(', ').map(t=>`<span class="bge" style="background:rgba(0,204,255,.08);color:var(--a);border:1px solid rgba(0,204,255,.15);font-size:.6rem">${t}</span>`).join(' ')}</td>
@@ -3699,7 +3908,7 @@ function getSheetUsedCount(sheetId){
   let total=0;
   optFiles.forEach(f=>{
     if(!f.results) return;
-    const rs=f.rawSheet;
+    const rs=f.rawSheet||f.raw_sheet_snap||null;
     if(!rs||rs.id!==sheetId) return;
     total+=(f.results.results||[]).length; // each result = 1 physical sheet
   });
@@ -3790,15 +3999,17 @@ async function renderSettingsRSCatalog(){
 
 // ── RAW SHEET SUB-TABS ─────────────────────────────────────────
 async function showRSTab(id){
-  ['catalog','stock','usage'].forEach(t=>{
+  ['catalog','stock','usage','ledger'].forEach(t=>{
     const el=document.getElementById('rstab-'+t); if(el) el.style.display=t===id?'':'none';
   });
   document.getElementById('rsmt-cat').classList.toggle('on',id==='catalog');
   document.getElementById('rsmt-stock').classList.toggle('on',id==='stock');
   document.getElementById('rsmt-usage').classList.toggle('on',id==='usage');
+  const ledgerBtn=document.getElementById('rsmt-ledger'); if(ledgerBtn) ledgerBtn.classList.toggle('on',id==='ledger');
   if(id==='catalog') await renderSettingsRSCatalog();
   if(id==='stock') await renderStockTab();
   if(id==='usage') await renderUsageTab();
+  if(id==='ledger') await renderLedgerTab();
 }
 
 // ── PURCHASES / STOCK ─────────────────────────────────────────
@@ -4021,6 +4232,16 @@ async function renderCutSheetDropdown(){
 function onRsSelect(val){
   activeRawSheet=val?rawSheetCatalog.find(s=>s.id===+val)||null:null;
   renderCutSheetDropdown();
+  // Auto-save raw_sheet_id to the opt file immediately
+  if(activeOptId){
+    AGI.OptFiles.update(activeOptId,{
+      raw_sheet_id: activeRawSheet?activeRawSheet.id:null,
+      raw_sheet_snap: activeRawSheet?{...activeRawSheet}:null
+    }).then(()=>{
+      const f=optFiles.find(x=>x.id===activeOptId);
+      if(f){ f.rawSheet=activeRawSheet; f.raw_sheet_id=activeRawSheet?activeRawSheet.id:null; }
+    }).catch(e=>console.warn('raw sheet save:',e.message));
+  }
 }
 
 // ── ATTACHMENTS ───────────────────────────────────────────────
@@ -4373,6 +4594,7 @@ function renderCutPieceList(){
       ${pcs.map(p=>{
         const dot=COLOR_MAP[p.color]||'#888';
         const remFit=remnants.filter(r=>r.status==='available'&&r.thickness===p.thickness&&
+          r.glass_type===(p.glassType||p.glass_type||'glass')&&r.color===(p.color||'clear')&&
           ((r.w>=p.w-2&&r.h>=p.h-2)||(r.w>=p.h-2&&r.h>=p.w-2)));
         return `<div class="pitem" style="margin-bottom:3px">
         <div style="width:7px;height:7px;border-radius:50%;background:${dot};flex-shrink:0;border:1px solid rgba(255,255,255,.2)"></div>
@@ -4650,7 +4872,9 @@ function buildGlobalRemFitsMap(allSheets){
   // Each piece independently checks if any available remnant fits it
   const map={};
   const availRems=(remnants||[]).filter(r=>r.status==='available'&&
-    r.thickness===(activeRawSheet&&activeRawSheet.thickness));
+    r.thickness===(activeRawSheet&&activeRawSheet.thickness)&&
+    r.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&
+    r.color===(activeRawSheet&&activeRawSheet.color||'clear'));
   (allSheets||[]).forEach(function(sheet){
     (sheet.placed||[]).forEach(function(p){
       var fits=availRems.filter(function(rem){
@@ -4875,6 +5099,8 @@ function drawSheet(r,wrapId,legendId,remFitsMap){
     const remFits=(remnants||[]).filter(function(rem){
       return rem.status==='available'&&
         rem.thickness===(activeRawSheet&&activeRawSheet.thickness)&&
+        rem.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&
+        rem.color===(activeRawSheet&&activeRawSheet.color||'clear')&&
         ((rem.w>=hit.ow-2&&rem.h>=hit.oh-2)||(rem.w>=hit.oh-2&&rem.h>=hit.ow-2));
     });
     setTimeout(function(){
@@ -5035,6 +5261,7 @@ async function saveOptFile(name){
     results:window._lastOptResults||null,
     orderIds:[...new Set(cutPieces.map(p=>p.orderId).filter(Boolean))],
     // snake_case for API
+    raw_sheet_id:activeRawSheet?activeRawSheet.id:null,
     raw_sheet_snap:activeRawSheet?{...activeRawSheet}:null,
     comp_w:DB.l('comp-w',0), comp_h:DB.l('comp-h',0),
     cut_pieces:[...cutPieces],
@@ -5093,6 +5320,25 @@ async function saveOptFile(name){
   }
 }
 
+async function backfillOptRawSheets(){
+  let fixed=0;
+  for(const f of optFiles){
+    if(!f.raw_sheet_id && (f.rawSheet||f.raw_sheet_snap)){
+      const rs=f.rawSheet||f.raw_sheet_snap;
+      if(rs&&rs.id){
+        try{
+          await AGI.OptFiles.update(f.id,{raw_sheet_id:rs.id, raw_sheet_snap:rs});
+          f.raw_sheet_id=rs.id;
+          fixed++;
+        }catch(e){ console.warn('backfill err',f.id,e.message); }
+      }
+    }
+  }
+  optFiles=await AGI.OptFiles.list();
+  renderOptFiles();
+  showToast('Backfilled '+fixed+' optimization files with raw sheet data');
+}
+
 async function loadOptFile(id){
   const f=optFiles.find(x=>x.id===id); if(!f) return;
   activeOptId=f.id;
@@ -5130,6 +5376,7 @@ async function loadOptFile(id){
     const r=f.results;
     renderCutResultsUI(r.results,r.placed,r.total,r.tu,r.ts,r.unplaced||[]);
     document.getElementById('cut-stats').style.display='grid';
+    renderCutLabels();
   }
   renderOptFiles();
   showCutView('ws');
@@ -5154,6 +5401,27 @@ async function markOptDone(id){
   // Orders are completed only when all pieces have been scanned and processes
   // marked done by workers (or manually by admin in the Tracking page).
 
+  // ── Record raw sheet consumption ──────────────────────────────────────
+  try {
+    const rsId = f.rawSheet?.id || f.raw_sheet_id || activeRawSheet?.id || null;
+    if (rsId) {
+      // Count sheets used = number of result layouts
+      let sheetsUsed = 1;
+      try {
+        const res = f.results || window._lastOptResults;
+        const arr = Array.isArray(res) ? res : (res?.results || []);
+        sheetsUsed = arr.length || 1;
+      } catch(e) {}
+      await AGI.RawSheets.recordOptimization({
+        sheet_id:   rsId,
+        opt_file_id: id,
+        opt_name:   f.name,
+        sheets_used: sheetsUsed,
+        date:       new Date().toISOString().slice(0,10)
+      });
+    }
+  } catch(e) { console.warn('[opt stock record]', e.message); }
+
   // Record remnant usages that were assigned in this session
   const assignmentsForThisOpt=_sessionRemAssignments.filter(a=>true); // all session assignments
   for(const a of assignmentsForThisOpt){
@@ -5163,8 +5431,10 @@ async function markOptDone(id){
   }
   if(assignmentsForThisOpt.length) _sessionRemAssignments=[];
 
-  // Auto-add remnant plates from free areas
-  {
+  // Ask user whether to create remnant plates from free areas
+  const createRemnants = confirm('Create remnant plates from this optimization?\n\nThis will record leftover offcuts as available remnant plates in the Remnants section.\n\nPress OK to create, Cancel to skip.');
+
+  if(createRemnants){
     try{
       // Use the in-memory results first (most reliable), fall back to API fetch
       let results = f.results||null;
@@ -5236,12 +5506,14 @@ async function markOptDone(id){
 
         if(errors.length) console.warn('[remnants errors]', errors);
         if(added) showToast('✓ '+added+' remnant plate'+(added!==1?'s':'')+' added to Remnants');
-        else showToast('Marked done — no free areas ≥200×150mm (check console)');
+        else showToast('Marked done — no free areas ≥200×150mm found');
       }
     }catch(e){
       console.error('[markOptDone]', e);
       showToast('Error: '+e.message);
     }
+  } else {
+    showToast('Optimization marked done — no remnant plates created');
   }
 
   renderOptFiles();
@@ -5322,9 +5594,9 @@ async function renderOptFiles(){
   let list=[...optFiles].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   if(fDateFrom) list=list.filter(f=>(f.createdAt||'')>=fDateFrom);
   if(fDateTo)   list=list.filter(f=>(f.createdAt||'').slice(0,10)<=fDateTo);
-  if(fThick)    list=list.filter(f=>f.rawSheet&&String(f.rawSheet.thickness)===fThick);
-  if(fSheet)    list=list.filter(f=>f.rawSheet&&String(f.rawSheet.id)===fSheet);
-  if(fType)     list=list.filter(f=>f.rawSheet&&f.rawSheet.type===fType);
+  if(fThick)    list=list.filter(f=>{const rs=f.rawSheet||f.raw_sheet_snap; return rs&&String(rs.thickness)===fThick;});
+  if(fSheet)    list=list.filter(f=>{const rs=f.rawSheet||f.raw_sheet_snap; return rs&&String(rs.id)===fSheet;});
+  if(fType)     list=list.filter(f=>{const rs=f.rawSheet||f.raw_sheet_snap; return rs&&rs.type===fType;});
   if(fStatus)   list=list.filter(f=>f.status===fStatus);
   if(fSearch)   list=list.filter(f=>{
     const hay=[
@@ -5347,12 +5619,15 @@ async function renderOptFiles(){
     return;
   }
   const sorted=list;
-  el.innerHTML=sorted.map(f=>{
+  el.innerHTML=sorted.map((f,idx)=>{
+    const serial=sorted.length-idx;
     const isDone=f.status==='done';
-    const pcsCount=(f.cutPieces||[]).length+(f.manualPieces||[]).length;
-    const manCount=(f.manualPieces||[]).length;
-    const orderNums=[...new Set((f.cutPieces||[]).map(p=>p.orderNum).filter(Boolean))];
-    const rs=f.rawSheet;
+    const cutArr=Array.isArray(f.cutPieces)?f.cutPieces:(Array.isArray(f.cut_pieces)?f.cut_pieces:[]);
+    const manArr=Array.isArray(f.manualPieces)?f.manualPieces:(Array.isArray(f.manual_pieces)?f.manual_pieces:[]);
+    const pcsCount=(typeof f.cut_pieces==='number'?f.cut_pieces:cutArr.length)+(typeof f.manual_pieces==='number'?f.manual_pieces:manArr.length);
+    const manCount=typeof f.manual_pieces==='number'?f.manual_pieces:manArr.length;
+    const orderNums=[...new Set(cutArr.map(p=>p.orderNum).filter(Boolean))];
+    const rs=f.rawSheet||f.raw_sheet_snap||null;
     const dot=rs?COLOR_MAP[rs.color]||'#888':'transparent';
     const eff=f.results&&f.results.ts>0?((f.results.tu/f.results.ts)*100).toFixed(0)+'%':'—';
     const sheetsUsed=f.results?(f.results.results||[]).length:'—';
@@ -5365,14 +5640,15 @@ async function renderOptFiles(){
         '<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(isDone?'var(--a3)':'var(--a4)')+';box-shadow:0 0 6px '+(isDone?'var(--a3)':'var(--a4)')+'" title="'+(isDone?'Done':'Pending')+'"></div>'+
         // Name + meta
         '<div style="flex:1;min-width:0">'+
-          '<div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+'</div>'+
-          '<div style="font-family:DM Mono,monospace;font-size:.63rem;color:var(--mu);margin-top:3px;display:flex;flex-wrap:wrap;gap:8px">'+
+          '<div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+'<span style="font-family:DM Mono,monospace;font-size:.7rem;color:var(--mu);margin-right:8px;opacity:.7">#'+serial+'</span>'+f.name+'</div>'+
+          '<div style="font-family:DM Mono,monospace;font-size:.68rem;color:var(--tx2);margin-top:3px;display:flex;flex-wrap:wrap;gap:8px">'+
             (rs?'<span style="display:inline-flex;align-items:center;gap:4px"><span class="color-dot" style="background:'+dot+'"></span>'+
-              rs.thickness+'mm '+rs.color.charAt(0).toUpperCase()+rs.color.slice(1)+' '+rs.type+'</span>':'<span style="color:var(--border2)">No sheet</span>')+
-            '<span>'+pcsCount+' pcs'+(manCount?' ('+manCount+' manual)':'')+'</span>'+
-            (orderNums.length?'<span>'+orderNums.join(', ')+'</span>':'')+
+              '<span style="color:var(--a4)">'+(rs.notes||rs.code||rs.thickness+'mm '+rs.color+' '+rs.type)+'</span>'+
+              (rs.code&&rs.notes?'<span style="color:var(--mu);margin-left:4px">'+rs.code+'</span>':'')+'</span>':'')+
+            '<span style="color:var(--a4)">'+pcsCount+' pcs'+(manCount?' <span style="color:var(--mu)">('+manCount+' manual)</span>':'')+'</span>'+
+            (orderNums.length?'<span style="color:var(--a)">'+orderNums.join(', ')+'</span>':'')+
             '<span>'+sheetsUsed+' sheets &bull; '+eff+' eff</span>'+
-            '<span>'+( f.createdAt||'').slice(0,10)+'</span>'+
+            '<span style="color:var(--mu)">'+( f.createdAt||'').slice(0,10)+'</span>'+
             (isDone&&f.completedAt?'<span style="color:var(--a3)">Done: '+f.completedAt.slice(0,10)+'</span>':'')+
           '</div>'+
         '</div>'+
@@ -5558,7 +5834,7 @@ function renderPieceView(){
             const doneDate=done.ts?new Date(done.ts).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}).replace(/ /g,'-'):'';
             const doneTime=done.ts?done.ts.slice(11,16):'';
             const doneWho=done.workerName||done.worker_name||'';
-            html+=`<td class="mc-done" title="${done.ts||''}">✓ <span style="font-size:.55rem;display:block">${doneDate} ${doneTime}</span>${doneWho?`<span style="font-size:.5rem;color:var(--a4);display:block">${doneWho}</span>`:''}`;
+            html+=`<td class="mc-done" title="Click to unmark — ${done.ts||''}" style="cursor:pointer" onclick="adminUnmarkPieceDone('${uid}','${pid}')">✓ <span style="font-size:.55rem;display:block">${doneDate} ${doneTime}</span>${doneWho?`<span style="font-size:.5rem;color:var(--a4);display:block">${doneWho}</span>`:''}<span style="font-size:.5rem;color:var(--a2);display:block">✕ undo</span>`;
             html+=`</td>`;
           } else {
             html+=`<td class="mc-pend" style="cursor:pointer" title="Click to mark done" onclick="adminMarkPieceDone('${uid}','${pid}')">○ Mark</td>`;
@@ -5607,6 +5883,18 @@ async function adminMarkAllDone(uid, pids){
   }catch(e){ alert('Error: '+e.message); }
 }
 
+async function adminUnmarkPieceDone(uid, pid){
+  const label = (PROC_MAP[pid]?.label||pid);
+  if(!confirm('Remove "'+label+'" done mark from '+uid+'?\n\nThis will allow the worker to mark it again.')) return;
+  try{
+    await AGI.Labels.unscan(uid, pid);
+    scanLog = await AGI.Labels.scanlog();
+    if(_trackOrderId) showOrderDetail(_trackOrderId);
+    renderPieceView();
+    showToast('✕ Unmarked: '+uid+' — '+label);
+  }catch(e){ alert('Error: '+e.message); }
+}
+
 let _cancelOid = null;
 let cancelReasons = [];
 let orderTypeReasons = [];
@@ -5619,13 +5907,52 @@ async function loadOrderTypeReasons(){
 
 async function loadCancelReasons(){
   try{
-    cancelReasons = await fetch('/api/orders/cancel-reasons',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json());
+    cancelReasons = await AGI.api('/api/orders/cancel-reasons');
   }catch(e){ cancelReasons=[]; }
   return cancelReasons;
 }
 
+async function completeOrderWithPieces(oid){
+  const o = orders.find(x=>x.id===oid); if(!o) return;
+  if(!confirm('Complete order '+o.num+'?\n\nThis will:\n• Mark the order as Done\n• Mark any unscanned pieces/processes as done\n\nThis cannot be undone.')) return;
+  const allProcs = getOrderProcs(o);
+  const now = new Date().toISOString();
+  let marked = 0;
+  try{
+    // Mark all unscanned pieces for all processes as done
+    const orderPieceMap = {};
+    (o.items||[]).forEach(item=>{
+      (item.pieceUIDs||item.piece_uids||[]).forEach(uid=>{
+        orderPieceMap[uid] = item.processes||[];
+      });
+    });
+    for(const [uid, procs] of Object.entries(orderPieceMap)){
+      for(const pid of procs){
+        // Check if already done
+        const alreadyDone = scanLog.some(s=>s.pieceUid===uid&&s.process===pid&&s.action==='done');
+        if(!alreadyDone){
+          try{
+            await AGI.Labels.scan(uid, pid, 'done');
+            scanLog.push({pieceUid:uid, process:pid, action:'done', ts:now, workerName:'Admin'});
+            marked++;
+          }catch(e){ console.warn('scan err',uid,pid,e.message); }
+        }
+      }
+    }
+    // Mark order as done
+    await quickOrderStatus(oid,'done');
+    showToast('Order '+o.num+' completed — '+marked+' pieces marked done');
+    renderOrderMatrix('track-matrix',false);
+  }catch(e){ alert('Error: '+e.message); }
+}
+
 async function openCancelModal(oid){
-  const o=orders.find(x=>x.id===oid); if(!o) return;
+  let o=orders.find(x=>x.id===oid);
+  if(!o){ 
+    try{ o=await AGI.Orders.get(oid); orders.push(o); }
+    catch(e){ alert('Could not load order: '+e.message); return; } 
+  }
+  if(!o){ alert('Order not found'); return; }
   _cancelOid=oid;
   document.getElementById('m-cancel-order-ref').textContent='Order: '+o.num+(o.extref?' — '+o.extref:'');
   document.getElementById('cancel-reason-custom').value='';
@@ -5911,31 +6238,59 @@ function renderCutLabels(){
     ctx.fillText('AGI',x+ls/2,y+ls/2);
   }
 
+  // ── Sequential QR render queue ────────────────────────────────────────────
+  const _qrQueue = [];
+  let _qrBusy = false;
+  function _qrNext(){
+    if(_qrBusy || !_qrQueue.length) return;
+    _qrBusy = true;
+    const {el, qrText, size} = _qrQueue.shift();
+    const _tryQR = (text, level) => {
+      try{
+        el.innerHTML='';
+        new QRCode(el,{text:text,width:size,height:size,colorDark:'#000000',colorLight:'#ffffff',correctLevel:level});
+        setTimeout(()=>{
+          try{
+            const cv=el.querySelector('canvas');
+            if(cv){
+              const img=document.createElement('img');
+              img.src=cv.toDataURL('image/png');
+              img.style.cssText='display:block;width:100%;height:100%;object-fit:contain';
+              el.innerHTML=''; el.appendChild(img);
+            }
+          }catch(e2){ console.warn('QR canvas error:',e2.message); }
+          _qrBusy=false;
+          _qrNext();
+        }, 100);
+        return true;
+      }catch(e){
+        return false;
+      }
+    };
+    // Try M level first, fall back to L if too much data
+    if(!_tryQR(qrText, QRCode.CorrectLevel.M)){
+      if(!_tryQR(qrText, QRCode.CorrectLevel.L)){
+        // Last resort: strip notes line and retry
+        const stripped = qrText.replace(/---\nNotes.*?\nAGI/, 'AGI').replace(/Notes.*?\n/,'');
+        if(!_tryQR(stripped, QRCode.CorrectLevel.M)){
+          _tryQR(stripped, QRCode.CorrectLevel.L);
+        }
+      }
+    }
+  }
+
   function renderQR(containerIdOrEl, text, size){
-    // Accept either an element id string or a direct DOM element
     const el = (typeof containerIdOrEl === 'string')
       ? document.getElementById(containerIdOrEl)
       : containerIdOrEl;
     if(!el) return;
-    el.innerHTML='';
-    // If bare UID passed (e.g. remnant), build text block; otherwise use text as-is
     const isBareUid = /^[A-Z0-9][A-Z0-9-]+$/.test((text||'').trim()) && !text.includes(':') && !text.includes('\n');
     const qrText = isBareUid ? buildPieceUrl(text.trim()) : text;
-    try{
-      new QRCode(el,{text:qrText,width:size,height:size,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
-      setTimeout(()=>{
-        const cv=el.querySelector('canvas');
-        if(cv){
-          const img=document.createElement('img');
-          img.src=cv.toDataURL('image/png');
-          img.style.cssText='display:block;width:100%;height:100%;object-fit:contain';
-          el.innerHTML=''; el.appendChild(img);
-        }
-      },300);
-    }catch(e){ console.warn('QR error:',e.message,text.slice(0,40)); el.textContent=''; }
+    _qrQueue.push({el, qrText, size});
+    _qrNext();
   }
 
-  function makeLabel(item, returnCard=false){
+  function makeLabel(item, returnCard=false, labelIdx=0){
     const card=document.createElement('div'); card.className='lcard';
     const qid='qr-'+item.uid.replace(/[^a-z0-9]/gi,'_');
     const isManual=item.cutType==='manual';
@@ -5948,19 +6303,17 @@ function renderCutLabels(){
     const cut_w = item.cutW||item.cut_w||item.w, cut_h=item.cutH||item.cut_h||item.h;
     const hasComp = cut_w!=item.w || cut_h!=item.h;
     let qrText = '';
-    qrText += 'PIECE ID: '  + item.uid + '\n';
-    qrText += 'Order    : '  + (ord.num||item.orderNum||item.order_num||'') + '\n';
-    if(ord.extref) qrText += 'Reference: ' + ord.extref + '\n';
-    if(ord.date||item.date) qrText += 'Date     : ' + (ord.date||item.date||'') + '\n';
-    qrText += '---\n';
-    qrText += 'Size     : ' + item.w + ' x ' + item.h + ' mm\n';
-    if(hasComp) qrText += 'Cut Size : ' + cut_w + ' x ' + cut_h + ' mm\n';
-    qrText += 'Thickness: ' + (item.thickness||'') + ' mm\n';
-    qrText += 'Glass    : ' + typeStr + (item.color?' / '+colorStr:'') + '\n';
-    if(item.bevelMM||item.bevel_mm) qrText += 'Bevel    : '+(item.bevelMM||item.bevel_mm)+' mm\n';
-    if(procNames.length) qrText += 'Processes: ' + procNames.join(', ') + '\n';
-    if(ord.notes) qrText += '---\nNotes    : ' + ord.notes + '\n';
-    qrText += 'AGI GLASS FACTORY';
+    qrText += 'PIECE ID:' + item.uid + '\n';
+    if(ord.extref) qrText += 'REF:' + ord.extref + '\n';
+    if(ord.date||item.date) qrText += 'DATE:' + (ord.date||item.date||'') + '\n';
+    qrText += 'SIZE:' + item.w + 'x' + item.h + 'mm\n';
+    if(hasComp) qrText += 'CUT:' + cut_w + 'x' + cut_h + 'mm\n';
+    qrText += 'THK:' + (item.thickness||'') + 'mm\n';
+    qrText += 'GLASS:' + typeStr + (item.color?'/'+colorStr:'') + '\n';
+    if(item.bevelMM||item.bevel_mm) qrText += 'BEVEL:'+(item.bevelMM||item.bevel_mm)+'mm\n';
+    if(procNames.length) qrText += 'PROC:' + procNames.join(',') + '\n';
+    if(ord.notes) qrText += 'NOTE:' + ord.notes + '\n';
+    qrText += 'AGI GLASS';
 
     // Logo for print labels
     const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
@@ -5982,6 +6335,7 @@ function renderCutLabels(){
         <div class="lbl-sep"></div>
         <div class="lbl-info">
           <div class="lbl-uid">${item.uid}${isManual?'<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span>':''}</div>
+          ${ord.extref?`<div class="lbl-glass" style="font-size:8pt;color:#666;text-align:center">${ord.extref}</div>`:''}
           <div class="lbl-size">&#9632; ${item.w} &times; ${item.h} mm</div>
           <div class="lbl-glass">${item.thickness}mm ${typeStr} &bull; ${colorStr}</div>
           <hr class="lbl-divider">
@@ -5992,11 +6346,11 @@ function renderCutLabels(){
     if(returnCard){
       // Pass element reference directly — avoids getElementById timing issue with detached DOM
       const qrEl = card.querySelector('#'+qid);
-      if(qrEl) setTimeout(()=>renderQR(qrEl, qrText, 152), 60);
+      if(qrEl) renderQR(qrEl, qrText, 152);
       return card;
     }
     grid.appendChild(card);
-    setTimeout(()=>renderQR(qid, qrText, 152), 60);
+    renderQR(qid, qrText, 152);
   }
 
 
@@ -6059,7 +6413,7 @@ function renderCutLabels(){
         </div>
         <div class="lbl-sheet-cards"></div>`;
       const cardsEl=wrap.querySelector('.lbl-sheet-cards');
-      pieces.forEach(item=>{ const c=makeLabel(item,true); if(c) cardsEl.appendChild(c); });
+      pieces.forEach((item,idx)=>{ const c=makeLabel(item,true,idx); if(c) cardsEl.appendChild(c); });
 
       // Storage remnants sub-row — free rectangles from this sheet
       if(freePieces.length){
@@ -6680,6 +7034,7 @@ async function showSettingsTab(id){
   if(id==='remslots') await renderRemSlots();
   if(id==='fpfields') await renderFpFieldsPanel();
   if(id==='finalprods') renderFinalProdList();
+  if(id==='receivers')  await renderReceiverList();
 }
 async function renderWorkerList(){
   const el=document.getElementById('worker-list');
@@ -7383,6 +7738,8 @@ function openUseRemnantModal(pieceId, uid, w, h, thickness, orderNum){
     (orderNum ? ' &bull; Order: <span style="color:var(--a)">' + orderNum + '</span>' : '');
   // Show matching remnants
   const fits = remnants.filter(r => r.status==='available' && r.thickness===thickness &&
+    r.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&
+    r.color===(activeRawSheet&&activeRawSheet.color||'clear')&&
     ((r.w>=w-2&&r.h>=h-2)||(r.w>=h-2&&r.h>=w-2))
   ).sort((a,b)=>a.sqm-b.sqm); // smallest fit first = less waste
   const list = document.getElementById('use-rem-list');
@@ -7446,9 +7803,625 @@ async function useRemnantForPiece(rem){
 }
 
 
+
+// ═══════════════════════════════════════════════════════
+// STOCK LEDGER
+// ═══════════════════════════════════════════════════════
+let _ledgerSheetId = null;
+
+async function renderLedgerTab(){
+  const listEl = document.getElementById('ledger-sheet-list');
+  if(!listEl) return;
+  // Load sheets with live balances
+  let sheets = [];
+  try{ sheets = await AGI.RawSheets.list(); }catch(e){ listEl.innerHTML='<div style="color:var(--a2)">'+e.message+'</div>'; return; }
+  rawSheetCatalog = sheets; // keep in sync
+
+  listEl.innerHTML = sheets.map(s=>{
+    const bal = s.balance ?? 0;
+    const balColor = bal <= 0 ? 'var(--a2)' : bal <= 3 ? 'var(--a4)' : 'var(--a3)';
+    const isSelected = s.id === _ledgerSheetId;
+    return `<div onclick="ledgerSelectSheet(${s.id})"
+      style="padding:9px 12px;border-radius:var(--r);border:1px solid ${isSelected?'var(--a)':'var(--border)'};background:${isSelected?'var(--s2)':'var(--surf)'};cursor:pointer;transition:.1s"
+      onmouseover="if(${s.id}!==_ledgerSheetId)this.style.background='var(--s1)'" onmouseout="if(${s.id}!==_ledgerSheetId)this.style.background='var(--surf)'">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:.72rem;font-weight:600;color:var(--tx)">${s.thickness}mm ${s.color} ${s.glass_type}</div>
+        <div style="font-size:.82rem;font-weight:700;color:${balColor}">${bal}</div>
+      </div>
+      <div style="font-size:.62rem;color:var(--mu);margin-top:2px">${s.code||''} &bull; ${s.w}×${s.h}mm</div>
+    </div>`;
+  }).join('');
+
+  if(_ledgerSheetId) await ledgerLoadDetail(_ledgerSheetId);
+  else document.getElementById('ledger-detail').innerHTML='<div style="color:var(--mu);font-size:.82rem;padding:20px 0">Select a sheet to view its ledger.</div>';
+}
+
+async function ledgerSelectSheet(id){
+  _ledgerSheetId = id;
+  await renderLedgerTab();
+}
+
+async function ledgerLoadDetail(sheetId){
+  const detEl = document.getElementById('ledger-detail');
+  detEl.innerHTML = '<div style="color:var(--mu);padding:20px 0">Loading...</div>';
+  try{
+    const sheet = rawSheetCatalog.find(s=>s.id===sheetId)||{};
+    const {balance, transactions} = await AGI.RawSheets.transactions(sheetId);
+
+    const TYPE_LABELS = {opening:'Opening Stock',purchase:'Purchase',optimization_use:'Optimization Cut',sale:'Sale',adjustment:'Adjustment'};
+    const TYPE_COLORS = {opening:'var(--mu)',purchase:'var(--a3)',optimization_use:'var(--a2)',sale:'var(--a4)',adjustment:'var(--tx2)'};
+    const TYPE_SIGN   = {opening:'+',purchase:'+',optimization_use:'−',sale:'−',adjustment:''};
+
+    // Running balance rows
+    let running = 0;
+    const rows = transactions.map(tx=>{
+      running += tx.qty;
+      const isOut = tx.qty < 0;
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:7px 12px;font-family:monospace;font-size:.72rem;color:var(--mu)">${tx.date}</td>
+        <td style="padding:7px 12px;font-size:.72rem;color:${TYPE_COLORS[tx.type]||'var(--tx2)'}">${TYPE_LABELS[tx.type]||tx.type}</td>
+        <td style="padding:7px 12px;font-size:.78rem;color:var(--tx2)">${tx.ref_label||tx.notes||'—'}</td>
+        <td style="padding:7px 12px;font-size:.78rem;color:var(--tx2)">${tx.buyer||'—'}</td>
+        <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:700;font-size:.82rem;color:${isOut?'var(--a2)':'var(--a3)'}">${isOut?'':'+'}${tx.qty}</td>
+        <td style="padding:7px 12px;text-align:right;font-family:monospace;font-size:.78rem;color:var(--tx)">${running}</td>
+        <td style="padding:7px 12px;text-align:center">
+          ${['sale','adjustment'].includes(tx.type)?`<button class="btn bs bsm" onclick="ledgerDeleteTx(${tx.id},${sheetId})">&times;</button>`:''}
+        </td>
+      </tr>`;
+    }).join('');
+
+    detEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:1rem;font-weight:700">${sheet.thickness}mm ${sheet.color} ${sheet.glass_type}</div>
+          <div style="font-size:.72rem;color:var(--mu)">${sheet.code||''} &bull; ${sheet.w}×${sheet.h}mm</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="text-align:right">
+            <div style="font-size:.62rem;color:var(--mu);letter-spacing:1px">BALANCE</div>
+            <div style="font-size:1.6rem;font-weight:900;color:${balance<=0?'var(--a2)':balance<=3?'var(--a4)':'var(--a3)'}">${balance}</div>
+            <div style="font-size:.65rem;color:var(--mu)">sheets</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn ba bsm" onclick="ledgerOpenSale(${sheetId})">− Sale</button>
+            <button class="btn bs bsm" onclick="ledgerOpenAdjust(${sheetId})">± Adjust</button>
+          </div>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+          <thead><tr style="background:var(--s1);border-bottom:2px solid var(--border)">
+            <th style="padding:7px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;letter-spacing:.5px">DATE</th>
+            <th style="padding:7px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">TYPE</th>
+            <th style="padding:7px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">REFERENCE</th>
+            <th style="padding:7px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">BUYER</th>
+            <th style="padding:7px 12px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600">QTY</th>
+            <th style="padding:7px 12px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600">BALANCE</th>
+            <th style="padding:7px 12px"></th>
+          </tr></thead>
+          <tbody>${rows||'<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--mu)">No transactions yet</td></tr>'}</tbody>
+        </table>
+      </div>`;
+  }catch(e){ detEl.innerHTML='<div style="color:var(--a2)">Error: '+e.message+'</div>'; }
+}
+
+function ledgerOpenSale(sheetId){
+  const date = new Date().toISOString().slice(0,10);
+  const buyer = prompt('Buyer name:','');
+  if(buyer===null) return;
+  const qty = prompt('Quantity sold (sheets):','1');
+  if(!qty||isNaN(+qty)||+qty<=0){ alert('Enter a valid quantity'); return; }
+  const notes = prompt('Notes (optional):','');
+  AGI.RawSheets.addTransaction(sheetId,{type:'sale',qty:+qty,buyer,date,notes:notes||''})
+    .then(()=>{ showToast('Sale recorded'); ledgerLoadDetail(sheetId); renderLedgerTab(); })
+    .catch(e=>alert('Error: '+e.message));
+}
+
+function ledgerOpenAdjust(sheetId){
+  const date = new Date().toISOString().slice(0,10);
+  const qty = prompt('Adjustment qty (+ to add, - to reduce, e.g. -3):','');
+  if(qty===null) return;
+  if(!qty||isNaN(+qty)||+qty===0){ alert('Enter a non-zero number'); return; }
+  const notes = prompt('Reason for adjustment:','');
+  AGI.RawSheets.addTransaction(sheetId,{type:'adjustment',qty:+qty,date,notes:notes||''})
+    .then(()=>{ showToast('Adjustment recorded'); ledgerLoadDetail(sheetId); renderLedgerTab(); })
+    .catch(e=>alert('Error: '+e.message));
+}
+
+async function ledgerDeleteTx(txId, sheetId){
+  if(!confirm('Delete this transaction? This cannot be undone.')) return;
+  try{
+    await AGI.RawSheets.deleteTransaction(txId);
+    showToast('Transaction deleted');
+    ledgerLoadDetail(sheetId);
+    renderLedgerTab();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
 // ═══════════════════════════════════════════════════════
 // HR MODULE
 // ═══════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════
+// DELIVERIES MODULE
+// ═══════════════════════════════════════════════════════
+let _adminDeliveries = [];
+let _adminReceivers  = [];
+let _dlvDetailId     = null;  // currently open delivery detail
+
+// ── List view ─────────────────────────────────────────────────────────────
+async function renderDeliveriesPage(){
+  const tbody = document.getElementById('dlv-table-body');
+  if(!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+  try{
+    [_adminDeliveries, _adminReceivers] = await Promise.all([
+      AGI.Deliveries.list(),
+      AGI.Deliveries.receivers.list()
+    ]);
+  }catch(e){ tbody.innerHTML='<tr><td colspan="7" style="padding:20px;color:var(--a2)">Error: '+e.message+'</td></tr>'; return; }
+
+  const search = (document.getElementById('dlv-search')?.value||'').toLowerCase();
+  const status = document.getElementById('dlv-status-filter')?.value||'';
+  let list = _adminDeliveries;
+  if(search) list = list.filter(d=>(d.serial||'').toLowerCase().includes(search)||(d.customer_name||'').toLowerCase().includes(search)||(d.receiver_name||'').toLowerCase().includes(search));
+  if(status) list = list.filter(d=>d.status===status);
+
+  if(!list.length){ tbody.innerHTML='<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--mu)">No deliveries found.</td></tr>'; return; }
+
+  tbody.innerHTML = list.map(d=>{
+    const isOpen  = d.status==='open';
+    const date    = (d.finalised_at||d.created_at||'').slice(0,16).replace('T',' ');
+    const statusHtml = isOpen
+      ? '<span style="color:var(--a4);font-size:.68rem;border:1px solid var(--a4);border-radius:10px;padding:1px 8px">Open</span>'
+      : '<span style="color:var(--a3);font-size:.68rem;border:1px solid var(--a3);border-radius:10px;padding:1px 8px">Finalised</span>';
+    return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:.1s" onmouseover="this.style.background='var(--s1)'" onmouseout="this.style.background=''" onclick="dlvOpenDetail(${d.id})">
+      <td style="padding:10px 12px;font-family:'DM Mono',monospace;font-weight:700;color:var(--a)">${d.serial}</td>
+      <td style="padding:10px 12px">${d.customer_name||''} <span style="font-size:.68rem;color:var(--mu)">${d.customer_code?'('+d.customer_code+')':''}</span></td>
+      <td style="padding:10px 12px;text-align:center;font-variant-numeric:tabular-nums">${d.piece_count||0}</td>
+      <td style="padding:10px 12px;color:var(--tx2)">${d.receiver_name||'<span style="color:var(--mu)">—</span>'}</td>
+      <td style="padding:10px 12px">${statusHtml}</td>
+      <td style="padding:10px 12px;color:var(--mu);font-size:.72rem;font-family:monospace">${date}</td>
+      <td style="padding:10px 12px;color:var(--tx2);font-size:.72rem">${d.created_by_name||''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function dlvShowList(){
+  document.getElementById('dlv-pg-list').style.display   = '';
+  document.getElementById('dlv-pg-detail').style.display = 'none';
+  _dlvDetailId = null;
+  renderDeliveriesPage();
+}
+
+// ── Detail view ───────────────────────────────────────────────────────────
+async function dlvOpenDetail(id){
+  _dlvDetailId = id;
+  document.getElementById('dlv-pg-list').style.display   = 'none';
+  document.getElementById('dlv-pg-detail').style.display = '';
+  dlvRenderDetail();
+}
+
+async function dlvRenderDetail(){
+  const id = _dlvDetailId;
+  if(!id) return;
+  try{
+    const d = await AGI.Deliveries.get(id);
+    const isOpen = d.status === 'open';
+    const date   = (d.finalised_at||d.created_at||'').slice(0,16).replace('T',' ');
+
+    document.getElementById('dlv-detail-title').textContent = d.serial;
+    document.getElementById('dlv-detail-sub').textContent   =
+      d.customer_name + (d.status==='finalised'?' — Finalised '+date:' — Open');
+
+    // Action buttons
+    const actEl = document.getElementById('dlv-detail-actions');
+    actEl.innerHTML = (isOpen ? `<button class="btn ba" onclick="dlvAdminFinalise(${d.id})">&#10003; Finalise</button>` : '') +
+      `<button class="btn bs" onclick="printDeliveryNote(${d.id})">&#9113; Print</button>` +
+      (isOpen ? `<button class="btn bs" style="color:var(--a2);border-color:var(--a2)" onclick="dlvAdminDelete(${d.id},'${d.serial}')">&#128465; Delete</button>` : '');
+
+    // Pieces table
+    const items = d.items||[];
+    const byOrder = {};
+    items.forEach(i=>{ const k=i.order_num||'—'; if(!byOrder[k]) byOrder[k]=[]; byOrder[k].push(i); });
+
+    const PROC_LABELS = {cutting:'Cutting',arrising:'Arrising',flatpolish:'Flat Polish',roundpolish:'Round Polish',bevel:'Bevelling',drilling:'Drilling',tempering:'Tempering',laminating:'Laminating',paint:'Paint',sandblasting:'Sand Blasting',poly:'Poly',igu:'IGU'};
+
+    let piecesHtml = '';
+    if(!items.length){
+      piecesHtml = '<div style="padding:24px;color:var(--mu);text-align:center">No pieces yet.</div>';
+    } else {
+      piecesHtml = Object.entries(byOrder).map(([ord,pieces])=>`
+        <div style="margin-bottom:16px">
+          <div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--a2);padding:6px 12px;background:rgba(0,204,255,.05);border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:none">
+            Order ${ord} &mdash; ${pieces.length} piece${pieces.length!==1?'s':''}
+          </div>
+          <table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:0 0 6px 6px;overflow:hidden">
+            <thead><tr style="background:var(--s1)">
+              <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">DELIVERY CODE</th>
+              <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">PIECE UID</th>
+              <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">SIZE</th>
+              <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">GLASS</th>
+              <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">PROCESSES</th>
+              <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">SCANNED BY</th>
+              <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">TIME</th>
+              ${isOpen?'<th style="padding:7px 12px"></th>':''}
+            </tr></thead>
+            <tbody>
+              ${pieces.map((p,i)=>{
+                const procs=(Array.isArray(p.processes)?p.processes:JSON.parse(p.processes||'[]')).map(x=>PROC_LABELS[x]||x).join(', ');
+                return `<tr style="border-top:1px solid var(--border)">
+                  <td style="padding:8px 12px;font-family:monospace;font-size:.78rem;font-weight:700;color:var(--a)">${p.piece_code||'—'}</td>
+                  <td style="padding:8px 12px;font-family:monospace;font-size:.72rem;color:var(--tx2)">${p.piece_uid}</td>
+                  <td style="padding:8px 12px;font-size:.72rem">${p.w}×${p.h}mm <span style="color:var(--mu)">${p.thickness}mm</span></td>
+                  <td style="padding:8px 12px;font-size:.72rem;color:var(--tx2)">${p.glass_type||''} ${p.color||''}</td>
+                  <td style="padding:8px 12px;font-size:.68rem;color:var(--mu)">${procs||'—'}</td>
+                  <td style="padding:8px 12px;font-size:.7rem;color:var(--tx2)">${p.added_by_name||'—'}</td>
+                  <td style="padding:8px 12px;font-size:.68rem;color:var(--mu);font-family:monospace">${(p.added_at||'').slice(11,16)}</td>
+                  ${isOpen?`<td style="padding:4px 8px"><button class="btn bs bsm" onclick="dlvDetailRemovePiece(${d.id},'${p.piece_uid}')">&times;</button></td>`:''}
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`).join('');
+    }
+
+    // Add piece form (only if open)
+    const addFormHtml = isOpen ? `
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+        <input type="text" id="dlv-detail-add-uid" class="inp" placeholder="Add piece by UID (Enter to add)..." style="flex:1;padding:8px 12px" autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter') dlvDetailAddPiece(${d.id})">
+        <button class="btn ba" onclick="dlvDetailAddPiece(${d.id})">Add</button>
+      </div>
+      <div id="dlv-detail-add-msg" style="font-size:.72rem;min-height:18px;margin-top:4px;color:var(--mu)"></div>` : '';
+
+    document.getElementById('dlv-detail-pieces').innerHTML = piecesHtml + addFormHtml;
+
+    // Sidebar
+    const sideHtml = `
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);margin-bottom:4px">Delivery Info</div>
+        <div><div style="font-size:.65rem;color:var(--mu)">Serial</div><div style="font-weight:700;color:var(--a);font-family:monospace">${d.serial}</div></div>
+        <div><div style="font-size:.65rem;color:var(--mu)">Customer</div><div style="font-weight:600">${d.customer_name||'—'}</div></div>
+        <div><div style="font-size:.65rem;color:var(--mu)">Status</div><div style="font-weight:600;color:${isOpen?'var(--a4)':'var(--a3)'}">${isOpen?'Open':'Finalised'}</div></div>
+        <div><div style="font-size:.65rem;color:var(--mu)">Created by</div><div>${d.created_by_name||'—'}</div></div>
+        <div><div style="font-size:.65rem;color:var(--mu)">Created at</div><div style="font-family:monospace;font-size:.75rem">${(d.created_at||'').slice(0,16).replace('T',' ')}</div></div>
+        ${d.receiver_name?`<hr style="border:none;border-top:1px solid var(--border)">
+        <div><div style="font-size:.65rem;color:var(--mu)">Receiver</div><div style="font-weight:600">${d.receiver_name}</div></div>
+        ${d.receiver_company?`<div><div style="font-size:.65rem;color:var(--mu)">Company</div><div>${d.receiver_company}</div></div>`:''}
+        <div><div style="font-size:.65rem;color:var(--mu)">Finalised</div><div style="font-family:monospace;font-size:.75rem">${(d.finalised_at||'').slice(0,16).replace('T',' ')}</div></div>`:''}
+        ${d.notes?`<div><div style="font-size:.65rem;color:var(--mu)">Notes</div><div style="font-size:.75rem">${d.notes}</div></div>`:''}
+        <div style="font-size:.75rem;font-weight:600;color:var(--a4);padding-top:4px;border-top:1px solid var(--border)">${items.length} piece${items.length!==1?'s':''} total</div>
+      </div>`;
+    document.getElementById('dlv-detail-sidebar').innerHTML = sideHtml;
+  }catch(e){ document.getElementById('dlv-detail-pieces').innerHTML='<div style="color:var(--a2)">Error: '+e.message+'</div>'; }
+}
+
+async function dlvDetailAddPiece(deliveryId){
+  const inp  = document.getElementById('dlv-detail-add-uid');
+  const msgEl= document.getElementById('dlv-detail-add-msg');
+  const uid  = (inp?.value||'').trim().toUpperCase();
+  if(!uid) return;
+  msgEl.textContent='Looking up...'; msgEl.style.color='var(--tx2)';
+  try{
+    const piece = await AGI.Labels.get(uid);
+    const dlv   = _adminDeliveries.find(d=>d.id===deliveryId)||{};
+    await AGI.Deliveries.addItem(deliveryId,{
+      piece_uid:uid, order_id:piece.orderId||piece.order_id||null,
+      order_num:piece.orderNum||piece.order_num||null,
+      customer_id:dlv.customer_id, customer_code:dlv.customer_code,
+      w:piece.w, h:piece.h, thickness:piece.thickness,
+      glass_type:piece.glassType||piece.glass_type||'glass',
+      color:piece.color||'clear', processes:piece.processes||[]
+    });
+    if(inp) inp.value='';
+    msgEl.textContent='✓ '+uid+' added'; msgEl.style.color='var(--a3)';
+    dlvRenderDetail();
+  }catch(e){
+    msgEl.textContent=(e.message&&e.message.includes('already in'))?uid+' already in delivery':'Error: '+e.message;
+    msgEl.style.color='var(--a2)';
+  }
+}
+
+async function dlvDetailRemovePiece(deliveryId, uid){
+  if(!confirm('Remove '+uid+' from this delivery?')) return;
+  try{
+    await AGI.Deliveries.removeItem(deliveryId, uid);
+    dlvRenderDetail();
+  }catch(e){ showToast('Error: '+e.message); }
+}
+
+async function dlvAdminFinalise(deliveryId){
+  if(!_adminReceivers.length){
+    try{ _adminReceivers = await AGI.Deliveries.receivers.list(); }catch(e){}
+  }
+  // Populate and open finalise modal
+  const sel = document.getElementById('adlv-fin-receiver');
+  sel.innerHTML = '<option value="">— Select receiver —</option>' +
+    _adminReceivers.map(r=>`<option value="${r.id}" data-company="${r.company||''}">${r.name}${r.company?' ('+r.company+')':''}</option>`).join('');
+  document.getElementById('adlv-fin-company').value = '';
+  document.getElementById('adlv-fin-notes').value   = '';
+  const d = _adminDeliveries.find(x=>x.id===deliveryId)||{};
+  document.getElementById('adlv-fin-summary').textContent = d.serial+' — '+(d.piece_count||0)+' pieces — '+(d.customer_name||'');
+  _adlvDeliveryId = deliveryId;
+  OM('m-adlv-finalise');
+}
+
+
+// ── Print Delivery Note ────────────────────────────────────────────────────
+async function printDeliveryNote(id){
+  let d;
+  try{ d = await AGI.Deliveries.get(id); }catch(e){ alert('Error loading delivery: '+e.message); return; }
+  const items = d.items||[];
+  const byOrder = {};
+  items.forEach(i=>{ const k=i.order_num||'—'; if(!byOrder[k]) byOrder[k]=[]; byOrder[k].push(i); });
+
+  const factoryName = (cfg&&cfg.factory_name)||'AGI Glass Factory';
+  const today = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  const finDate = d.finalised_at ? new Date(d.finalised_at).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : today;
+  const PROC_LABELS = {cutting:'Cutting',arrising:'Arrising',flatpolish:'Flat Polish',roundpolish:'Round Polish',bevel:'Bevelling',drilling:'Drilling',tempering:'Tempering',laminating:'Laminating',paint:'Paint',sandblasting:'Sand Blasting',poly:'Poly',igu:'IGU'};
+
+  const ordersHTML = Object.entries(byOrder).map(([ord,pieces])=>{
+    const pRows = pieces.map(p=>{
+      const procs = (Array.isArray(p.processes)?p.processes:JSON.parse(p.processes||'[]')).map(x=>PROC_LABELS[x]||x).join(', ');
+      return `<tr>
+        <td style="padding:7px 10px;border:1px solid #ddd;font-family:monospace;font-size:11px;font-weight:700;color:#0050a0">${p.piece_code||'—'}</td>
+        <td style="padding:7px 10px;border:1px solid #ddd;font-family:monospace;font-size:11px">${p.piece_uid}</td>
+        <td style="padding:7px 10px;border:1px solid #ddd;text-align:center;font-size:11px">${p.w} × ${p.h}</td>
+        <td style="padding:7px 10px;border:1px solid #ddd;text-align:center;font-size:11px">${p.thickness}mm</td>
+        <td style="padding:7px 10px;border:1px solid #ddd;font-size:10px;color:#555">${p.glass_type||''} ${p.color||''}</td>
+        <td style="padding:7px 10px;border:1px solid #ddd;font-size:10px;color:#555">${procs||'—'}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div style="margin-bottom:20px">
+        <div style="background:#f0f4f8;padding:7px 10px;font-weight:700;font-size:12px;border:1px solid #ddd;border-bottom:none;letter-spacing:.5px">
+          ORDER: ${ord} &nbsp;&mdash;&nbsp; ${pieces.length} piece${pieces.length!==1?'s':''}
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:#f8f9fa">
+            <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;font-size:10px;color:#666;font-weight:600;letter-spacing:.5px">DELIVERY CODE</th>
+            <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;font-size:10px;color:#666;font-weight:600">PIECE UID</th>
+            <th style="padding:6px 10px;border:1px solid #ddd;text-align:center;font-size:10px;color:#666;font-weight:600">SIZE (mm)</th>
+            <th style="padding:6px 10px;border:1px solid #ddd;text-align:center;font-size:10px;color:#666;font-weight:600">THICKNESS</th>
+            <th style="padding:6px 10px;border:1px solid #ddd;font-size:10px;color:#666;font-weight:600">GLASS</th>
+            <th style="padding:6px 10px;border:1px solid #ddd;font-size:10px;color:#666;font-weight:600">PROCESSES</th>
+          </tr></thead>
+          <tbody>${pRows}</tbody>
+        </table>
+      </div>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Delivery Note — ${d.serial}</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:28px 32px;font-size:12px}
+      @media print{body{padding:16px 20px} .no-print{display:none}}
+    </style>
+  </head><body>
+    <div class="no-print" style="margin-bottom:16px">
+      <button onclick="window.print()" style="padding:8px 20px;background:#007bff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">&#9113; Print / Save PDF</button>
+      <button onclick="window.close()" style="padding:8px 16px;background:#eee;border:1px solid #ccc;border-radius:6px;cursor:pointer;margin-left:8px">Close</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:14px;margin-bottom:18px">
+      <div>
+        <div style="font-size:22px;font-weight:900;letter-spacing:2px;text-transform:uppercase">${factoryName}</div>
+        <div style="font-size:11px;color:#555;margin-top:4px;letter-spacing:.5px">DELIVERY NOTE</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:20px;font-weight:800;font-family:monospace;color:#0a3a60">${d.serial}</div>
+        <div style="font-size:11px;color:#555;margin-top:4px">Printed: ${today}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <div style="border:1px solid #ddd;border-radius:6px;padding:12px">
+        <div style="font-size:10px;color:#888;font-weight:600;letter-spacing:1px;margin-bottom:6px">CUSTOMER</div>
+        <div style="font-weight:700;font-size:14px">${d.customer_name||'—'}</div>
+        <div style="font-size:11px;color:#555;margin-top:2px">${d.customer_code||''}</div>
+      </div>
+      <div style="border:1px solid #ddd;border-radius:6px;padding:12px">
+        <div style="font-size:10px;color:#888;font-weight:600;letter-spacing:1px;margin-bottom:6px">DELIVERY DATE</div>
+        <div style="font-weight:700;font-size:13px">${finDate}</div>
+        <div style="font-size:11px;color:#555;margin-top:2px">Total pieces: <strong>${items.length}</strong></div>
+      </div>
+    </div>
+    ${ordersHTML}
+    <div style="margin-top:32px;border-top:1px solid #ddd;padding-top:20px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+        <div>
+          <div style="font-size:10px;color:#888;font-weight:600;letter-spacing:1px;margin-bottom:24px">RECEIVED BY</div>
+          <div style="font-size:13px;font-weight:600">${d.receiver_name||'___________________________'}</div>
+          ${d.receiver_company?`<div style="font-size:11px;color:#555;margin-top:3px">${d.receiver_company}</div>`:''}
+          <div style="border-top:1px solid #999;margin-top:32px;padding-top:4px;font-size:10px;color:#888">Signature &amp; Date</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#888;font-weight:600;letter-spacing:1px;margin-bottom:24px">ISSUED BY</div>
+          <div style="font-size:13px;font-weight:600">${d.created_by_name||''}</div>
+          <div style="border-top:1px solid #999;margin-top:32px;padding-top:4px;font-size:10px;color:#888">${factoryName}</div>
+        </div>
+      </div>
+      ${d.notes?`<div style="margin-top:16px;padding:10px;background:#f8f9fa;border:1px solid #ddd;border-radius:4px;font-size:11px;color:#555"><strong>Notes:</strong> ${d.notes}</div>`:''}
+    </div>
+  </body></html>`;
+
+  const w = window.open('','_blank','width=900,height=700');
+  if(!w){ alert('Pop-up blocked. Please allow pop-ups for this site.'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
+async function dlvAdminDelete(id, serial){
+  if(!confirm('Delete delivery '+serial+'?\n\nThis will remove it and all its pieces permanently.')) return;
+  try{
+    await AGI.Deliveries.delete(id);
+    showToast('Delivery '+serial+' deleted');
+    dlvShowList();
+  }catch(e){ showToast('Error: '+e.message); }
+}
+
+// ── New Delivery Modal ────────────────────────────────────────────────────
+let _adlvPieces     = [];
+let _adlvDeliveryId = null;
+
+async function openNewDeliveryModal(){
+  _adlvPieces = []; _adlvDeliveryId = null;
+  const sel = document.getElementById('adlv-customer');
+  sel.innerHTML = '<option value="">— Select customer —</option>' +
+    customers.map(c=>`<option value="${c.id}" data-code="${c.code}" data-name="${c.name}">${c.name} (${c.code})</option>`).join('');
+  document.getElementById('adlv-piece-input').value = '';
+  document.getElementById('adlv-piece-msg').textContent = '';
+  document.getElementById('adlv-open-warning').style.display = 'none';
+  document.getElementById('adlv-pieces-list').style.display = 'none';
+  document.getElementById('adlv-pieces-body').innerHTML = '';
+  document.getElementById('adlv-finalise-btn').disabled = true;
+  OM('m-new-delivery');
+}
+
+async function adlvCustomerChange(){
+  const sel = document.getElementById('adlv-customer');
+  const cid = sel.value; if(!cid) return;
+  const open = _adminDeliveries.find(d=>d.status==='open'&&String(d.customer_id)===String(cid));
+  const warn = document.getElementById('adlv-open-warning');
+  if(open){
+    warn.style.display = '';
+    warn.textContent   = '⚠ Open delivery '+open.serial+' exists for this customer. Pieces will be added to it.';
+    _adlvDeliveryId = open.id;
+    try{ const d=await AGI.Deliveries.get(open.id); _adlvPieces=d.items||[]; }catch(e){ _adlvPieces=[]; }
+  } else {
+    warn.style.display='none'; _adlvDeliveryId=null; _adlvPieces=[];
+  }
+  adlvRenderPieces();
+}
+
+async function adlvAddPiece(){
+  const uid   = document.getElementById('adlv-piece-input').value.trim().toUpperCase();
+  const msgEl = document.getElementById('adlv-piece-msg');
+  const custSel = document.getElementById('adlv-customer');
+  if(!uid){ msgEl.textContent='Enter a piece UID'; msgEl.style.color='var(--a2)'; return; }
+  if(!custSel.value){ msgEl.textContent='Select a customer first'; msgEl.style.color='var(--a2)'; return; }
+  if(_adlvPieces.some(p=>(p.piece_uid||p.uid)===uid)){ msgEl.textContent=uid+' already added'; msgEl.style.color='var(--a4)'; return; }
+  msgEl.textContent='Looking up...'; msgEl.style.color='var(--tx2)';
+  try{
+    const piece = await AGI.Labels.get(uid);
+    if(!_adlvDeliveryId){
+      const opt = custSel.options[custSel.selectedIndex];
+      const dlv = await AGI.Deliveries.create({ customer_id:+custSel.value, customer_code:opt.dataset.code, customer_name:opt.dataset.name });
+      _adlvDeliveryId = dlv.id; _adminDeliveries.unshift(dlv);
+    }
+    await AGI.Deliveries.addItem(_adlvDeliveryId,{
+      piece_uid:piece.uid, order_id:piece.orderId||piece.order_id||null,
+      order_num:piece.orderNum||piece.order_num||null, customer_id:+custSel.value,
+      customer_code:custSel.options[custSel.selectedIndex].dataset.code,
+      w:piece.w, h:piece.h, thickness:piece.thickness,
+      glass_type:piece.glassType||piece.glass_type||'glass',
+      color:piece.color||'clear', processes:piece.processes||[]
+    });
+    _adlvPieces.push({piece_uid:uid, order_num:piece.orderNum||piece.order_num||'', w:piece.w, h:piece.h, thickness:piece.thickness});
+    document.getElementById('adlv-piece-input').value='';
+    msgEl.textContent='✓ '+uid+' added'; msgEl.style.color='var(--a3)';
+    adlvRenderPieces();
+  }catch(e){
+    msgEl.textContent=(e.message&&e.message.includes('already in'))?uid+' already in this delivery':'Error: '+e.message;
+    msgEl.style.color='var(--a2)';
+  }
+}
+
+function adlvRenderPieces(){
+  const listEl=document.getElementById('adlv-pieces-list');
+  const bodyEl=document.getElementById('adlv-pieces-body');
+  const finBtn=document.getElementById('adlv-finalise-btn');
+  if(!_adlvPieces.length){ listEl.style.display='none'; finBtn.disabled=true; return; }
+  listEl.style.display=''; finBtn.disabled=false;
+  bodyEl.innerHTML=_adlvPieces.map((p,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;${i?'border-top:1px solid var(--border)':''}">
+      <div style="font-family:monospace;font-size:.8rem;color:var(--a);flex:1">${p.piece_uid||p.uid}</div>
+      <div style="font-size:.72rem;color:var(--tx2)">${p.order_num||''}</div>
+      <div style="font-size:.72rem;color:var(--tx2)">${p.w}×${p.h}mm</div>
+      <button onclick="adlvRemovePiece('${p.piece_uid||p.uid}')" style="background:none;border:none;color:var(--mu);cursor:pointer;font-size:1rem;padding:2px 6px">&times;</button>
+    </div>`).join('');
+}
+
+async function adlvRemovePiece(uid){
+  if(!_adlvDeliveryId) return;
+  try{ await AGI.Deliveries.removeItem(_adlvDeliveryId, uid); _adlvPieces=_adlvPieces.filter(p=>(p.piece_uid||p.uid)!==uid); adlvRenderPieces(); }
+  catch(e){ showToast('Error: '+e.message); }
+}
+
+function adlvFinalise(){
+  if(!_adlvPieces.length){ showToast('Add at least one piece first'); return; }
+  const sel=document.getElementById('adlv-fin-receiver');
+  sel.innerHTML='<option value="">— Select receiver —</option>'+
+    _adminReceivers.map(r=>`<option value="${r.id}" data-company="${r.company||''}">${r.name}${r.company?' ('+r.company+')':''}</option>`).join('');
+  document.getElementById('adlv-fin-company').value='';
+  document.getElementById('adlv-fin-notes').value='';
+  const custName=document.getElementById('adlv-customer').options[document.getElementById('adlv-customer').selectedIndex]?.dataset?.name||'';
+  document.getElementById('adlv-fin-summary').textContent=custName+' — '+_adlvPieces.length+' piece'+(_adlvPieces.length!==1?'s':'');
+  OM('m-adlv-finalise');
+}
+
+function adlvFinReceiverChange(){
+  const sel=document.getElementById('adlv-fin-receiver');
+  const opt=sel.options[sel.selectedIndex];
+  document.getElementById('adlv-fin-company').value=opt?opt.dataset.company||'':'';
+}
+
+async function adlvConfirmFinalise(){
+  const receiverId=document.getElementById('adlv-fin-receiver').value;
+  if(!receiverId){ showToast('Select a receiver'); return; }
+  const sel=document.getElementById('adlv-fin-receiver');
+  const receiverName=(sel.options[sel.selectedIndex]?.text||'').replace(/ \(.*\)$/,'');
+  const company=document.getElementById('adlv-fin-company').value.trim();
+  const notes=document.getElementById('adlv-fin-notes').value.trim();
+  try{
+    const d=await AGI.Deliveries.finalise(_adlvDeliveryId,{receiver_id:+receiverId,receiver_name:receiverName,receiver_company:company,notes});
+    CM('m-adlv-finalise'); CM('m-new-delivery');
+    showToast('✓ Delivery '+d.serial+' finalised');
+    await renderDeliveriesPage();
+    // If we're in detail view for this delivery, refresh it
+    if(_dlvDetailId===_adlvDeliveryId) dlvRenderDetail();
+    else dlvOpenDetail(d.id);
+    printDeliveryNote(d.id);
+  }catch(e){ showToast('Error: '+e.message); }
+}
+
+// ── Receivers Management ──────────────────────────────────────────────────
+async function renderReceiverList(){
+  if(!_adminReceivers.length){ try{ _adminReceivers=await AGI.Deliveries.receivers.list(); }catch(e){} }
+  const el=document.getElementById('receiver-list'); if(!el) return;
+  if(!_adminReceivers.length){ el.innerHTML='<div style="color:var(--mu);font-size:.82rem;padding:12px 0">No receivers yet.</div>'; return; }
+  el.innerHTML=_adminReceivers.map(r=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px">
+      <div style="flex:1"><div style="font-weight:600;font-size:.85rem">${r.name}</div><div style="font-size:.72rem;color:var(--tx2)">${r.company||''}${r.phone?' &bull; '+r.phone:''}</div></div>
+      <button class="btn ba bsm" onclick="openEditReceiver(${r.id},'${r.name.replace(/'/g,"\'")}','${(r.company||'').replace(/'/g,"\'")}','${(r.phone||'').replace(/'/g,"\'")}')">Edit</button>
+      <button class="btn bs bsm" onclick="deleteReceiver(${r.id})">Del</button>
+    </div>`).join('');
+}
+
+function openAddReceiver(){
+  const name=prompt('Receiver name:',''); if(!name?.trim()) return;
+  const company=prompt('Company (optional):','');
+  const phone=prompt('Phone (optional):','');
+  AGI.Deliveries.receivers.create({name:name.trim(),company:company||'',phone:phone||''})
+    .then(r=>{ _adminReceivers.push(r); renderReceiverList(); showToast('Receiver added'); })
+    .catch(e=>alert('Error: '+e.message));
+}
+
+function openEditReceiver(id,name,company,phone){
+  const newName=prompt('Name:',name); if(!newName?.trim()) return;
+  const newCompany=prompt('Company:',company);
+  const newPhone=prompt('Phone:',phone);
+  AGI.Deliveries.receivers.update(id,{name:newName.trim(),company:newCompany||'',phone:newPhone||''})
+    .then(r=>{ _adminReceivers=_adminReceivers.map(x=>x.id===id?r:x); renderReceiverList(); showToast('Receiver updated'); })
+    .catch(e=>alert('Error: '+e.message));
+}
+
+function deleteReceiver(id){
+  if(!confirm('Remove this receiver?')) return;
+  AGI.Deliveries.receivers.delete(id)
+    .then(()=>{ _adminReceivers=_adminReceivers.filter(x=>x.id!==id); renderReceiverList(); showToast('Receiver removed'); })
+    .catch(e=>alert('Error: '+e.message));
+}
+
 let hrSchedule = null;
 
 function showHRTab(tab){
@@ -8696,7 +9669,7 @@ function printMode(mode){
   let styleEl = document.getElementById('print-page-style');
   if(!styleEl){ styleEl=document.createElement('style'); styleEl.id='print-page-style'; document.head.appendChild(styleEl); }
   if(mode==='labels'){
-    styleEl.textContent = '@page { size: 100mm 50mm; margin: 0; }';
+    styleEl.textContent = '@media print { @page { size: 100mm 50mm; margin: 0; } }';
   } else {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
   }
@@ -9036,7 +10009,7 @@ window.addEventListener('agi:logout', showLoginOverlay);
 <!-- ═══════════════════════════════════════════════ -->
 <!-- CANCEL ORDER MODAL -->
 <!-- ═══════════════════════════════════════════════ -->
-<div class="mbg" id="m-cancel-order" style="display:none">
+<div class="mbg" id="m-cancel-order">
   <div class="md" style="max-width:420px">
     <div class="mh">
       <span class="mt" style="color:var(--a2)">&#10005; Cancel Order</span>

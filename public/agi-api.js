@@ -79,14 +79,19 @@ const Labels = {
   get(uid){ return GET('/api/labels/'+encodeURIComponent(uid)); },
   upsert(arr){ return POST('/api/labels', Array.isArray(arr)?arr:[arr]); },
   scan(pieceUid,process,action){ return POST('/api/labels/scan',{pieceUid,process,action}); },
-  history(p={}){ const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/labels/scan/history'+(qs?'?'+qs:'')); }
+  history(p={}){ const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/labels/scan/history'+(qs?'?'+qs:'')); },
+  unscan(pieceUid,process){ return DEL('/api/labels/'+encodeURIComponent(pieceUid)+'/process/'+encodeURIComponent(process)); }
 };
 
 const RawSheets = {
   list(){ return GET('/api/rawsheets'); },
   create(d){ return POST('/api/rawsheets',d); },
   update(id,d){ return PUT('/api/rawsheets/'+id,d); },
-  delete(id){ return DEL('/api/rawsheets/'+id); }
+  delete(id){ return DEL('/api/rawsheets/'+id); },
+  transactions(id){ return GET('/api/rawsheets/'+id+'/transactions'); },
+  addTransaction(id,d){ return POST('/api/rawsheets/'+id+'/transactions',d); },
+  deleteTransaction(txId){ return DEL('/api/rawsheets/transactions/'+txId); },
+  recordOptimization(d){ return POST('/api/rawsheets/record-optimization',d); }
 };
 
 const OptFiles = {
@@ -190,9 +195,27 @@ const GlassFamilies = {
   delete(id){ return DEL('/api/glassfamilies/'+id); }
 };
 
+
+const Deliveries = {
+  list(p={})       { const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/deliveries'+(qs?'?'+qs:'')); },
+  get(id)          { return GET('/api/deliveries/'+id); },
+  create(d)        { return POST('/api/deliveries',d); },
+  finalise(id,d)   { return POST('/api/deliveries/'+id+'/finalise',d); },
+  delete(id)       { return DEL('/api/deliveries/'+id); },
+  addItem(id,d)    { return POST('/api/deliveries/'+id+'/items',d); },
+  removeItem(id,uid){ return DEL('/api/deliveries/'+id+'/items/'+encodeURIComponent(uid)); },
+  byPiece(uid)     { return GET('/api/deliveries/by-piece/'+encodeURIComponent(uid)); },
+  receivers:       {
+    list()         { return GET('/api/deliveries/receivers'); },
+    create(d)      { return POST('/api/deliveries/receivers',d); },
+    update(id,d)   { return PUT('/api/deliveries/receivers/'+id,d); },
+    delete(id)     { return DEL('/api/deliveries/receivers/'+id); }
+  }
+};
+
 window.AGI = {
   Auth, Customers, Orders, Workers, Labels,
-  RawSheets, OptFiles, Reports, Config, Purchases, Attendance, GlassFamilies, FinalProducts, FpFields, Remnants, HR, health,
+  RawSheets, OptFiles, Reports, Config, Purchases, Attendance, GlassFamilies, FinalProducts, FpFields, Remnants, HR, Deliveries, health,
   getToken, setToken, clearToken, api
 };
 
