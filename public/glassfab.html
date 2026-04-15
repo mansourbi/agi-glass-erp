@@ -1151,6 +1151,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="rtab on" id="aft-slots"   onclick="showAFTab('slots')">&#9632; Slot Management</button>
     <button class="rtab"    id="aft-assign"  onclick="showAFTab('assign')">&#128230; Assign Stock</button>
     <button class="rtab"    id="aft-deduct"  onclick="showAFTab('deduct')">&#9906; Opt Deductions</button>
+    <button class="rtab"    id="aft-sheets"  onclick="showAFTab('sheets')">&#9635; Sheets &amp; Slots</button>
   </div>
 
   <!-- Tab: Slot Management -->
@@ -1181,6 +1182,17 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <tbody id="af-assign-tbody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- Tab: Sheets & Slots -->
+  <div id="aftab-sheets" style="display:none">
+    <div class="card">
+      <div class="ch">
+        <span class="ct">&#9635; Sheets &amp; Slots Overview</span>
+        <button class="btn bg bsm" onclick="renderAFSheets()">&#8635; Refresh</button>
+      </div>
+      <div id="af-sheets-body" style="padding:8px"></div>
     </div>
   </div>
 
@@ -1371,7 +1383,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <tr style="background:var(--panel2);border-bottom:2px solid var(--border)">
                 <td style="padding:3px 4px"><input class="xinp" id="lf-date" placeholder="dd-mm-yyyy" oninput="renderLedgerTab()" style="width:90px;font-size:.65rem"></td>
                 <td style="padding:3px 4px"><input class="xinp" id="lf-code" placeholder="Search..." oninput="renderLedgerTab()" style="width:100%;font-size:.65rem"></td>
-                <td style="padding:3px 4px"><select class="xinp" id="lf-sheet" onchange="renderLedgerTab()" style="width:100%;font-size:.65rem"><option value="">All</option></select></td>
+                <td style="padding:3px 4px"><input class="xinp" id="lf-sheet" placeholder="Search..." oninput="renderLedgerTab()" style="width:100%;font-size:.65rem"></td>
                 <td style="padding:3px 4px"><input class="xinp" id="lf-desc" placeholder="Search..." oninput="renderLedgerTab()" style="width:100%;font-size:.65rem"></td>
                 <td style="padding:3px 4px"><select class="xinp" id="lf-type" onchange="renderLedgerTab()" style="width:100%;font-size:.65rem">
                   <option value="">All</option>
@@ -3676,12 +3688,41 @@ function printOrderDetails(){
   w.document.close(); w.print();
 }
 
-function printOrderAttachments(){
+async function printOrderAttachments(){
   const o=orders.find(x=>x.id===_vordId); if(!o) return;
   const atts=(o.attachments||[]).filter(a=>a.path||a.data);
   if(!atts.length){alert('No printable attachments.'); return;}
   const imgs=atts.filter(a=>{const s=a.path||a.data||'';return s.startsWith('data:image')||(a.type&&a.type.startsWith('image/'));});
   if(!imgs.length){alert('Attachments are not image files and cannot be printed directly.'); return;}
+
+  // Compress each image via canvas before printing
+  async function compressImage(src, maxW=1200, quality=0.75){
+    return new Promise((res,rej)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const scale=Math.min(1, maxW/img.naturalWidth);
+        const w=Math.round(img.naturalWidth*scale);
+        const h=Math.round(img.naturalHeight*scale);
+        const c=document.createElement('canvas');
+        c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        res(c.toDataURL('image/jpeg', quality));
+      };
+      img.onerror=rej;
+      img.src=src;
+    });
+  }
+
+  showToast('Preparing print — compressing images...');
+  const compressed=[];
+  for(const a of imgs){
+    try{
+      const src=a.path||a.data;
+      const cSrc=await compressImage(src);
+      compressed.push({src:cSrc, label:a.originalName||a.name||'Attachment'});
+    }catch(e){ compressed.push({src:a.path||a.data, label:a.originalName||a.name||'Attachment'}); }
+  }
+
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>Attachments — ${o.num}</title>
   <style>body{margin:0;padding:10px;font-family:Arial,sans-serif}
@@ -3691,10 +3732,8 @@ function printOrderAttachments(){
   .att-label{font-size:9pt;color:#666;margin-bottom:6px}
   @media print{body{padding:0}}</style>
   </head><body>`);
-  imgs.forEach(a=>{
-    const src=a.path||a.data;
-    const label=a.originalName||a.name||'Attachment';
-    w.document.write(`<div class="att-page"><div class="att-label">${o.num} — ${label}</div><img src="${src}"></div>`);
+  compressed.forEach(a=>{
+    w.document.write(`<div class="att-page"><div class="att-label">${o.num} — ${a.label}</div><img src="${a.src}"></div>`);
   });
   w.document.write('</body></html>');
   w.document.close(); w.print();
@@ -4028,11 +4067,12 @@ function clearRSFilters(){
 }
 
 function getSheetStock(sheetId){
-  // Total bought = sum of all purchase records for this sheet
-  const bought = purchases.filter(p=>+(p.sheetId||p.sheet_id)===+sheetId).reduce((a,p)=>a+(+p.qty||0),0);
-  // Used = sheets consumed by completed optimizations
-  const used = getSheetUsedCount(sheetId);
-  return {bought, used, remaining:Math.max(0,bought-used)};
+  // Use live balance from raw_sheet_transactions (via API)
+  const sheet = rawSheetCatalog.find(s=>s.id===+sheetId);
+  const balance = sheet ? (+sheet.balance||0) : 0;
+  // Keep bought/used for backward compat but drive display from balance
+  const bought = balance > 0 ? 1 : purchases.filter(p=>+(p.sheetId||p.sheet_id)===+sheetId).length;
+  return {bought, used:0, remaining: balance};
 }
 
 function getSheetUsedCount(sheetId){
@@ -4106,8 +4146,9 @@ async function renderSettingsRSCatalog(){
     const dot=COLOR_MAP[s.color]||'#888';
     const sqm=(s.w*s.h/1e6).toFixed(3);
     const stk=getSheetStock(s.id);
-    const stkColor=stk.bought===0?'var(--mu)':stk.remaining<=2?'var(--a2)':stk.remaining<=5?'var(--a4)':'var(--a3)';
-    const stkLabel=stk.bought===0?'—':String(stk.remaining);
+    const bal = +rawSheetCatalog.find(x=>x.id===s.id)?.balance||0;
+    const stkColor=bal===0&&!rawSheetCatalog.find(x=>x.id===s.id)?.balance?'var(--mu)':bal<=0?'var(--a2)':bal<=2?'var(--a2)':bal<=5?'var(--a4)':'var(--a3)';
+    const stkLabel=rawSheetCatalog.find(x=>x.id===s.id)?.balance===undefined?'—':String(bal);
     return '<tr>'+
       '<td class="mn" style="color:var(--a3);font-size:.67rem;white-space:nowrap">'+(s.code||'')+'</td>'+
       '<td style="font-size:.72rem;color:var(--tx2)">'+(s.notes||'')+'</td>'+
@@ -4182,6 +4223,11 @@ async function addPurchase(){
   try{
     await AGI.Purchases.create({sheetId, qty, date, notes});
     purchases = await AGI.Purchases.list();
+    // Also record as a purchase transaction so balance updates in ledger + sheet catalog
+    await AGI.RawSheets.addTransaction(sheetId,{
+      type:'purchase', qty, date, notes:notes||'Purchase'
+    });
+    rawSheetCatalog = await AGI.RawSheets.list();
   }catch(e){ alert('Error saving purchase: '+e.message); return; }
   document.getElementById('pur-qty').value='1';
   document.getElementById('pur-notes').value='';
@@ -8030,18 +8076,9 @@ async function renderLedgerTab(){
   // Load all sheets if needed
   try{ rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
 
-  // Populate sheet dropdown
-  const sheetSel = document.getElementById('lf-sheet');
-  if(sheetSel && sheetSel.options.length <= 1){
-    rawSheetCatalog.forEach(s=>{
-      const o = document.createElement('option');
-      o.value = s.id;
-      o.textContent = (s.notes||s.code||'') + ' — ' + s.code;
-      sheetSel.appendChild(o);
-    });
-  }
 
-  const fSheet = document.getElementById('lf-sheet')?.value||'';
+
+  const fSheet = (document.getElementById('lf-sheet')?.value||'').toLowerCase();
   const fCode  = document.getElementById('lf-code')?.value?.toLowerCase()||'';
   const fType  = document.getElementById('lf-type')?.value||'';
   const fDate  = document.getElementById('lf-date')?.value?.toLowerCase()||'';
@@ -8051,7 +8088,8 @@ async function renderLedgerTab(){
   tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>';
 
   // Fetch transactions for all sheets (or filtered sheet)
-  const sheetsToLoad = fSheet ? rawSheetCatalog.filter(s=>String(s.id)===fSheet) : rawSheetCatalog;
+  // Raw Sheet filter searches Arabic description (notes) only — Code column has its own filter
+  const sheetsToLoad = fSheet ? rawSheetCatalog.filter(s=>(s.notes||'').toLowerCase().includes(fSheet)) : rawSheetCatalog;
   const TYPE_LABELS = {opening:'Opening Stock',purchase:'Purchase',optimization_use:'Optimization Cut',sale:'Sale',adjustment:'Adjustment'};
   const TYPE_COLORS = {opening:'var(--mu)',purchase:'var(--a3)',optimization_use:'var(--a2)',sale:'var(--a4)',adjustment:'var(--tx2)'};
 
@@ -8079,7 +8117,7 @@ async function renderLedgerTab(){
   let filtered = allRows;
   if(fType)  filtered = filtered.filter(r=>r.type===fType);
   if(fDate)  filtered = filtered.filter(r=>r.date.toLowerCase().includes(fDate));
-  if(fSheet) filtered = filtered.filter(r=>String(r._sheet.id)===fSheet);
+  if(fSheet) filtered = filtered.filter(r=>(r._sheet.notes||r._sheet.code||'').toLowerCase().includes(fSheet));
   if(fCode)  filtered = filtered.filter(r=>(r._sheet.code||'').toLowerCase().includes(fCode));
   if(fDesc)  filtered = filtered.filter(r=>(r.ref_label||r.notes||'').toLowerCase().includes(fDesc));
   if(fRef)   filtered = filtered.filter(r=>(r.buyer||r.ref_label||'').toLowerCase().includes(fRef));
@@ -8170,14 +8208,32 @@ async function ledgerLoadDetail(sheetId){
 let _ledgerEditTxId = null;
 let _ledgerEditSheetId = null;
 
+function leSheetSearchChange(){
+  const val = document.getElementById('le-sheet-search').value;
+  // Find matching sheet from datalist
+  const s = rawSheetCatalog.find(x=>
+    val === (x.notes||x.code)+' — '+x.code ||
+    (x.notes||x.code).toLowerCase()===val.toLowerCase()
+  );
+  document.getElementById('le-sheet').value = s ? s.id : '';
+}
+
 function ledgerOpenAddEntry(preSheetId){
   _ledgerEditTxId = null;
   _ledgerEditSheetId = null;
-  // Populate sheet dropdown
-  const sel = document.getElementById('le-sheet');
-  sel.innerHTML = '<option value="">Select sheet...</option>' +
-    rawSheetCatalog.map(s=>`<option value="${s.id}" ${preSheetId===s.id?'selected':''}>${s.notes||s.code} — ${s.code}</option>`).join('');
-  if(preSheetId) sel.value = preSheetId;
+  // Populate datalist for sheet search
+  const dl = document.getElementById('le-sheet-list');
+  if(dl) dl.innerHTML = rawSheetCatalog.map(s=>`<option value="${s.notes||s.code} — ${s.code}">`).join('');
+  document.getElementById('le-sheet-search').value = '';
+  document.getElementById('le-sheet').value = '';
+  document.getElementById('le-sheet-search').disabled = false;
+  if(preSheetId){
+    const _ps = rawSheetCatalog.find(x=>x.id===+preSheetId);
+    if(_ps){
+      document.getElementById('le-sheet-search').value = (_ps.notes||_ps.code)+' — '+_ps.code;
+      document.getElementById('le-sheet').value = preSheetId;
+    }
+  }
   document.getElementById('le-type').value = 'purchase';
   document.getElementById('le-qty').value = '';
   document.getElementById('le-date').value = new Date().toISOString().slice(0,10);
@@ -8199,13 +8255,14 @@ function ledgerOpenEditEntry(txId, sheetId){
     .then(({transactions})=>{
       const tx = transactions.find(t=>t.id===txId);
       if(!tx){ alert('Transaction not found'); return; }
-      const sel = document.getElementById('le-sheet');
-      sel.innerHTML = '<option value="">Select sheet...</option>' +
-        rawSheetCatalog.map(s=>`<option value="${s.id}">${s.notes||s.code} — ${s.code}</option>`).join('');
-      sel.value = sheetId;
-      sel.disabled = true;
+      const dl2 = document.getElementById('le-sheet-list');
+      if(dl2) dl2.innerHTML = rawSheetCatalog.map(s=>`<option value="${s.notes||s.code} — ${s.code}">`).join('');
+      const _es = rawSheetCatalog.find(x=>x.id===+sheetId);
+      document.getElementById('le-sheet-search').value = _es?(_es.notes||_es.code)+' — '+_es.code:'';
+      document.getElementById('le-sheet').value = sheetId;
+      document.getElementById('le-sheet-search').disabled = true;
       document.getElementById('le-type').value = tx.type;
-      document.getElementById('le-qty').value = Math.abs(tx.qty);
+      document.getElementById('le-qty').value = tx.type==='adjustment'?tx.qty:Math.abs(tx.qty);
       document.getElementById('le-date').value = tx.date;
       document.getElementById('le-notes').value = tx.notes||'';
       document.getElementById('le-buyer').value = tx.buyer||'';
@@ -8229,7 +8286,9 @@ async function ledgerSaveEntry(){
   const buyer   = document.getElementById('le-buyer').value.trim();
 
   if(!sheetId){ alert('Please select a raw sheet'); return; }
-  if(!qtyRaw||isNaN(qtyRaw)||qtyRaw<=0){ alert('Enter a valid positive quantity'); return; }
+  // Adjustment allows negative qty (deduction); all others must be positive
+  if(!qtyRaw||isNaN(qtyRaw)||qtyRaw===0){ alert('Enter a valid quantity'); return; }
+  if(type!=='adjustment'&&qtyRaw<0){ alert('Quantity must be positive for '+type); return; }
   if(!date){ alert('Please enter a date'); return; }
 
   // Direction: sale & negative adjustment = out
@@ -8246,7 +8305,7 @@ async function ledgerSaveEntry(){
       showToast('Entry added');
     }
     CM('m-ledger-entry');
-    document.getElementById('le-sheet').disabled = false;
+    document.getElementById('le-sheet-search').disabled = false;
     await renderLedgerTab();
   }catch(e){ alert('Error: '+e.message); }
 }
@@ -8363,15 +8422,86 @@ const AF = {
   delInv:      id => _afFetch('/api/slots/inventory/'+id, {method:'DELETE'}),
 };
 
+// ── Sheets & Slots Overview ─────────────────────────────────────────────────
+async function renderAFSheets(){
+  const el = document.getElementById('af-sheets-body'); if(!el) return;
+  el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--mu)">Loading...</div>';
+  try{
+    const inv = await AF.allInventory();
+
+    if(!inv.length){
+      el.innerHTML='<div class="empty"><div class="empty-i">&#9635;</div><div class="empty-t">No stock assigned to slots yet.</div></div>';
+      return;
+    }
+
+    // Group by sheet_id
+    const bySheet = {};
+    inv.forEach(r=>{
+      if(!bySheet[r.sheet_id]) bySheet[r.sheet_id]={
+        sheet_id:r.sheet_id, code:r.sheet_code, notes:r.sheet_notes,
+        thickness:r.thickness, color:r.color, slots:[]
+      };
+      bySheet[r.sheet_id].slots.push({slot_name:r.slot_name, qty:r.qty});
+    });
+
+    // Get live balance from rawSheetCatalog
+    const rows = Object.values(bySheet).sort((a,b)=>a.code.localeCompare(b.code));
+
+    el.innerHTML = `
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--s1);border-bottom:2px solid var(--border)">
+            <th style="padding:8px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600;letter-spacing:.5px">CODE</th>
+            <th style="padding:8px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">RAW SHEET</th>
+            <th style="padding:8px 12px;text-align:center;font-size:.62rem;color:var(--mu);font-weight:600">BALANCE</th>
+            <th style="padding:8px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">SLOTS &amp; QUANTITIES</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>{
+            const sheet = rawSheetCatalog.find(s=>s.id===r.sheet_id);
+            const balance = sheet ? (+sheet.balance||0) : 0;
+            const balColor = balance<=0?'var(--a2)':balance<=3?'var(--a4)':'var(--a3)';
+            const totalInSlots = r.slots.reduce((a,s)=>a+s.qty,0);
+            const unassigned = balance - totalInSlots;
+            const slotBadges = r.slots.map(s=>
+              `<span style="background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-family:monospace;font-size:.7rem;white-space:nowrap">
+                <span style="color:var(--a);font-weight:700">${s.slot_name}</span>
+                <span style="color:var(--tx2);margin-left:4px">(${s.qty})</span>
+              </span>`
+            ).join(' ');
+            return `<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:10px 12px;font-family:monospace;font-size:.7rem;color:var(--a3);white-space:nowrap">${r.code}</td>
+              <td style="padding:10px 12px">
+                <div style="font-size:.78rem;font-weight:600;color:var(--tx)">${r.notes||r.code}</div>
+                <div style="font-size:.62rem;color:var(--mu)">${r.thickness}mm · ${r.color}</div>
+              </td>
+              <td style="padding:10px 12px;text-align:center">
+                <div style="font-size:1.1rem;font-weight:700;color:${balColor}">${balance}</div>
+                ${unassigned>0?`<div style="font-size:.58rem;color:var(--mu)">${unassigned} unassigned</div>`:''}
+                ${unassigned<0?`<div style="font-size:.58rem;color:var(--a2)">⚠ over-assigned</div>`:''}
+              </td>
+              <td style="padding:10px 12px">
+                <div style="display:flex;flex-wrap:wrap;gap:5px">${slotBadges}</div>
+                <div style="font-size:.62rem;color:var(--mu);margin-top:4px">Total in slots: ${totalInSlots}</div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }catch(e){ el.innerHTML='<div style="color:var(--a2);padding:16px">Error: '+e.message+'</div>'; }
+}
+
 // ── Tab switching ────────────────────────────────────────────────────────
 async function showAFTab(id){
-  ['slots','assign','deduct'].forEach(t=>{
+  ['slots','assign','deduct','sheets'].forEach(t=>{
     document.getElementById('aftab-'+t).style.display=t===id?'':'none';
     document.getElementById('aft-'+t).classList.toggle('on',t===id);
   });
   if(id==='slots')  await renderAFSlots();
   if(id==='assign') await renderAFAssign();
   if(id==='deduct') await renderAFDeduct();
+  if(id==='sheets') await renderAFSheets();
 }
 
 async function renderAFrames(){
@@ -10498,17 +10628,33 @@ function printMode(mode){
     });
   }
   setTimeout(()=>{
-    // Wait for canvas→img conversion to complete before printing
+    // Convert canvases to compressed JPEG imgs before printing to reduce spool size
+    const _replacedCanvases = [];
+    document.querySelectorAll('.cw-wrap canvas, [id^="cw-"] canvas').forEach(cv=>{
+      try{
+        const jpeg = cv.toDataURL('image/jpeg', 0.75);
+        const img = document.createElement('img');
+        img.src = jpeg;
+        img.style.cssText = cv.style.cssText || 'display:block;max-width:100%';
+        img.width = cv.width; img.height = cv.height;
+        cv.parentNode.replaceChild(img, cv);
+        _replacedCanvases.push({img, cv});
+      }catch(e){}
+    });
+
     setTimeout(()=>{
-    window.print();
-    // Restore screen canvases after print
-    setTimeout(()=>{
-      document.body.classList.remove('print-opt','print-labels');
-      const ps=document.getElementById('print-page-style'); if(ps) ps.textContent='@page{size:A4 portrait;margin:5mm}';
-      if(window._lastOptResults)
-        _globalRemFitsMap=buildGlobalRemFitsMap(window._lastOptResults.results); window._lastOptResults.results.forEach(r=>drawSheet(r,'cw-'+r.idx,'cl-'+r.idx,_globalRemFitsMap));
-    }, 1500);
-    }, 300); // extra wait for img conversion
+      window.print();
+      // Restore original canvases after print
+      setTimeout(()=>{
+        _replacedCanvases.forEach(({img, cv})=>{
+          try{ img.parentNode.replaceChild(cv, img); }catch(e){}
+        });
+        document.body.classList.remove('print-opt','print-labels');
+        const ps=document.getElementById('print-page-style'); if(ps) ps.textContent='@page{size:A4 portrait;margin:5mm}';
+        if(window._lastOptResults)
+          _globalRemFitsMap=buildGlobalRemFitsMap(window._lastOptResults.results); window._lastOptResults.results.forEach(r=>drawSheet(r,'cw-'+r.idx,'cl-'+r.idx,_globalRemFitsMap));
+      }, 1500);
+    }, 300);
   }, 200);
 }
 
@@ -10945,14 +11091,15 @@ window.addEventListener('agi:logout', showLoginOverlay);
   <div class="md" style="max-width:460px">
     <div class="mh">
       <span class="mt" id="le-title">Add Stock Entry</span>
-      <button class="mx" onclick="CM('m-ledger-entry');document.getElementById('le-sheet').disabled=false">&times;</button>
+      <button class="mx" onclick="CM('m-ledger-entry');document.getElementById('le-sheet-search').disabled=false">&times;</button>
     </div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
       <div class="fg">
         <label class="lbl">Raw Sheet</label>
-        <select id="le-sheet" class="inp" style="font-size:.78rem">
-          <option value="">Select sheet...</option>
-        </select>
+        <input id="le-sheet-search" list="le-sheet-list" class="inp" placeholder="Search sheet..." style="font-size:.78rem"
+          oninput="leSheetSearchChange()">
+        <datalist id="le-sheet-list"></datalist>
+        <input type="hidden" id="le-sheet">
       </div>
       <div class="frow" style="grid-template-columns:1fr 1fr;gap:10px">
         <div class="fg">
@@ -10966,7 +11113,7 @@ window.addEventListener('agi:logout', showLoginOverlay);
         </div>
         <div class="fg">
           <label class="lbl">Quantity (sheets)</label>
-          <input type="number" id="le-qty" class="inp" placeholder="e.g. 10" min="1" step="1">
+          <input type="number" id="le-qty" class="inp" placeholder="e.g. 10 or -5" step="1">
         </div>
       </div>
       <div class="fg">
@@ -10983,7 +11130,7 @@ window.addEventListener('agi:logout', showLoginOverlay);
       </div>
     </div>
     <div class="mf">
-      <button class="btn bg" onclick="CM('m-ledger-entry');document.getElementById('le-sheet').disabled=false">Cancel</button>
+      <button class="btn bg" onclick="CM('m-ledger-entry');document.getElementById('le-sheet-search').disabled=false">Cancel</button>
       <button class="btn bp" onclick="ledgerSaveEntry()">&#10003; Save Entry</button>
     </div>
   </div>
