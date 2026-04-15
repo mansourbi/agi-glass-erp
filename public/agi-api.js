@@ -78,7 +78,10 @@ const Labels = {
   scanlog(p={}){ const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/labels/scanlog'+(qs?'?'+qs:'')); },
   get(uid){ return GET('/api/labels/'+encodeURIComponent(uid)); },
   upsert(arr){ return POST('/api/labels', Array.isArray(arr)?arr:[arr]); },
-  scan(pieceUid,process,action){ return POST('/api/labels/scan',{pieceUid,process,action}); },
+  scan(pieceUid,process,action,ts){
+    if(!ts){ const d=new Date(); d.setTime(d.getTime()+3*60*60*1000); ts=d.toISOString().replace('Z','+03:00'); }
+    return POST('/api/labels/scan',{pieceUid,process,action,ts});
+  },
   history(p={}){ const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/labels/scan/history'+(qs?'?'+qs:'')); },
   unscan(pieceUid,process){ return DEL('/api/labels/'+encodeURIComponent(pieceUid)+'/process/'+encodeURIComponent(process)); }
 };

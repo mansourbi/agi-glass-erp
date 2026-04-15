@@ -29,6 +29,7 @@ app.use('/api/customers', require('./routes/customers'));
 app.use('/api/orders',    require('./routes/orders'));
 app.use('/api/workers',   require('./routes/workers'));
 app.use('/api/labels',    require('./routes/labels'));
+app.use('/api/slots',     require('./routes/slots'));
 app.use('/api/rawsheets', require('./routes/rawsheets'));
 app.use('/api/optfiles',  require('./routes/optfiles'));
 app.use('/api/reports',   require('./routes/reports'));
@@ -130,3 +131,4 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
     console.log('  ╚═══════════════════════════════════════╝\n');
   });
 }
+

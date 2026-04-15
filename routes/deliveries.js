@@ -113,6 +113,27 @@ router.get('/', (req, res) => {
 });
 
 // MUST be before /:id
+// GET /api/deliveries/pieces-status?uids=REF-17-1,REF-17-2,...
+// Returns {piece_uid: {delivery_id, serial, status, finalised_at}} for batch lookup
+router.get('/pieces-status', (req, res) => {
+  try {
+    const uids = (req.query.uids||'').split(',').map(u=>u.trim()).filter(Boolean);
+    if(!uids.length) return res.json({});
+    const placeholders = uids.map(()=>'?').join(',');
+    const rows = db.prepare(`
+      SELECT di.piece_uid, d.id AS delivery_id, d.serial, d.status, d.finalised_at
+      FROM delivery_items di
+      JOIN deliveries d ON d.id=di.delivery_id
+      WHERE di.piece_uid IN (${placeholders})
+      ORDER BY di.added_at DESC
+    `).all(...uids);
+    // Build map — last delivery per piece wins
+    const map = {};
+    rows.forEach(r=>{ map[r.piece_uid]=r; });
+    res.json(map);
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
 router.get('/by-piece/:uid', (req, res) => {
   try {
     const item = db.prepare(

@@ -18,8 +18,16 @@
       <div id="adlv-open-warning" style="display:none;font-size:.75rem;color:var(--a4);background:rgba(255,210,63,.08);border:1px solid rgba(255,210,63,.25);border-radius:6px;padding:8px 12px">
         &#9888; This customer already has an open delivery. Adding pieces will go into that delivery.
       </div>
-      <div>
-        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:4px">Add Piece by UID</label>
+      <!-- Order picker section -->
+      <div style="margin-bottom:8px">
+        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:4px">Add from Order</label>
+        <select id="adlv-order-picker" class="inp" style="width:100%;padding:8px 12px;font-size:.75rem" onchange="adlvOrderPickerChange()">
+          <option value="">Select an order to pick pieces...</option>
+        </select>
+        <div id="adlv-order-pieces" style="display:none;border:1px solid var(--border);border-radius:var(--r);margin-top:6px;overflow:hidden;max-height:180px;overflow-y:auto"></div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <label style="font-size:.7rem;color:var(--mu);display:block;margin-bottom:4px">Or add by Piece UID directly</label>
         <div style="display:flex;gap:8px">
           <input type="text" id="adlv-piece-input" class="inp" placeholder="e.g. REF-1-5" style="flex:1;padding:8px 12px" autocomplete="off" autocorrect="off" spellcheck="false"
             onkeydown="if(event.key==='Enter') adlvAddPiece()">
@@ -514,6 +522,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="nt"    onclick="SP('reports')" id="nt-reports">&#9636; Reports</button>
     <button class="nt"    onclick="SP('remnants')" id="nt-remnants">&#9632; Remnants</button>
     <button class="nt"    onclick="SP('deliveries')" id="nt-deliveries">&#128666; Deliveries</button>
+    <button class="nt"    onclick="SP('aframes')" id="nt-aframes">&#128230; A-Frames</button>
     <button class="nt"    onclick="SP('settings')"id="nt-settings">&#9881; Settings</button>
   </div>
 </nav>
@@ -898,10 +907,10 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       </div>
       <div>
         <div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">ORDER</div>
-        <select id="track-order-filter" onchange="onTrackFilterChange()"
-          style="font-size:.7rem;padding:5px 8px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);color:var(--tx)">
-          <option value="">All Orders</option>
-        </select>
+        <input id="track-order-filter" list="track-order-list" placeholder="Search order or ext ref..."
+          oninput="onTrackFilterChange()"
+          style="font-size:.7rem;padding:5px 8px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);color:var(--tx);width:180px">
+        <datalist id="track-order-list"></datalist>
       </div>
     </div>
   </div>
@@ -1133,6 +1142,68 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 </div>
 
 
+<div class="pg" id="pg-aframes">
+  <div class="ph">
+    <div><div class="pt">A-Frame Slots</div><div class="ps">Manage glass storage slots and inventory</div></div>
+  </div>
+  <!-- Sub-tabs -->
+  <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+    <button class="rtab on" id="aft-slots"   onclick="showAFTab('slots')">&#9632; Slot Management</button>
+    <button class="rtab"    id="aft-assign"  onclick="showAFTab('assign')">&#128230; Assign Stock</button>
+    <button class="rtab"    id="aft-deduct"  onclick="showAFTab('deduct')">&#9906; Opt Deductions</button>
+  </div>
+
+  <!-- Tab: Slot Management -->
+  <div id="aftab-slots">
+    <div class="card">
+      <div class="ch">
+        <span class="ct">&#9632; A-Frame Slots</span>
+        <button class="btn bp bsm" onclick="afOpenAddSlot()">+ Add Slot</button>
+      </div>
+      <div id="af-slots-grid" style="padding:16px"></div>
+    </div>
+  </div>
+
+  <!-- Tab: Assign Stock -->
+  <div id="aftab-assign" style="display:none">
+    <div class="card">
+      <div class="ch">
+        <span class="ct">&#128230; Assign Stock to Slots</span>
+        <button class="btn bp bsm" onclick="afOpenAssign()">+ Assign Stock</button>
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Slot</th><th>Raw Sheet</th><th>Qty</th><th>Date</th><th>Notes</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="af-assign-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Optimization Deductions -->
+  <div id="aftab-deduct" style="display:none">
+    <div class="card">
+      <div class="ch">
+        <span class="ct">&#9906; Assign Optimization Cuts to Slots</span>
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Opt #</th><th>Date</th><th>Raw Sheet</th><th>Sheets Used</th><th>Assigned to Slots</th><th>Unassigned</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="af-deduct-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="pg" id="pg-settings">
   <div class="ph"><div><div class="pt">Settings</div><div class="ps">Raw Materials, Workers &amp; System</div></div></div>
   <!-- Settings tabs -->
@@ -1165,7 +1236,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <!-- Sub-tabs -->
     <div style="display:flex;gap:6px;margin-bottom:12px">
       <button class="rtab on" id="rsmt-cat"    onclick="showRSTab('catalog')">&#9642; Sheet Catalog</button>
-      <button class="rtab"    id="rsmt-stock"  onclick="showRSTab('stock')">&#128230; Stock &amp; Purchases</button>
+      <button class="rtab"    id="rsmt-stock"  onclick="showRSTab('ledger')" style="display:none">&#128230; Stock &amp; Purchases</button>
       <button class="rtab"    id="rsmt-usage"  onclick="showRSTab('usage')">&#9906; Usage by Optimization</button>
       <button class="rtab"    id="rsmt-ledger" onclick="showRSTab('ledger')">&#128200; Stock Ledger</button>
     </div>
@@ -1278,35 +1349,43 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <div class="card">
         <div class="ch" style="flex-wrap:wrap;gap:8px">
           <span class="ct">&#128200; Stock Ledger</span>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <select id="ledger-f-sheet" onchange="renderLedgerTab()" style="font-size:.72rem;padding:4px 8px">
-              <option value="">All Sheets</option>
-            </select>
-            <select id="ledger-f-type" onchange="renderLedgerTab()" style="font-size:.72rem;padding:4px 8px">
-              <option value="">All Types</option>
-              <option value="opening">Opening Stock</option>
-              <option value="purchase">Purchase</option>
-              <option value="optimization_use">Optimization Cut</option>
-              <option value="sale">Sale</option>
-              <option value="adjustment">Adjustment</option>
-            </select>
-            <input type="date" id="ledger-f-from" onchange="renderLedgerTab()" style="font-size:.72rem;padding:4px 8px">
-            <input type="date" id="ledger-f-to" onchange="renderLedgerTab()" style="font-size:.72rem;padding:4px 8px">
-            <button class="btn bg bsm" onclick="clearLedgerFilters()" style="font-size:.62rem">&#10005; Clear</button>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn bp bsm" onclick="ledgerOpenAddEntry()">&#43; Add Entry</button>
+            <button class="btn bg bsm" onclick="clearLedgerFilters()" style="font-size:.6rem" title="Clear all filters">&#10005; Clear</button>
           </div>
         </div>
         <div class="tw">
           <table id="ledger-table">
             <thead>
-              <tr style="background:var(--s1);border-bottom:2px solid var(--border)">
-                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;letter-spacing:.5px;white-space:nowrap">DATE</th>
-                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">RAW SHEET</th>
-                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">DESCRIPTION</th>
-                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">TYPE</th>
-                <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">REFERENCE</th>
-                <th style="padding:8px 12px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600">QTY</th>
-                <th style="padding:8px 12px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600">BALANCE</th>
-                <th style="padding:8px 12px;text-align:center;color:var(--mu);font-size:.62rem;font-weight:600">ACTION</th>
+              <tr style="background:var(--s1);border-bottom:1px solid var(--border)">
+                <th style="padding:6px 8px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;white-space:nowrap;cursor:pointer" onclick="ledgerSort('date')">DATE <span id="lsa-date"></span></th>
+                <th style="padding:6px 8px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('code')">CODE <span id="lsa-code"></span></th>
+                <th style="padding:6px 8px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('sheet')">RAW SHEET <span id="lsa-sheet"></span></th>
+                <th style="padding:6px 8px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('desc')">DESCRIPTION <span id="lsa-desc"></span></th>
+                <th style="padding:6px 8px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('type')">TYPE <span id="lsa-type"></span></th>
+                <th style="padding:6px 8px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('ref')">REFERENCE <span id="lsa-ref"></span></th>
+                <th style="padding:6px 8px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('qty')">QTY <span id="lsa-qty"></span></th>
+                <th style="padding:6px 8px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('bal')">BALANCE <span id="lsa-bal"></span></th>
+                <th style="padding:6px 8px;text-align:center;color:var(--mu);font-size:.62rem;font-weight:600"></th>
+              </tr>
+              <tr style="background:var(--panel2);border-bottom:2px solid var(--border)">
+                <td style="padding:3px 4px"><input class="xinp" id="lf-date" placeholder="dd-mm-yyyy" oninput="renderLedgerTab()" style="width:90px;font-size:.65rem"></td>
+                <td style="padding:3px 4px"><input class="xinp" id="lf-code" placeholder="Search..." oninput="renderLedgerTab()" style="width:100%;font-size:.65rem"></td>
+                <td style="padding:3px 4px"><select class="xinp" id="lf-sheet" onchange="renderLedgerTab()" style="width:100%;font-size:.65rem"><option value="">All</option></select></td>
+                <td style="padding:3px 4px"><input class="xinp" id="lf-desc" placeholder="Search..." oninput="renderLedgerTab()" style="width:100%;font-size:.65rem"></td>
+                <td style="padding:3px 4px"><select class="xinp" id="lf-type" onchange="renderLedgerTab()" style="width:100%;font-size:.65rem">
+                  <option value="">All</option>
+                  <option value="opening">Opening</option>
+                  <option value="purchase">Purchase</option>
+                  <option value="optimization_use">Opt Cut</option>
+                  <option value="sale">Sale</option>
+                  <option value="adjustment">Adjustment</option>
+                </select></td>
+                <td style="padding:3px 4px"><input class="xinp" id="lf-ref" placeholder="Search..." oninput="renderLedgerTab()" style="width:100%;font-size:.65rem"></td>
+                <td style="padding:3px 4px"></td>
+                <td style="padding:3px 4px"></td>
+                <td style="padding:3px 4px"></td>
+                <td style="padding:3px 4px"></td>
               </tr>
             </thead>
             <tbody id="ledger-tbody">
@@ -1880,7 +1959,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <div id="import-msg" style="display:none;font-family:'DM Mono',monospace;font-size:.68rem;padding:8px 10px;border-radius:var(--r);margin-bottom:10px"></div>
 
           <div class="dvd"></div>
-          <button class="btn bd bsm" onclick="if(confirm('This will permanently delete ALL data. Are you sure?'))clearAllData()">
+          <button class="btn bd bsm" onclick="if(_confirm('This will permanently delete ALL data. Are you sure?'))clearAllData()">
             &#9888; Clear All Data
           </button>
         </div>
@@ -2248,6 +2327,8 @@ let activeOptId= null;
 let rawSheetCatalog = [];
 let glassFamilies  = [];
 let finalProducts  = [];
+let afSlots = [];
+let _pieceDeliveryMap = {}; // {piece_uid: {delivery_id, serial, status, finalised_at}}
 let fpFieldValues  = {};
 let _rsid = 1;
 let activeRawSheet = null;
@@ -2393,7 +2474,7 @@ async function SP(id){
   document.getElementById('pg-'+id).classList.add('on');
   document.getElementById('nt-'+id).classList.add('on');
   const r={dash:renderDash,crm:renderCust,orders:renderOrders,cutting:renderCutUI,
-           track:renderTrack,labels:renderLabels,reports:renderReports,settings:renderSettings};
+           track:renderTrack,labels:renderLabels,reports:renderReports,settings:renderSettings,aframes:renderAFrames};
   if(r[id]) r[id]();
   if(id==='remnants'){ remnantSlots=await AGI.Remnants.slots.list().catch(()=>[]); await renderRemnants(); }
   if(id==='deliveries') await renderDeliveriesPage();
@@ -2480,6 +2561,11 @@ function renderOrderMatrix(containerId, compact=false){
   else if(statusF==='cancelled') filtered=orders.filter(o=>o.status==='cancelled');
   else                           filtered=[...orders];
   if(custF) filtered=filtered.filter(o=>String(o.customerId)===custF);
+  const _ordF=(document.getElementById('track-order-filter')?.value||'').trim().toLowerCase();
+  if(_ordF) filtered=filtered.filter(o=>
+    (o.num||'').toLowerCase().includes(_ordF)||
+    (o.extref||'').toLowerCase().includes(_ordF)
+  );
 
   if(!filtered.length){el.innerHTML=`<div class="empty" style="padding:20px"><div class="empty-t">No orders match this filter</div></div>`;return}
 
@@ -2491,11 +2577,13 @@ function renderOrderMatrix(containerId, compact=false){
   let html=`<table class="matrix"><thead><tr>
     <th class="ord-col">Order Date</th>
     <th class="ord-col">Order Ref</th>
+    <th class="ord-col">Ext Ref</th>
     <th class="ord-col">Final Product</th>
     <th class="ord-col">Status</th>`;
   if(!compact) html+=`<th class="ord-col">Completed / Cancelled</th>`;
   if(!compact) html+=`<th class="ord-col">Classification</th>`;
   procList.forEach(pid=>{const pr=PROC_MAP[pid];html+=`<th>${pr?pr.label:pid}</th>`;});
+  if(!compact) html+=`<th style="text-align:center">Delivered</th>`;
   if(!compact) html+=`<th>Actions</th>`;
   html+=`</tr></thead><tbody>`;
 
@@ -2505,7 +2593,8 @@ function renderOrderMatrix(containerId, compact=false){
     const isDone=o.status==='done';
     html+=`<tr style="${isCancelled?'opacity:.65':''}">
       <td style="font-size:.72rem;white-space:nowrap">${(o.date||'').slice(0,10)}${!compact?`<div style="margin-top:3px;display:flex;gap:3px"><button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="View order" style="font-size:.6rem">&#128065;</button>${(o.attachments&&o.attachments.length)?`<button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="${o.attachments.length} attachment(s)" style="font-size:.6rem">&#128206; ${o.attachments.length}</button>`:''}</div>`:''}</td>
-      <td class="mn" style="color:var(--a);cursor:pointer" onclick="showOrderDetail(${o.id})">${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}${o.extref?`<div style="font-size:.6rem;color:var(--mu)">${o.extref}</div>`:''}</td>
+      <td class="mn" style="color:var(--a);cursor:pointer" onclick="showOrderDetail(${o.id})">${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}</td>
+      <td class="mn" style="font-size:.72rem;color:var(--mu)">${o.extref||'—'}</td>
       <td style="font-size:.72rem">${(()=>{const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));return fp?`<span style="color:var(--a4);font-size:.68rem">${fp.label}</span>`:'<span style="color:var(--mu)">—</span>';})()}</td>
       <td><span class="bge" style="background:${isDone?'rgba(54,255,138,.15)':isCancelled?'rgba(255,90,90,.15)':'rgba(0,204,255,.1)'};color:${isDone?'var(--a3)':isCancelled?'var(--a2)':'var(--a)'};font-size:.6rem;padding:2px 6px;border-radius:3px">${isDone?'Done':isCancelled?'Cancelled':o.status==='cutting'?'Cutting':'Pending'}</span></td>
       ${!compact?(()=>{const m=ORDER_TYPE_META[o.order_type||o.orderType||'normal'];return `<td style="white-space:nowrap">${m&&m.badge?`<span class="ot-badge ${m.cls}">${m.badge}</span>`:'<span style="font-size:.6rem;color:var(--mu)">—</span>'}</td>`;})():''}`;
@@ -2527,9 +2616,21 @@ function renderOrderMatrix(containerId, compact=false){
       else            html+=`<td class="mc-pend">${done}/${total}</td>`;
     });
     if(!compact){
+      // Delivered column
+      const _dStats = getOrderDeliveryStats(o);
+      const _dColor = _dStats.allFinalised?'var(--a3)':_dStats.delivered>0?'var(--a4)':'var(--mu)';
+      html+=`<td style="text-align:center;font-size:.72rem;font-weight:700;color:${_dColor}">${_dStats.delivered}/${_dStats.total}</td>`;
+    }
+    if(!compact){
       if(!isDone&&!isCancelled){
+        const _ds=getOrderDeliveryStats(o);
+        const _canComplete=_ds.allFinalised;
+        const _missing=_ds.total-_ds.delivered;
         html+=`<td style="white-space:nowrap">
-          <button class="btn ba bsm" onclick="completeOrderWithPieces(${o.id})" style="font-size:.6rem;margin-right:3px">✓ Complete</button>
+          <button class="btn ${_canComplete?'ba':'bg'} bsm" onclick="completeOrderWithPieces(${o.id})"
+            style="font-size:.6rem;margin-right:3px${_canComplete?'':';opacity:.5;cursor:not-allowed'}"
+            title="${_canComplete?'Complete order':'Cannot complete — '+_missing+' piece'+(+_missing!==1?'s':'')+' not yet in a finalised delivery'}"
+            ${_canComplete?'':'disabled'}>✓ Complete</button>
           <div style="margin-top:3px"><button class="btn bg bsm" onclick="showOrderDetail(${o.id})" style="font-size:.6rem">✎ Edit</button></div>
         </td>`;
       } else if(isCancelled){
@@ -2567,7 +2668,7 @@ function showOrderDetail(oid){
   const procList=[...new Set((o.items||[]).flatMap(i=>i.processes||[]))];
   let html=`<table class="matrix"><thead><tr><th class="ord-col">Piece ID</th><th>Size</th><th>Thick</th>`;
   procList.forEach(pid=>html+=`<th>${PROC_MAP[pid]?PROC_MAP[pid].label:pid}</th>`);
-  html+=`</tr></thead><tbody>`;
+  html+=`<th style="text-align:center">Delivered</th></tr></thead><tbody>`;
 
   (o.items||[]).forEach(item=>{
     const uids=item.pieceUIDs&&item.pieceUIDs.length?item.pieceUIDs:
@@ -2582,13 +2683,15 @@ function showOrderDetail(oid){
         const done=scanLog.find(s=>s.pieceUid===uid&&s.process===pid&&s.action==='done');
         if(done){
           const who=done.workerName?` (${done.workerName})`:'';
-          html+=`<td class="mc-done" title="Click to unmark — ${done.ts||''}${who}" style="cursor:pointer" onclick="adminUnmarkPieceDone('${uid}','${pid}')">✓ <span style="font-size:.55rem">${done.ts?done.ts.slice(11,16):''}${who}</span><span style="font-size:.5rem;display:block;color:var(--a2)">✕ undo</span></td>`;
+          const _odDt=done.ts?parseScanTs(done.ts):null;
+          html+=`<td class="mc-done" title="Click to unmark — ${done.ts||''}${who}" style="cursor:pointer" onclick="adminUnmarkPieceDone('${uid}','${pid}')">✓ <span style="font-size:.55rem">${_odDt?_odDt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false}):''}</span><span style="font-size:.5rem;display:block;color:var(--a4)">${_odDt?_odDt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).replace(/ /g,'-'):''}${who}</span><span style="font-size:.5rem;display:block;color:var(--a2)">✕ undo</span></td>`;
         } else if(!isDone){
           html+=`<td class="mc-pend" style="cursor:pointer;color:var(--a4)" title="Click to mark done" onclick="adminMarkPieceDone('${uid}','${pid}')">○ Mark</td>`;
         } else {
           html+=`<td class="mc-pend">—</td>`;
         }
       });
+      html+=`<td style="text-align:center">${deliveryBadgeHTML(uid)}</td>`;
       html+=`</tr>`;
     });
   });
@@ -2630,7 +2733,7 @@ async function saveCust(){
   }catch(e){ alert('Error saving customer: '+e.message); }
 }
 async function delCust(id){
-  if(!confirm('Delete customer?')) return;
+  if(!_confirm('Delete customer?')) return;
   try{
     await apiDeleteCustomer(id);
     renderCust(); badges();
@@ -3384,7 +3487,7 @@ async function saveOrder(){
 }
 
 async function delOrder(id){
-  if(!confirm('Delete order?')) return;
+  if(!_confirm('Delete order?')) return;
   try{
     await apiDeleteOrder(id);
     renderOrders(); badges();
@@ -3895,7 +3998,7 @@ async function saveRawSheet(){
   }catch(e){ alert('Error: '+e.message); }
 }
 async function deleteRawSheet(id){
-  if(!confirm('Delete this raw sheet?')) return;
+  if(!_confirm('Delete this raw sheet?')) return;
   try{
     await apiDeleteRawSheet(id);
     if(activeRawSheet&&activeRawSheet.id===id) activeRawSheet=null;
@@ -4097,7 +4200,7 @@ function quickAddStock(sheetId){
 }
 
 async function deletePurchase(id){
-  if(!confirm('Delete this purchase record?')) return;
+  if(!_confirm('Delete this purchase record?')) return;
   try{
     await AGI.Purchases.delete(id);
     purchases = await AGI.Purchases.list();
@@ -4305,14 +4408,34 @@ function renderAttachList(){
 function viewAttach(i){
   const a=(window._orderAttachments||[])[i]; if(!a) return;
   const vw=document.getElementById('attach-viewer');
+  const src=a.data.startsWith('data:')?a.data:'data:image/jpeg;base64,'+a.data;
+  window._attachScale=1;
   vw.style.display='block';
-  vw.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-    '<span style="font-family:DM Mono,monospace;font-size:.7rem;color:var(--tx2)">'+a.name+'</span>'+
-    '<button class="btn bg bsm" onclick="closeAttachViewer()">Close</button>'+
-  '</div>'+
-  '<img src="'+a.data+'" class="attach-preview" alt="'+a.name+'">';
+  vw.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      '<span style="font-family:DM Mono,monospace;font-size:.7rem;color:var(--tx2)">'+a.name+'</span>'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        '<button class="btn bg bsm" onclick="attachZoom(0.8)" title="Zoom out" style="font-size:.9rem;padding:1px 9px">−</button>'+
+        '<button class="btn bg bsm" onclick="attachZoom(1.25)" title="Zoom in"  style="font-size:.9rem;padding:1px 9px">+</button>'+
+        '<button class="btn bg bsm" onclick="attachZoomReset()" style="font-size:.6rem">1:1</button>'+
+        '<button class="btn bg bsm" onclick="closeAttachViewer()">Close</button>'+
+      '</div>'+
+    '</div>'+
+    '<div style="overflow:auto;max-height:480px;background:rgba(0,0,0,.2);border-radius:var(--r);padding:8px;text-align:center" id="attach-scroll-area">'+
+      '<img src="'+src+'" id="attach-zoom-img" alt="'+a.name+'" style="max-width:100%;cursor:zoom-in;transform-origin:top center;transition:transform .15s" onclick="attachZoom(1.25)">'+
+    '</div>';
 }
-function closeAttachViewer(){document.getElementById("attach-viewer").style.display="none";}
+function attachZoom(f){
+  window._attachScale=Math.min(8,Math.max(0.5,(window._attachScale||1)*f));
+  const img=document.getElementById('attach-zoom-img');
+  if(img){ img.style.transform='scale('+window._attachScale+')'; img.style.cursor=window._attachScale>1?'grab':'zoom-in'; }
+}
+function attachZoomReset(){
+  window._attachScale=1;
+  const img=document.getElementById('attach-zoom-img');
+  if(img){ img.style.transform='scale(1)'; img.style.cursor='zoom-in'; }
+}
+function closeAttachViewer(){document.getElementById('attach-viewer').style.display='none'; window._attachScale=1;}
 function removeAttach(i){
   (window._orderAttachments||[]).splice(i,1);
   renderAttachList();
@@ -4333,6 +4456,26 @@ function loadComp(){
   document.getElementById('comp-w').value=DB.l('comp-w',0);
   document.getElementById('comp-h').value=DB.l('comp-h',0);
 }
+
+// Lightbox keyboard shortcuts
+document.addEventListener('keydown', e=>{
+  const lb = document.getElementById('m-attach-lightbox');
+  if(!lb||lb.style.display==='none') return;
+  if(e.key==='Escape'){ lb.style.display='none'; document.body.style.overflow=''; }
+  if(e.key==='+'||e.key==='=') lbZoom(1.25);
+  if(e.key==='-') lbZoom(0.8);
+  if(e.key==='0') lbZoomReset();
+  if(e.key==='ArrowLeft') lbNav(-1);
+  if(e.key==='ArrowRight') lbNav(1);
+});
+// Scroll to zoom in lightbox
+document.addEventListener('wheel', e=>{
+  const lb=document.getElementById('m-attach-lightbox');
+  if(!lb||lb.style.display==='none') return;
+  if(!lb.contains(e.target)) return;
+  e.preventDefault();
+  lbZoom(e.deltaY<0?1.1:0.9);
+},{passive:false});
 // Always read live from inputs — never stale from DB
 function getComp(){
   const cw=+document.getElementById('comp-w').value||0;
@@ -5335,7 +5478,7 @@ async function saveOptFile(name){
     });
     if(freeAreas.length && activeRawSheet){
       setTimeout(()=>{
-        if(confirm('Record remnant plates from this optimization?\n\nFound '+freeAreas.length+' usable offcut(s) on the sheet.')){
+        if(_confirm('Record remnant plates from this optimization?\n\nFound '+freeAreas.length+' usable offcut(s) on the sheet.')){
           remnantSlots = remnantSlots.length ? remnantSlots : AGI.Remnants.slots.list().then(s=>{ remnantSlots=s; });
           openRemFromOptModal(name, activeRawSheet.thickness, activeRawSheet.type, activeRawSheet.color);
           // Pre-fill the rows with detected free areas
@@ -5421,7 +5564,7 @@ async function markOptDone(id){
     return;
   }
   // Confirmation before marking done
-  if(!confirm('Mark this optimization as Done?\n\nThis will:\n• Lock the optimization permanently\n• Record all remnant plate usages to the Remnants section\n\nThis cannot be undone.')) return;
+  if(!_confirm('Mark this optimization as Done?\n\nThis will:\n• Lock the optimization permanently\n• Record all remnant plate usages to the Remnants section\n\nThis cannot be undone.')) return;
   f.status='done';
   f.completedAt=new Date().toISOString();
   try{ await AGI.OptFiles.update(id,f); }catch(e){ console.warn('opt status:',e.message); }
@@ -5461,7 +5604,7 @@ async function markOptDone(id){
   if(assignmentsForThisOpt.length) _sessionRemAssignments=[];
 
   // Ask user whether to create remnant plates from free areas
-  const createRemnants = confirm('Create remnant plates from this optimization?\n\nThis will record leftover offcuts as available remnant plates in the Remnants section.\n\nPress OK to create, Cancel to skip.');
+  const createRemnants = _confirm('Create remnant plates from this optimization?\n\nThis will record leftover offcuts as available remnant plates in the Remnants section.\n\nPress OK to create, Cancel to skip.');
 
   if(createRemnants){
     try{
@@ -5550,7 +5693,7 @@ async function markOptDone(id){
 }
 
 async function deleteOptFile(id){
-  if(!confirm('Delete this optimization file?')) return;
+  if(!_confirm('Delete this optimization file?')) return;
   try{
     await apiDeleteOptFile(id);
     if(activeOptId===id) activeOptId=null;
@@ -5570,7 +5713,7 @@ function clearOptSession(){
 }
 
 function newOptSession(){
-  if(!confirm('Clear this session? Unsaved data will be lost.')) return;
+  if(!_confirm('Clear this session? Unsaved data will be lost.')) return;
   clearOptSession();
   renderCutUI();
   updateCutWSHeader();
@@ -5772,6 +5915,7 @@ async function renderTrack(){
       AGI.Labels.scanlog()
     ]);
     customers = customers.length ? customers : await AGI.Customers.list();
+    await fetchPieceDeliveryStatus(orders);
   }catch(e){ console.warn('renderTrack:',e.message); }
   // Populate customer filter
   const custSel=document.getElementById('track-cust-filter');
@@ -5801,7 +5945,9 @@ function switchTrackView(v){
 }
 
 function onTrackFilterChange(){
-  // Refresh order filter options based on status+customer selection
+  // Preserve order selection BEFORE rebuilding dropdown
+  const orderSel=document.getElementById('track-order-filter');
+  const curOrd=(document.getElementById('track-order-filter')?.value||'').trim();
   const statusF=document.getElementById('track-status-filter')?.value||'open';
   const custF=document.getElementById('track-cust-filter')?.value||'';
   let filtered=[];
@@ -5810,12 +5956,9 @@ function onTrackFilterChange(){
   else if(statusF==='cancelled') filtered=orders.filter(o=>o.status==='cancelled');
   else filtered=[...orders];
   if(custF) filtered=filtered.filter(o=>String(o.customerId)===custF);
-  const orderSel=document.getElementById('track-order-filter');
-  if(orderSel){
-    const curOrd=orderSel.value;
-    orderSel.innerHTML='<option value="">All Orders</option>'+
-      filtered.map(o=>`<option value="${o.id}"${String(o.id)===curOrd?' selected':''}>${o.num}${o.extref?' — '+o.extref:''}</option>`).join('');
-  }
+  // Populate datalist for autocomplete
+  const dl=document.getElementById('track-order-list');
+  if(dl) dl.innerHTML=filtered.map(o=>`<option value="${o.num}">${o.extref||''}</option><option value="${o.extref||''}">${o.num}</option>`).filter(s=>!s.includes('value=""')).join('');
   // Refresh both views
   renderOrderMatrix('track-matrix',false);
   renderPieceView();
@@ -5825,21 +5968,24 @@ function renderPieceView(){
   const el=document.getElementById('track-piece-all'); if(!el) return;
   const statusF=document.getElementById('track-status-filter')?.value||'open';
   const custF=document.getElementById('track-cust-filter')?.value||'';
-  const ordF=document.getElementById('track-order-filter')?.value||'';
+  const ordF=(document.getElementById('track-order-filter')?.value||'').trim().toLowerCase();
   let filtered=[];
   if(statusF==='open')           filtered=orders.filter(o=>o.status!=='done'&&o.status!=='cancelled');
   else if(statusF==='done')      filtered=orders.filter(o=>o.status==='done');
   else if(statusF==='cancelled') filtered=orders.filter(o=>o.status==='cancelled');
   else filtered=[...orders];
   if(custF) filtered=filtered.filter(o=>String(o.customerId)===custF);
-  if(ordF)  filtered=filtered.filter(o=>String(o.id)===ordF);
+  if(ordF)  filtered=filtered.filter(o=>
+    (o.num||'').toLowerCase().includes(ordF)||
+    (o.extref||'').toLowerCase().includes(ordF)
+  );
   const procSet=new Set(); filtered.forEach(o=>(o.items||[]).forEach(i=>(i.processes||[]).forEach(p=>procSet.add(p))));
   const procList=[...procSet];
   if(!filtered.length){el.innerHTML='<div class="empty" style="padding:20px"><div class="empty-t">No orders match filter</div></div>';return}
   let html=`<table class="matrix"><thead><tr>
     <th class="ord-col">Piece ID</th><th>Order</th><th>Size</th><th>Thick</th>`;
   procList.forEach(pid=>html+=`<th>${PROC_MAP[pid]?PROC_MAP[pid].label:pid}</th>`);
-  html+=`<th>All Done</th></tr></thead><tbody>`;
+  html+=`<th>All Done</th><th style="text-align:center">Delivered</th></tr></thead><tbody>`;
   filtered.forEach(o=>{
     const isCancelled=o.status==='cancelled';
     const isDone=o.status==='done';
@@ -5860,10 +6006,11 @@ function renderPieceView(){
           if(isCancelled){html+=`<td class="mc-cancel">✕</td>`;return}
           const done=scanLog.find(s=>s.pieceUid===uid&&s.process===pid&&s.action==='done');
           if(done){
-            const doneDate=done.ts?new Date(done.ts).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}).replace(/ /g,'-'):'';
-            const doneTime=done.ts?done.ts.slice(11,16):'';
+            const _doneDt=done.ts?parseScanTs(done.ts):null;
+            const doneDate=_doneDt?_doneDt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).replace(/ /g,'-'):'';
+            const doneTime=_doneDt?_doneDt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
             const doneWho=done.workerName||done.worker_name||'';
-            html+=`<td class="mc-done" title="Click to unmark — ${done.ts||''}" style="cursor:pointer" onclick="adminUnmarkPieceDone('${uid}','${pid}')">✓ <span style="font-size:.55rem;display:block">${doneDate} ${doneTime}</span>${doneWho?`<span style="font-size:.5rem;color:var(--a4);display:block">${doneWho}</span>`:''}<span style="font-size:.5rem;color:var(--a2);display:block">✕ undo</span>`;
+            html+=`<td class="mc-done" title="Click to unmark — ${done.ts||''}" style="cursor:pointer" onclick="adminUnmarkPieceDone('${uid}','${pid}')">✓ <span style="font-size:.55rem;display:block">${doneTime}</span><span style="font-size:.5rem;display:block;color:var(--a4)">${doneDate}</span>${doneWho?`<span style="font-size:.5rem;color:var(--mu);display:block">${doneWho}</span>`:''}<span style="font-size:.5rem;color:var(--a2);display:block">✕ undo</span>`;
             html+=`</td>`;
           } else {
             html+=`<td class="mc-pend" style="cursor:pointer" title="Click to mark done" onclick="adminMarkPieceDone('${uid}','${pid}')">○ Mark</td>`;
@@ -5879,6 +6026,8 @@ function renderPieceView(){
         } else {
           html+=`<td class="mc-na">—</td>`;
         }
+        // Delivered cell
+        html+=`<td style="text-align:center">${deliveryBadgeHTML(uid)}</td>`;
         html+=`</tr>`;
       });
     });
@@ -5899,7 +6048,7 @@ async function adminMarkPieceDone(uid, pid){
 
 async function adminMarkAllDone(uid, pids){
   const labels=pids.map(p=>PROC_MAP[p]?.label||p).join(', ');
-  if(!confirm('Mark ALL processes done for '+uid+'?\n\n'+labels)) return;
+  if(!_confirm('Mark ALL processes done for '+uid+'?\n\n'+labels)) return;
   try{
     // Submit each process sequentially
     for(const pid of pids){
@@ -5914,7 +6063,7 @@ async function adminMarkAllDone(uid, pids){
 
 async function adminUnmarkPieceDone(uid, pid){
   const label = (PROC_MAP[pid]?.label||pid);
-  if(!confirm('Remove "'+label+'" done mark from '+uid+'?\n\nThis will allow the worker to mark it again.')) return;
+  if(!_confirm('Remove "'+label+'" done mark from '+uid+'?\n\nThis will allow the worker to mark it again.')) return;
   try{
     await AGI.Labels.unscan(uid, pid);
     scanLog = await AGI.Labels.scanlog();
@@ -5943,9 +6092,23 @@ async function loadCancelReasons(){
 
 async function completeOrderWithPieces(oid){
   const o = orders.find(x=>x.id===oid); if(!o) return;
-  if(!confirm('Complete order '+o.num+'?\n\nThis will:\n• Mark the order as Done\n• Mark any unscanned pieces/processes as done\n\nThis cannot be undone.')) return;
+  // Enforce: all pieces must be in a finalised delivery
+  const _ds = getOrderDeliveryStats(o);
+  if(!_ds.allFinalised){
+    const undelivered = [];
+    (o.items||[]).forEach(item=>{
+      const uids=item.pieceUIDs||item.piece_uids||
+        Array.from({length:item.qty},(_,i)=>`${o.num}-${item.startSerial?item.startSerial+i:i+1}`);
+      uids.forEach(uid=>{ if(!_pieceDeliveryMap[uid]||_pieceDeliveryMap[uid].status!=='finalised') undelivered.push(uid); });
+    });
+    alert('Cannot complete order '+o.num+'\n\n'+undelivered.length+' piece'+(undelivered.length!==1?'s are':' is')+' not yet in a finalised delivery:\n\n'+undelivered.slice(0,10).join(', ')+(undelivered.length>10?'\n...and '+(undelivered.length-10)+' more':''));
+    return;
+  }
+  if(!_confirm('Complete order '+o.num+'?\n\nThis will:\n• Mark the order as Done\n• Mark any unscanned pieces/processes as done\n\nThis cannot be undone.')) return;
   const allProcs = getOrderProcs(o);
-  const now = new Date().toISOString();
+  // UTC+3 timestamp
+  const _nowD = new Date(); _nowD.setTime(_nowD.getTime()+3*60*60*1000);
+  const now = _nowD.toISOString().replace('Z','+03:00');
   let marked = 0;
   try{
     // Mark all unscanned pieces for all processes as done
@@ -6003,7 +6166,7 @@ async function confirmCancelOrder(){
   if(!reason){ alert('Please select or enter a cancel reason.'); return; }
   const fullReason=reason+(notes?' — '+notes:'');
   const o=orders.find(x=>x.id===_cancelOid);
-  if(!confirm('Cancel order '+o?.num+'?\n\nReason: '+fullReason)) return;
+  if(!_confirm('Cancel order '+o?.num+'?\n\nReason: '+fullReason)) return;
   try{
     await fetch('/api/orders/'+_cancelOid+'/status',{
       method:'PATCH',
@@ -6054,7 +6217,7 @@ function editCancelReason(id, current){
 }
 
 function deleteCancelReason(id){
-  if(!confirm('Delete this reason?')) return;
+  if(!_confirm('Delete this reason?')) return;
   fetch('/api/orders/cancel-reasons/'+id,{method:'DELETE',
     headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}
   }).then(()=>renderCancelReasons()).catch(e=>alert('Error: '+e.message));
@@ -6115,7 +6278,7 @@ function editTypeReason(id, current, order_type){
 }
 
 function deleteTypeReason(id){
-  if(!confirm('Delete this reason?')) return;
+  if(!_confirm('Delete this reason?')) return;
   AGI.Orders.typeReasons.delete(id)
     .then(()=>renderTypeReasons()).catch(e=>alert('Error: '+e.message));
 }
@@ -6123,7 +6286,7 @@ function deleteTypeReason(id){
 async function quickOrderStatus(oid, status){
   const o=orders.find(x=>x.id===oid); if(!o) return;
   const labels={done:'Mark '+o.num+' as COMPLETE?', cancelled:'CANCEL order '+o.num+'?', pending:'Restore order '+o.num+' to pending?'};
-  if(!confirm(labels[status]||'Confirm?')) return;
+  if(!_confirm(labels[status]||'Confirm?')) return;
   try{
     await AGI.Orders.setStatus(oid, status);
     const updated=await AGI.Orders.get(oid);
@@ -7027,7 +7190,7 @@ async function doChangePassword(){
 }
 
 async function delWorker(id){
-  if(!confirm('Delete this worker?'))return;
+  if(!_confirm('Delete this worker?'))return;
   try{
     await apiDeleteWorker(id);
     renderWorkerList();
@@ -7146,7 +7309,7 @@ function importBackup(input){
       const custCount=data.customers.length;
       const ordCount=data.orders.length;
       const msg=`This will REPLACE all current data with:\n• ${custCount} customers\n• ${ordCount} orders\n• ${(data.rawSheetCatalog||[]).length} raw sheets\n\nExported: ${(data._exported||'?').slice(0,16).replace('T',' ')}\n\nContinue?`;
-      if(!confirm(msg)){input.value='';return}
+      if(!_confirm(msg)){input.value='';return}
 
       // Restore all collections
       customers        = data.customers        || [];
@@ -7648,7 +7811,7 @@ async function confirmAssignSlot(){
 }
 
 async function discardRemnant(id){
-  if(!confirm('Mark this remnant as discarded?')) return;
+  if(!_confirm('Mark this remnant as discarded?')) return;
   try{
     await AGI.Remnants.discard(id);
     showToast('Remnant discarded');
@@ -7749,7 +7912,7 @@ async function saveSlot(){
 }
 
 async function deleteSlot(id){
-  if(!confirm('Delete this slot?')) return;
+  if(!_confirm('Delete this slot?')) return;
   try{ await AGI.Remnants.slots.delete(id); remnantSlots=await AGI.Remnants.slots.list(); renderRemSlots(); }
   catch(e){ alert(e.message); }
 }
@@ -7838,6 +8001,27 @@ async function useRemnantForPiece(rem){
 // ═══════════════════════════════════════════════════════
 let _ledgerSheetId = null;
 let _ledgerAllTx = []; // all transactions across all sheets
+let _ledgerSortCol = 'date';
+
+// Protected native confirm — survives window.confirm overrides
+const _nativeConfirm = window.confirm.bind(window);
+function _confirm(msg){ return _nativeConfirm(msg); }
+
+// Parse scan timestamp correctly — handles UTC (no suffix), Z suffix, and +03:00 suffix
+function parseScanTs(ts){
+  if(!ts) return null;
+  // Already has timezone info
+  if(ts.includes('Z')||ts.includes('+')) return new Date(ts);
+  // Plain format "2026-04-14 07:36:42" — stored as UTC, add Z
+  return new Date(ts.replace(' ','T')+'Z');
+}
+let _ledgerSortDir = 1; // 1=desc(newest first), -1=asc
+
+function ledgerSort(col){
+  if(_ledgerSortCol===col) _ledgerSortDir *= -1;
+  else { _ledgerSortCol=col; _ledgerSortDir=1; }
+  renderLedgerTab();
+}
 
 async function renderLedgerTab(){
   const tbody = document.getElementById('ledger-tbody');
@@ -7846,20 +8030,23 @@ async function renderLedgerTab(){
   // Load all sheets if needed
   try{ rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
 
-  // Populate sheet filter
-  const sheetSel = document.getElementById('ledger-f-sheet');
+  // Populate sheet dropdown
+  const sheetSel = document.getElementById('lf-sheet');
   if(sheetSel && sheetSel.options.length <= 1){
     rawSheetCatalog.forEach(s=>{
       const o = document.createElement('option');
-      o.value = s.id; o.textContent = (s.notes||s.code||'') + ' — ' + s.code;
+      o.value = s.id;
+      o.textContent = (s.notes||s.code||'') + ' — ' + s.code;
       sheetSel.appendChild(o);
     });
   }
 
-  const fSheet = document.getElementById('ledger-f-sheet')?.value||'';
-  const fType  = document.getElementById('ledger-f-type')?.value||'';
-  const fFrom  = document.getElementById('ledger-f-from')?.value||'';
-  const fTo    = document.getElementById('ledger-f-to')?.value||'';
+  const fSheet = document.getElementById('lf-sheet')?.value||'';
+  const fCode  = document.getElementById('lf-code')?.value?.toLowerCase()||'';
+  const fType  = document.getElementById('lf-type')?.value||'';
+  const fDate  = document.getElementById('lf-date')?.value?.toLowerCase()||'';
+  const fDesc  = document.getElementById('lf-desc')?.value?.toLowerCase()||'';
+  const fRef   = document.getElementById('lf-ref')?.value?.toLowerCase()||'';
 
   tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>';
 
@@ -7881,14 +8068,38 @@ async function renderLedgerTab(){
     }catch(e){}
   }));
 
-  // Sort by date asc, then id asc
+  // Compute final balance per sheet (sum of all transactions)
+  const _sheetFinalBalance = {};
+  allRows.forEach(r=>{ _sheetFinalBalance[r._sheet.id] = r._running; });
+
+  // Sort by date desc, then id desc
   allRows.sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
 
   // Apply filters
   let filtered = allRows;
   if(fType)  filtered = filtered.filter(r=>r.type===fType);
-  if(fFrom)  filtered = filtered.filter(r=>r.date>=fFrom);
-  if(fTo)    filtered = filtered.filter(r=>r.date<=fTo);
+  if(fDate)  filtered = filtered.filter(r=>r.date.toLowerCase().includes(fDate));
+  if(fSheet) filtered = filtered.filter(r=>String(r._sheet.id)===fSheet);
+  if(fCode)  filtered = filtered.filter(r=>(r._sheet.code||'').toLowerCase().includes(fCode));
+  if(fDesc)  filtered = filtered.filter(r=>(r.ref_label||r.notes||'').toLowerCase().includes(fDesc));
+  if(fRef)   filtered = filtered.filter(r=>(r.buyer||r.ref_label||'').toLowerCase().includes(fRef));
+
+  // Apply sort
+  const sDir = _ledgerSortDir;
+  if(_ledgerSortCol==='date')  filtered.sort((a,b)=>sDir*(b.date.localeCompare(a.date)||b.id-a.id));
+  else if(_ledgerSortCol==='code')  filtered.sort((a,b)=>sDir*((a._sheet.code||'').localeCompare(b._sheet.code||'')));
+  else if(_ledgerSortCol==='sheet') filtered.sort((a,b)=>sDir*((a._sheet.notes||'').localeCompare(b._sheet.notes||'')));
+  else if(_ledgerSortCol==='desc')  filtered.sort((a,b)=>sDir*((a.ref_label||'').localeCompare(b.ref_label||'')));
+  else if(_ledgerSortCol==='type')  filtered.sort((a,b)=>sDir*(a.type.localeCompare(b.type)));
+  else if(_ledgerSortCol==='ref')   filtered.sort((a,b)=>sDir*((a.buyer||'').localeCompare(b.buyer||'')));
+  else if(_ledgerSortCol==='qty')   filtered.sort((a,b)=>sDir*(a.qty-b.qty));
+  else if(_ledgerSortCol==='bal')   filtered.sort((a,b)=>sDir*((_sheetFinalBalance[a._sheet.id]??0)-(_sheetFinalBalance[b._sheet.id]??0)));
+
+  // Update sort arrows
+  ['date','code','sheet','desc','type','ref','qty','bal'].forEach(c=>{
+    const el=document.getElementById('lsa-'+c);
+    if(el) el.textContent=_ledgerSortCol===c?(sDir===1?'↓':'↑'):'';
+  });
 
   if(!filtered.length){
     tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--mu)">No transactions match filters</td></tr>';
@@ -7898,15 +8109,16 @@ async function renderLedgerTab(){
   tbody.innerHTML = filtered.map(tx=>{
     const s = tx._sheet;
     const isOut = tx.qty < 0;
-    const balColor = tx._running <= 0 ? 'var(--a2)' : tx._running <= 3 ? 'var(--a4)' : 'var(--a3)';
+    const sheetBal = _sheetFinalBalance[tx._sheet.id] ?? tx._running;
+    const balColor = sheetBal <= 0 ? 'var(--a2)' : sheetBal <= 3 ? 'var(--a4)' : 'var(--a3)';
     const dot = COLOR_MAP[s.color]||'#888';
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:7px 12px;font-family:monospace;font-size:.72rem;color:var(--mu);white-space:nowrap">${tx.date}</td>
+      <td style="padding:7px 12px;font-size:.68rem;font-family:monospace;color:var(--tx2);white-space:nowrap">
+        <span class="color-dot" style="background:${dot}"></span> ${s.code||''}
+      </td>
       <td style="padding:7px 12px;font-size:.72rem">
         <div style="font-weight:600;color:var(--tx)">${s.notes||s.code||''}</div>
-        <div style="font-size:.62rem;color:var(--mu);display:flex;align-items:center;gap:4px">
-          <span class="color-dot" style="background:${dot}"></span>${s.code||''}
-        </div>
       </td>
       <td style="padding:7px 12px;font-size:.72rem;color:var(--tx2)">${tx.ref_label||tx.notes||'—'}</td>
       <td style="padding:7px 12px;font-size:.72rem">
@@ -7925,19 +8137,23 @@ async function renderLedgerTab(){
         ${isOut?'':'+'}${tx.qty}
       </td>
       <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:700;font-size:.82rem;color:${balColor}">
-        ${tx._running}
+        ${sheetBal}
       </td>
-      <td style="padding:7px 12px;text-align:center">
-        ${['sale','adjustment'].includes(tx.type)?`<button class="btn bs bsm" onclick="ledgerDeleteTx(${tx.id},${s.id})">&times;</button>`:''}
+      <td style="padding:7px 12px;text-align:center;white-space:nowrap">
+        ${['purchase','sale','adjustment','optimization_use'].includes(tx.type)?`
+          <button class="btn bg bsm" onclick="ledgerOpenEditEntry(${tx.id},${s.id})" style="font-size:.6rem;margin-right:3px" title="Edit">&#9998;</button>
+          <button class="btn bd bsm" onclick="ledgerDeleteTx(${tx.id},${s.id})" title="Delete">&times;</button>
+        `:''}
       </td>
     </tr>`;
   }).join('');
 }
 
 function clearLedgerFilters(){
-  ['ledger-f-sheet','ledger-f-type','ledger-f-from','ledger-f-to'].forEach(id=>{
+  ['lf-date','lf-code','lf-sheet','lf-desc','lf-type','lf-ref'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
+  _ledgerSortCol='date'; _ledgerSortDir=1;
   renderLedgerTab();
 }
 
@@ -7951,36 +8167,480 @@ async function ledgerLoadDetail(sheetId){
   await renderLedgerTab();
 }
 
-function ledgerOpenSale(sheetId){
-  const date = new Date().toISOString().slice(0,10);
-  const buyer = prompt('Buyer name:','');
-  if(buyer===null) return;
-  const qty = prompt('Quantity sold (sheets):','1');
-  if(!qty||isNaN(+qty)||+qty<=0){ alert('Enter a valid quantity'); return; }
-  const notes = prompt('Notes (optional):','');
-  AGI.RawSheets.addTransaction(sheetId,{type:'sale',qty:+qty,buyer,date,notes:notes||''})
-    .then(()=>{ showToast('Sale recorded'); ledgerLoadDetail(sheetId); renderLedgerTab(); })
-    .catch(e=>alert('Error: '+e.message));
+let _ledgerEditTxId = null;
+let _ledgerEditSheetId = null;
+
+function ledgerOpenAddEntry(preSheetId){
+  _ledgerEditTxId = null;
+  _ledgerEditSheetId = null;
+  // Populate sheet dropdown
+  const sel = document.getElementById('le-sheet');
+  sel.innerHTML = '<option value="">Select sheet...</option>' +
+    rawSheetCatalog.map(s=>`<option value="${s.id}" ${preSheetId===s.id?'selected':''}>${s.notes||s.code} — ${s.code}</option>`).join('');
+  if(preSheetId) sel.value = preSheetId;
+  document.getElementById('le-type').value = 'purchase';
+  document.getElementById('le-qty').value = '';
+  document.getElementById('le-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('le-notes').value = '';
+  document.getElementById('le-buyer').value = '';
+  document.getElementById('le-buyer-row').style.display = 'none';
+  document.getElementById('le-title').textContent = 'Add Stock Entry';
+  OM('m-ledger-entry');
 }
 
-function ledgerOpenAdjust(sheetId){
-  const date = new Date().toISOString().slice(0,10);
-  const qty = prompt('Adjustment qty (+ to add, - to reduce, e.g. -3):','');
-  if(qty===null) return;
-  if(!qty||isNaN(+qty)||+qty===0){ alert('Enter a non-zero number'); return; }
-  const notes = prompt('Reason for adjustment:','');
-  AGI.RawSheets.addTransaction(sheetId,{type:'adjustment',qty:+qty,date,notes:notes||''})
-    .then(()=>{ showToast('Adjustment recorded'); ledgerLoadDetail(sheetId); renderLedgerTab(); })
-    .catch(e=>alert('Error: '+e.message));
+function ledgerOpenEditEntry(txId, sheetId){
+  // Find the transaction from allRows (in memory)
+  // We need to fetch it - use the current rendered data
+  _ledgerEditTxId = txId;
+  _ledgerEditSheetId = sheetId;
+  // Fetch tx details from server
+  fetch('/api/rawsheets/'+sheetId+'/transactions',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}})
+    .then(r=>r.json())
+    .then(({transactions})=>{
+      const tx = transactions.find(t=>t.id===txId);
+      if(!tx){ alert('Transaction not found'); return; }
+      const sel = document.getElementById('le-sheet');
+      sel.innerHTML = '<option value="">Select sheet...</option>' +
+        rawSheetCatalog.map(s=>`<option value="${s.id}">${s.notes||s.code} — ${s.code}</option>`).join('');
+      sel.value = sheetId;
+      sel.disabled = true;
+      document.getElementById('le-type').value = tx.type;
+      document.getElementById('le-qty').value = Math.abs(tx.qty);
+      document.getElementById('le-date').value = tx.date;
+      document.getElementById('le-notes').value = tx.notes||'';
+      document.getElementById('le-buyer').value = tx.buyer||'';
+      document.getElementById('le-buyer-row').style.display = tx.type==='sale'?'':'none';
+      document.getElementById('le-title').textContent = 'Edit Stock Entry';
+      OM('m-ledger-entry');
+    }).catch(e=>alert('Error: '+e.message));
 }
+
+function onLeTypeChange(){
+  const type = document.getElementById('le-type').value;
+  document.getElementById('le-buyer-row').style.display = type==='sale'?'':'none';
+}
+
+async function ledgerSaveEntry(){
+  const sheetId = _ledgerEditTxId ? _ledgerEditSheetId : +document.getElementById('le-sheet').value;
+  const type    = document.getElementById('le-type').value;
+  const qtyRaw  = +document.getElementById('le-qty').value;
+  const date    = document.getElementById('le-date').value;
+  const notes   = document.getElementById('le-notes').value.trim();
+  const buyer   = document.getElementById('le-buyer').value.trim();
+
+  if(!sheetId){ alert('Please select a raw sheet'); return; }
+  if(!qtyRaw||isNaN(qtyRaw)||qtyRaw<=0){ alert('Enter a valid positive quantity'); return; }
+  if(!date){ alert('Please enter a date'); return; }
+
+  // Direction: sale & negative adjustment = out
+  const signedQty = (type==='sale') ? -Math.abs(qtyRaw) : qtyRaw;
+
+  try{
+    if(_ledgerEditTxId){
+      // Edit: delete old + create new (server has no PUT for transactions)
+      await AGI.RawSheets.deleteTransaction(_ledgerEditTxId);
+      await AGI.RawSheets.addTransaction(sheetId,{type,qty:signedQty,buyer,date,notes});
+      showToast('Entry updated');
+    } else {
+      await AGI.RawSheets.addTransaction(sheetId,{type,qty:signedQty,buyer,date,notes});
+      showToast('Entry added');
+    }
+    CM('m-ledger-entry');
+    document.getElementById('le-sheet').disabled = false;
+    await renderLedgerTab();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+function ledgerOpenSale(sheetId){ ledgerOpenAddEntry(sheetId); setTimeout(()=>{ document.getElementById('le-type').value='sale'; onLeTypeChange(); },50); }
+function ledgerOpenAdjust(sheetId){ ledgerOpenAddEntry(sheetId); setTimeout(()=>{ document.getElementById('le-type').value='adjustment'; },50); }
 
 async function ledgerDeleteTx(txId, sheetId){
-  if(!confirm('Delete this transaction? This cannot be undone.')) return;
+  if(!_confirm('Delete this transaction? This cannot be undone.')) return;
   try{
     await AGI.RawSheets.deleteTransaction(txId);
     showToast('Transaction deleted');
-    ledgerLoadDetail(sheetId);
-    renderLedgerTab();
+    await renderLedgerTab();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+// ═══════════════════════════════════════════════════════
+// DELIVERY STATUS HELPERS
+// ═══════════════════════════════════════════════════════
+
+async function fetchPieceDeliveryStatus(orderList){
+  // Collect all piece UIDs from orders
+  const allUids = [];
+  (orderList||orders).forEach(o=>{
+    (o.items||[]).forEach(item=>{
+      const uids = item.pieceUIDs||item.piece_uids||
+        Array.from({length:item.qty},(_,i)=>`${o.num}-${item.startSerial?item.startSerial+i:i+1}`);
+      uids.forEach(u=>allUids.push(u));
+    });
+  });
+  if(!allUids.length) return;
+  // Batch fetch in chunks of 100
+  const chunks = [];
+  for(let i=0;i<allUids.length;i+=100) chunks.push(allUids.slice(i,i+100));
+  _pieceDeliveryMap = {};
+  for(const chunk of chunks){
+    try{
+      const map = await _afFetch('/api/deliveries/pieces-status?uids='+encodeURIComponent(chunk.join(',')));
+      Object.assign(_pieceDeliveryMap, map);
+    }catch(e){ console.warn('[delivery status]',e.message); }
+  }
+}
+
+function getOrderDeliveryStats(o){
+  // Returns {delivered, total, allFinalised}
+  let delivered=0, total=0;
+  (o.items||[]).forEach(item=>{
+    const uids = item.pieceUIDs||item.piece_uids||
+      Array.from({length:item.qty},(_,i)=>`${o.num}-${item.startSerial?item.startSerial+i:i+1}`);
+    uids.forEach(uid=>{
+      total++;
+      const d = _pieceDeliveryMap[uid];
+      if(d && d.status==='finalised') delivered++;
+    });
+  });
+  return {delivered, total, allFinalised: total>0 && delivered===total};
+}
+
+function deliveryBadgeHTML(uid, compact=false){
+  const d = _pieceDeliveryMap[uid];
+  if(!d) return '<span style="color:var(--mu);font-size:.65rem">—</span>';
+  const isFinal = d.status==='finalised';
+  const color = isFinal ? 'var(--a3)' : 'var(--a4)';
+  const icon  = isFinal ? '✓' : '⏳';
+  return `<span style="cursor:pointer;color:${color};font-size:.65rem;font-weight:700;background:${isFinal?'rgba(0,200,140,.12)':'rgba(255,180,0,.12)'};border:1px solid ${color};border-radius:3px;padding:1px 5px;white-space:nowrap" onclick="jumpToDelivery(${d.delivery_id})" title="${isFinal?'Finalised':'Draft'} — ${d.serial}">${icon} ${d.serial}</span>`;
+}
+
+function jumpToOrderTrack(orderNum, pieceUid){
+  // Jump to Tracking page, piece view, filtered to this order
+  SP('track');
+  setTimeout(()=>{
+    // Set status to All Orders so completed orders show too
+    const statusSel = document.getElementById('track-status-filter');
+    if(statusSel) statusSel.value = 'all';
+    // Switch to piece view
+    switchTrackView('piece');
+    // Set order filter
+    const inp = document.getElementById('track-order-filter');
+    if(inp){ inp.value = orderNum; onTrackFilterChange(); }
+  }, 800);
+}
+
+function jumpToDelivery(deliveryId){
+  SP('deliveries');
+  setTimeout(()=>{ openDelivery && openDelivery(deliveryId); }, 500);
+}
+
+// ═══════════════════════════════════════════════════════
+// A-FRAMES MODULE
+// ═══════════════════════════════════════════════════════
+
+let _afEditSlotId = null;
+let _afDeductOptData = null;
+
+// ── API helpers ──────────────────────────────────────────────────────────
+function _afFetch(path, opts={}){
+  const token = localStorage.getItem('agi_token')||'';
+  const headers = {'Content-Type':'application/json','Authorization':'Bearer '+token};
+  return fetch(path,{...opts,headers}).then(async r=>{
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error||'Error '+r.status);
+    return d;
+  });
+}
+const AF = {
+  slots:       () => _afFetch('/api/slots'),
+  addSlot:     d  => _afFetch('/api/slots', {method:'POST',body:JSON.stringify(d)}),
+  editSlot:    (id,d) => _afFetch('/api/slots/'+id, {method:'PUT',body:JSON.stringify(d)}),
+  delSlot:     id => _afFetch('/api/slots/'+id, {method:'DELETE'}),
+  inventory:   id => _afFetch('/api/slots/'+id+'/inventory'),
+  allInventory:() => _afFetch('/api/slots/all-inventory'),
+  assign:      (id,d) => _afFetch('/api/slots/'+id+'/assign', {method:'POST',body:JSON.stringify(d)}),
+  deduct:      d  => _afFetch('/api/slots/deduct', {method:'POST',body:JSON.stringify(d)}),
+  delInv:      id => _afFetch('/api/slots/inventory/'+id, {method:'DELETE'}),
+};
+
+// ── Tab switching ────────────────────────────────────────────────────────
+async function showAFTab(id){
+  ['slots','assign','deduct'].forEach(t=>{
+    document.getElementById('aftab-'+t).style.display=t===id?'':'none';
+    document.getElementById('aft-'+t).classList.toggle('on',t===id);
+  });
+  if(id==='slots')  await renderAFSlots();
+  if(id==='assign') await renderAFAssign();
+  if(id==='deduct') await renderAFDeduct();
+}
+
+async function renderAFrames(){
+  try{ afSlots = await AF.slots(); }catch(e){ afSlots=[]; }
+  await renderAFSlots();
+}
+
+// ── Slot Management ──────────────────────────────────────────────────────
+async function renderAFSlots(){
+  try{ afSlots = await AF.slots(); }catch(e){}
+  const el = document.getElementById('af-slots-grid');
+  if(!el) return;
+
+  if(!afSlots.length){
+    el.innerHTML='<div class="empty"><div class="empty-i">&#128230;</div><div class="empty-t">No slots yet. Click + Add Slot to create your first A-Frame slot.</div></div>';
+    return;
+  }
+
+  // Group by frame
+  const byFrame = {};
+  afSlots.forEach(s=>{ (byFrame[s.frame]=byFrame[s.frame]||[]).push(s); });
+
+  el.innerHTML = Object.entries(byFrame).sort((a,b)=>a[0].localeCompare(b[0])).map(([frame, sides])=>{
+    const L = sides.find(s=>s.side==='L');
+    const R = sides.find(s=>s.side==='R');
+    const renderSide = (slot) => {
+      if(!slot) return '<div style="flex:1;background:var(--surf);border:1px dashed var(--border);border-radius:var(--r);padding:10px;opacity:.4;text-align:center;font-size:.65rem;color:var(--mu)">Empty</div>';
+      const qty = slot.contents?.reduce((a,c)=>a+c.qty,0)||0;
+      const sheets = slot.contents||[];
+      return `<div style="flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-family:monospace;font-weight:700;font-size:.85rem;color:var(--a)">${slot.name}</span>
+          <div style="display:flex;gap:4px">
+            <button class="btn bg bsm" onclick="afEditSlot(${slot.id})" title="Edit" style="font-size:.6rem">&#9998;</button>
+            <button class="btn bd bsm" onclick="afDelSlot(${slot.id})" title="Delete" style="font-size:.6rem">&times;</button>
+          </div>
+        </div>
+        <div style="font-size:.65rem;color:var(--mu);margin-bottom:6px">${slot.side==='L'?'Left Side':'Right Side'}</div>
+        ${sheets.length?sheets.map(c=>`
+          <div style="display:flex;justify-content:space-between;font-size:.68rem;padding:3px 0;border-bottom:1px solid var(--border)">
+            <span style="color:var(--tx2)">${c.sheet_notes||c.code}</span>
+            <span style="font-weight:700;color:${c.qty<=0?'var(--a2)':c.qty<=3?'var(--a4)':'var(--a3)'}">${c.qty}</span>
+          </div>`).join(''):'<div style="font-size:.65rem;color:var(--mu)">Empty</div>'}
+        <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:.62rem;color:var(--mu)">Total: <strong style="color:var(--tx)">${qty}</strong> sheets</span>
+          <button class="btn bs bsm" onclick="afOpenAssign(${slot.id})" style="font-size:.6rem">+ Stock</button>
+        </div>
+      </div>`;
+    };
+    return `<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r2)">
+      <div style="font-family:monospace;font-weight:700;font-size:1.1rem;color:var(--mu);min-width:30px;padding-top:8px">${frame}</div>
+      ${renderSide(L)}
+      ${renderSide(R)}
+    </div>`;
+  }).join('');
+}
+
+function afAutoName(){
+  const frame = document.getElementById('af-slot-frame')?.value?.toUpperCase().trim()||'';
+  const side  = document.getElementById('af-slot-side')?.value||'L';
+  if(document.getElementById('af-slot-name')) document.getElementById('af-slot-name').value = frame+side;
+}
+
+function afOpenAddSlot(){
+  _afEditSlotId = null;
+  document.getElementById('af-slot-title').textContent = 'Add Slot';
+  document.getElementById('af-slot-frame').value='';
+  document.getElementById('af-slot-side').value='L';
+  document.getElementById('af-slot-name').value='';
+  document.getElementById('af-slot-notes').value='';
+  OM('m-af-slot');
+}
+
+function afEditSlot(id){
+  _afEditSlotId = id;
+  const s = afSlots.find(x=>x.id===id); if(!s) return;
+  document.getElementById('af-slot-title').textContent = 'Edit Slot';
+  document.getElementById('af-slot-frame').value = s.frame;
+  document.getElementById('af-slot-side').value = s.side;
+  document.getElementById('af-slot-name').value = s.name;
+  document.getElementById('af-slot-notes').value = s.notes||'';
+  OM('m-af-slot');
+}
+
+async function afSaveSlot(){
+  const name  = document.getElementById('af-slot-name').value.trim().toUpperCase();
+  const frame = document.getElementById('af-slot-frame').value.trim().toUpperCase();
+  const side  = document.getElementById('af-slot-side').value;
+  const notes = document.getElementById('af-slot-notes').value.trim();
+  if(!name||!frame){ alert('Please fill in Frame and Side'); return; }
+  try{
+    if(_afEditSlotId) await AF.editSlot(_afEditSlotId,{name,frame,side,notes,active:1});
+    else await AF.addSlot({name,frame,side,notes});
+    CM('m-af-slot');
+    afSlots = await AF.slots();
+    renderAFSlots();
+    showToast(_afEditSlotId?'Slot updated':'Slot created');
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+async function afDelSlot(id){
+  if(!_confirm('Delete this slot?')) return;
+  try{ await AF.delSlot(id); afSlots=await AF.slots(); renderAFSlots(); showToast('Slot deleted'); }
+  catch(e){ alert('Error: '+e.message); }
+}
+
+// ── Assign Stock ─────────────────────────────────────────────────────────
+async function renderAFAssign(){
+  const tbody = document.getElementById('af-assign-tbody'); if(!tbody) return;
+  tbody.innerHTML='<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+  try{
+    const inv = await AF.allInventory();
+    if(!inv.length){ tbody.innerHTML='<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--mu)">No stock assigned to slots yet</td></tr>'; return; }
+    tbody.innerHTML = inv.map(r=>`<tr>
+      <td style="font-family:monospace;font-weight:700;color:var(--a)">${r.slot_name}</td>
+      <td><div style="font-size:.72rem">${r.sheet_notes||r.sheet_code}</div><div style="font-size:.6rem;color:var(--mu)">${r.sheet_code}</div></td>
+      <td style="font-weight:700;color:${r.qty<=3?'var(--a4)':'var(--a3)'}">${r.qty}</td>
+      <td></td><td></td>
+      <td></td>
+    </tr>`).join('');
+  }catch(e){ tbody.innerHTML='<tr><td colspan="6" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
+}
+
+function afOpenAssign(preSlotId){
+  // Populate dropdowns
+  const slotSel = document.getElementById('af-assign-slot');
+  slotSel.innerHTML='<option value="">Select slot...</option>'+
+    afSlots.filter(s=>s.active).map(s=>`<option value="${s.id}"${preSlotId===s.id?'selected':''}>${s.name}</option>`).join('');
+  if(preSlotId) slotSel.value=preSlotId;
+
+  const sheetSel = document.getElementById('af-assign-sheet');
+  sheetSel.innerHTML='<option value="">Select sheet...</option>'+
+    rawSheetCatalog.map(s=>`<option value="${s.id}">${s.notes||s.code} — ${s.code}</option>`).join('');
+
+  document.getElementById('af-assign-qty').value='';
+  document.getElementById('af-assign-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('af-assign-notes').value='';
+  document.getElementById('af-assign-avail').style.display='none';
+  OM('m-af-assign');
+}
+
+function afAssignSheetChanged(){
+  const sheetId = +document.getElementById('af-assign-sheet').value;
+  const avail = document.getElementById('af-assign-avail');
+  if(!sheetId){ avail.style.display='none'; return; }
+  const sheet = rawSheetCatalog.find(s=>s.id===sheetId);
+  if(sheet){ avail.style.display=''; avail.textContent='Current balance: '+sheet.balance+' sheets available'; }
+}
+
+async function afSaveAssign(){
+  const slotId  = +document.getElementById('af-assign-slot').value;
+  const sheetId = +document.getElementById('af-assign-sheet').value;
+  const qty     = +document.getElementById('af-assign-qty').value;
+  const date    = document.getElementById('af-assign-date').value;
+  const notes   = document.getElementById('af-assign-notes').value.trim();
+  if(!slotId){ alert('Please select a slot'); return; }
+  if(!sheetId){ alert('Please select a raw sheet'); return; }
+  if(!qty||qty<=0){ alert('Enter a valid quantity'); return; }
+  if(!date){ alert('Please select a date'); return; }
+  try{
+    await AF.assign(slotId,{sheet_id:sheetId,qty,date,notes,ref_type:'manual'});
+    CM('m-af-assign');
+    showToast('Stock assigned to slot');
+    afSlots=await AF.slots();
+    renderAFSlots();
+    renderAFAssign();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+// ── Optimization Deductions ───────────────────────────────────────────────
+async function renderAFDeduct(){
+  const tbody=document.getElementById('af-deduct-tbody'); if(!tbody) return;
+  tbody.innerHTML='<tr><td colspan="7" style="padding:12px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+  try{
+    // Get all opt_use transactions
+    const allOptTxs=[];
+    for(const s of rawSheetCatalog){
+      const d=await fetch('/api/rawsheets/'+s.id+'/transactions',
+        {headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json());
+      d.transactions.filter(t=>t.type==='optimization_use').forEach(t=>allOptTxs.push({...t,_sheet:s}));
+    }
+    // Get all slot deductions for these opts
+    const allInv=await AF.allInventory().catch(()=>[]);
+    // Get slot inventory history
+    const slotDeductions={};
+    for(const sl of afSlots){
+      const inv=await AF.inventory(sl.id).catch(()=>[]);
+      inv.filter(i=>i.type==='deduct'&&i.ref_type==='optimization').forEach(i=>{
+        (slotDeductions[i.ref_id]=slotDeductions[i.ref_id]||[]).push({...i,slot_name:sl.name,slot_id:sl.id});
+      });
+    }
+    if(!allOptTxs.length){
+      tbody.innerHTML='<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--mu)">No optimization cuts recorded</td></tr>';
+      return;
+    }
+    allOptTxs.sort((a,b)=>b.date.localeCompare(a.date));
+    tbody.innerHTML=allOptTxs.map(tx=>{
+      const sheetsUsed=Math.abs(tx.qty);
+      const deducts=slotDeductions[tx.ref_id]||[];
+      const assigned=deducts.reduce((a,d)=>a+Math.abs(d.qty),0);
+      const unassigned=sheetsUsed-assigned;
+      const f=optFiles.find(x=>x.id===tx.ref_id);
+      const deductSummary=deducts.map(d=>`${d.slot_name}: ${Math.abs(d.qty)}`).join(', ')||'—';
+      return `<tr>
+        <td style="font-family:monospace;font-weight:700;color:var(--a)">#${tx.ref_id}</td>
+        <td style="font-size:.72rem;color:var(--mu)">${tx.date}</td>
+        <td><div style="font-size:.72rem">${tx._sheet.notes||tx._sheet.code}</div><div style="font-size:.6rem;color:var(--mu)">${tx._sheet.code}</div></td>
+        <td style="text-align:center;font-weight:700">${sheetsUsed}</td>
+        <td style="font-size:.7rem;color:var(--a4)">${deductSummary}</td>
+        <td style="text-align:center;font-weight:700;color:${unassigned>0?'var(--a2)':'var(--a3)'}">${unassigned>0?unassigned:'✓'}</td>
+        <td><button class="btn bs bsm" onclick="afOpenDeduct(${tx.ref_id})" style="font-size:.6rem">&#9906; Assign</button></td>
+      </tr>`;
+    }).join('');
+  }catch(e){ tbody.innerHTML='<tr><td colspan="7" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
+}
+
+async function afOpenDeduct(optId){
+  _afDeductOptData = {optId};
+  const f=optFiles.find(x=>x.id===optId);
+  document.getElementById('af-deduct-title').textContent='Assign Slots — Opt #'+optId;
+  const info=document.getElementById('af-deduct-info');
+  info.innerHTML=`<strong>Opt #${optId}</strong> — ${f?.name||''}`;
+  document.getElementById('af-deduct-rows').innerHTML='';
+  document.getElementById('af-deduct-warn').style.display='none';
+  afAddDeductRow();
+  OM('m-af-deduct');
+}
+
+function afAddDeductRow(){
+  const container=document.getElementById('af-deduct-rows');
+  const div=document.createElement('div');
+  div.style.cssText='display:flex;gap:8px;align-items:center';
+  div.innerHTML=`
+    <select class="inp af-dr-slot" style="flex:1;font-size:.72rem">
+      <option value="">Select slot...</option>
+      ${afSlots.filter(s=>s.active).map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
+    </select>
+    <select class="inp af-dr-sheet" style="flex:1.5;font-size:.72rem">
+      <option value="">Select sheet...</option>
+      ${rawSheetCatalog.map(s=>`<option value="${s.id}">${s.notes||s.code}</option>`).join('')}
+    </select>
+    <input type="number" class="inp af-dr-qty" placeholder="Qty" min="1" style="width:70px;font-size:.72rem">
+    <button class="btn bd bsm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button>`;
+  container.appendChild(div);
+}
+
+async function afSaveDeduct(){
+  if(!_afDeductOptData) return;
+  const rows=[...document.querySelectorAll('#af-deduct-rows > div')];
+  const deductions=rows.map(row=>({
+    slot_id: +row.querySelector('.af-dr-slot').value,
+    sheet_id: +row.querySelector('.af-dr-sheet').value,
+    qty: +row.querySelector('.af-dr-qty').value
+  })).filter(d=>d.slot_id&&d.sheet_id&&d.qty>0);
+
+  if(!deductions.length){ alert('Add at least one valid slot deduction'); return; }
+  const f=optFiles.find(x=>x.id===_afDeductOptData.optId);
+  try{
+    await AF.deduct({
+      deductions,
+      opt_file_id: _afDeductOptData.optId,
+      opt_name: f?.name||'Opt #'+_afDeductOptData.optId,
+      date: f?.completed_at?.slice(0,10)||new Date().toISOString().slice(0,10)
+    });
+    CM('m-af-deduct');
+    afSlots=await AF.slots();
+    showToast('Slot deductions saved');
+    renderAFDeduct();
+    renderAFSlots();
   }catch(e){ alert('Error: '+e.message); }
 }
 
@@ -8091,6 +8751,7 @@ async function dlvRenderDetail(){
               <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">PROCESSES</th>
               <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">SCANNED BY</th>
               <th style="padding:7px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600">TIME</th>
+              <th style="padding:7px 12px"></th>
               ${isOpen?'<th style="padding:7px 12px"></th>':''}
             </tr></thead>
             <tbody>
@@ -8104,6 +8765,7 @@ async function dlvRenderDetail(){
                   <td style="padding:8px 12px;font-size:.68rem;color:var(--mu)">${procs||'—'}</td>
                   <td style="padding:8px 12px;font-size:.7rem;color:var(--tx2)">${p.added_by_name||'—'}</td>
                   <td style="padding:8px 12px;font-size:.68rem;color:var(--mu);font-family:monospace">${(p.added_at||'').slice(11,16)}</td>
+                  <td style="padding:4px 8px"><button class="btn bg bsm" style="font-size:.6rem" onclick="jumpToOrderTrack('${p.order_num||''}','${p.piece_uid}')" title="View in Tracking">&#8599; Track</button></td>
                   ${isOpen?`<td style="padding:4px 8px"><button class="btn bs bsm" onclick="dlvDetailRemovePiece(${d.id},'${p.piece_uid}')">&times;</button></td>`:''}
                 </tr>`;
               }).join('')}
@@ -8169,7 +8831,7 @@ async function dlvDetailAddPiece(deliveryId){
 }
 
 async function dlvDetailRemovePiece(deliveryId, uid){
-  if(!confirm('Remove '+uid+' from this delivery?')) return;
+  if(!_confirm('Remove '+uid+' from this delivery?')) return;
   try{
     await AGI.Deliveries.removeItem(deliveryId, uid);
     dlvRenderDetail();
@@ -8297,7 +8959,7 @@ async function printDeliveryNote(id){
 }
 
 async function dlvAdminDelete(id, serial){
-  if(!confirm('Delete delivery '+serial+'?\n\nThis will remove it and all its pieces permanently.')) return;
+  if(!_confirm('Delete delivery '+serial+'?\n\nThis will remove it and all its pieces permanently.')) return;
   try{
     await AGI.Deliveries.delete(id);
     showToast('Delivery '+serial+' deleted');
@@ -8337,16 +8999,93 @@ async function adlvCustomerChange(){
     warn.style.display='none'; _adlvDeliveryId=null; _adlvPieces=[];
   }
   adlvRenderPieces();
+  adlvCustomerChanged_extra();
 }
 
-async function adlvAddPiece(){
-  const uid   = document.getElementById('adlv-piece-input').value.trim().toUpperCase();
+async function adlvCustomerChanged_extra(){
+  // Populate order picker with this customer's orders
+  const custId = +document.getElementById('adlv-customer').value;
+  const picker = document.getElementById('adlv-order-picker');
+  if(!picker) return;
+  const custOrders = orders.filter(o=>+o.customerId===custId&&o.status!=='cancelled');
+  picker.innerHTML='<option value="">Select an order to pick pieces...</option>'+
+    custOrders.map(o=>`<option value="${o.id}">${o.num}${o.extref?' — '+o.extref:''}</option>`).join('');
+  document.getElementById('adlv-order-pieces').style.display='none';
+}
+
+async function adlvOrderPickerChange(){
+  const ordId = +document.getElementById('adlv-order-picker').value;
+  const el = document.getElementById('adlv-order-pieces');
+  if(!ordId){ el.style.display='none'; return; }
+  const o = orders.find(x=>x.id===ordId);
+  if(!o){ el.style.display='none'; return; }
+
+  // Refresh delivery map for this order's pieces
+  await fetchPieceDeliveryStatus([o]);
+
+  // Build list of all pieces with their delivery status
+  const rows = [];
+  (o.items||[]).forEach(item=>{
+    const uids = item.pieceUIDs||item.piece_uids||
+      Array.from({length:item.qty},(_,i)=>`${o.num}-${item.startSerial?item.startSerial+i:i+1}`);
+    uids.forEach(uid=>{
+      const inThisDelivery = _adlvPieces.some(p=>(p.piece_uid||p.uid)===uid);
+      const existingDel = _pieceDeliveryMap[uid];
+      rows.push({uid, item, inThisDelivery, existingDel});
+    });
+  });
+
+  const undelivered = rows.filter(r=>!r.existingDel&&!r.inThisDelivery);
+  const inOther = rows.filter(r=>r.existingDel&&!r.inThisDelivery);
+  const inThis = rows.filter(r=>r.inThisDelivery);
+
+  el.style.display='';
+  el.innerHTML=`
+    <div style="padding:8px 10px;background:var(--s1);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:.7rem;color:var(--mu)">${rows.length} pieces total — <span style="color:var(--a3)">${inThis.length} in this delivery</span> — <span style="color:var(--a2)">${inOther.length} already delivered</span></span>
+      ${undelivered.length?`<button class="btn ba bsm" style="font-size:.6rem" onclick="adlvAddAllFromOrder(${ordId})">+ Add All Undelivered (${undelivered.length})</button>`:''}
+    </div>
+    ${rows.map(r=>{
+      const isInThis = r.inThisDelivery;
+      const isDelivered = r.existingDel;
+      const isFinalised = isDelivered && r.existingDel.status==='finalised';
+      let color = isInThis?'var(--a3)':isDelivered?'var(--a2)':'var(--tx)';
+      let badge = isInThis?'✓ Added':isDelivered?(isFinalised?'✓ '+r.existingDel.serial:'⏳ '+r.existingDel.serial):'';
+      let disabled = isInThis||isDelivered;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border);opacity:${disabled?'.6':'1'}">
+        <span style="font-family:monospace;font-size:.72rem;color:${color};flex:1">${r.uid}</span>
+        <span style="font-size:.65rem;color:var(--mu)">${r.item.w}×${r.item.h}mm</span>
+        ${badge?`<span style="font-size:.6rem;color:${isInThis?'var(--a3)':isFinalised?'var(--a2)':'var(--a4)'};">${badge}</span>`:''}
+        ${!disabled?`<button class="btn ba bsm" style="font-size:.6rem" onclick="adlvAddPieceUID('${r.uid}')">+ Add</button>`:''}
+      </div>`;
+    }).join('')}`;
+}
+
+async function adlvAddAllFromOrder(ordId){
+  const o = orders.find(x=>x.id===ordId); if(!o) return;
+  const uids = [];
+  (o.items||[]).forEach(item=>{
+    const itemUids = item.pieceUIDs||item.piece_uids||
+      Array.from({length:item.qty},(_,i)=>`${o.num}-${item.startSerial?item.startSerial+i:i+1}`);
+    itemUids.forEach(uid=>{
+      if(!_pieceDeliveryMap[uid]&&!_adlvPieces.some(p=>(p.piece_uid||p.uid)===uid)) uids.push(uid);
+    });
+  });
+  for(const uid of uids) await adlvAddPieceUID(uid);
+  adlvOrderPickerChange(); // refresh the list
+}
+
+async function adlvAddPieceUID(uid){
+  uid = uid.trim().toUpperCase();
   const msgEl = document.getElementById('adlv-piece-msg');
   const custSel = document.getElementById('adlv-customer');
-  if(!uid){ msgEl.textContent='Enter a piece UID'; msgEl.style.color='var(--a2)'; return; }
-  if(!custSel.value){ msgEl.textContent='Select a customer first'; msgEl.style.color='var(--a2)'; return; }
-  if(_adlvPieces.some(p=>(p.piece_uid||p.uid)===uid)){ msgEl.textContent=uid+' already added'; msgEl.style.color='var(--a4)'; return; }
-  msgEl.textContent='Looking up...'; msgEl.style.color='var(--tx2)';
+  if(_adlvPieces.some(p=>(p.piece_uid||p.uid)===uid)){ return; } // already in this delivery
+  // Check if in another delivery
+  const existing = _pieceDeliveryMap[uid];
+  if(existing){
+    if(msgEl) { msgEl.textContent=uid+' already in '+existing.serial+(existing.status==='finalised'?' (finalised)':''); msgEl.style.color='var(--a2)'; }
+    return;
+  }
   try{
     const piece = await AGI.Labels.get(uid);
     if(!_adlvDeliveryId){
@@ -8363,14 +9102,37 @@ async function adlvAddPiece(){
       color:piece.color||'clear', processes:piece.processes||[]
     });
     _adlvPieces.push({piece_uid:uid, order_num:piece.orderNum||piece.order_num||'', w:piece.w, h:piece.h, thickness:piece.thickness});
-    document.getElementById('adlv-piece-input').value='';
-    msgEl.textContent='✓ '+uid+' added'; msgEl.style.color='var(--a3)';
+    // Update map so this piece shows as "in this delivery"
+    _pieceDeliveryMap[uid] = {delivery_id:_adlvDeliveryId, serial:'(this delivery)', status:'open'};
     adlvRenderPieces();
+    if(msgEl){ msgEl.textContent='✓ '+uid+' added'; msgEl.style.color='var(--a3)'; }
+    return true;
   }catch(e){
-    msgEl.textContent=(e.message&&e.message.includes('already in'))?uid+' already in this delivery':'Error: '+e.message;
-    msgEl.style.color='var(--a2)';
+    if(msgEl){ msgEl.textContent='Error: '+e.message; msgEl.style.color='var(--a2)'; }
   }
 }
+
+async function adlvAddPiece(){
+  const uid = document.getElementById('adlv-piece-input').value.trim().toUpperCase();
+  const msgEl = document.getElementById('adlv-piece-msg');
+  const custSel = document.getElementById('adlv-customer');
+  if(!uid){ msgEl.textContent='Enter a piece UID'; msgEl.style.color='var(--a2)'; return; }
+  if(!custSel.value){ msgEl.textContent='Select a customer first'; msgEl.style.color='var(--a2)'; return; }
+  if(_adlvPieces.some(p=>(p.piece_uid||p.uid)===uid)){ msgEl.textContent=uid+' already added to this delivery'; msgEl.style.color='var(--a4)'; return; }
+  // Check if in another delivery
+  await fetchPieceDeliveryStatus(orders); // refresh map
+  const existing = _pieceDeliveryMap[uid];
+  if(existing){
+    msgEl.textContent=uid+' is already in '+existing.serial+(existing.status==='finalised'?' (finalised — cannot add)':'');
+    msgEl.style.color='var(--a2)';
+    return;
+  }
+  msgEl.textContent='Looking up...'; msgEl.style.color='var(--tx2)';
+  const ok = await adlvAddPieceUID(uid);
+  if(ok) document.getElementById('adlv-piece-input').value='';
+}
+
+
 
 function adlvRenderPieces(){
   const listEl=document.getElementById('adlv-pieces-list');
@@ -8462,7 +9224,7 @@ function openEditReceiver(id,name,company,phone){
 }
 
 function deleteReceiver(id){
-  if(!confirm('Remove this receiver?')) return;
+  if(!_confirm('Remove this receiver?')) return;
   AGI.Deliveries.receivers.delete(id)
     .then(()=>{ _adminReceivers=_adminReceivers.filter(x=>x.id!==id); renderReceiverList(); showToast('Receiver removed'); })
     .catch(e=>alert('Error: '+e.message));
@@ -8563,7 +9325,7 @@ function openEditAttModal(id,date,workerId,workerName,pin,pout,dayType){
   document.getElementById('att-modal').style.display='flex';
 }
 async function deleteAttRecord(id, workerName, date){
-  if(!confirm('Delete attendance record for '+workerName+' on '+date+'?\nThis cannot be undone.')) return;
+  if(!_confirm('Delete attendance record for '+workerName+' on '+date+'?\nThis cannot be undone.')) return;
   try{
     await AGI.Attendance.delete(id);
     showToast('Record deleted ✓');
@@ -8658,7 +9420,7 @@ async function saveVacationBalance(workerId){
 }
 
 async function accrueVacation(){
-  if(!confirm('Accrue vacation days for all active workers this month?')) return;
+  if(!_confirm('Accrue vacation days for all active workers this month?')) return;
   try{
     const r=await AGI.HR.vacation.accrue();
     showToast(`Accrued ${r.rate} days for ${r.accrued} workers ✓`);
@@ -8847,7 +9609,7 @@ async function approveWorkerDevice(){
 
 async function resetWorkerDevice(){
   if(!_editWorkerId) return;
-  if(!confirm('Reset device binding? The worker will need to re-register from their device.')) return;
+  if(!_confirm('Reset device binding? The worker will need to re-register from their device.')) return;
   try{
     await fetch('/api/workers/'+_editWorkerId+'/device/reset',{method:'POST',headers:{'Authorization':'Bearer '+AGI.getToken()}});
     showToast('Device reset'); loadWorkerDeviceTab(_editWorkerId);
@@ -9066,7 +9828,7 @@ async function saveDocument(){
 }
 
 async function deleteDoc(idx){
-  if(!confirm('Remove this document?')) return;
+  if(!_confirm('Remove this document?')) return;
   try{
     const docs=await AGI.Workers.deleteDocument(_editWorkerId, idx);
     if(_currentWorker) _currentWorker.documents=docs;
@@ -9304,7 +10066,7 @@ async function editFpFieldVal(id, field, oldVal){
 }
 
 async function deleteFpFieldVal(id, field){
-  if(!confirm('Delete this value?')) return;
+  if(!_confirm('Delete this value?')) return;
   try{
     await AGI.FpFields.delete(id);
     fpFieldValues = await AGI.FpFields.list();
@@ -9440,7 +10202,7 @@ async function toggleFinalProd(id,active){
 }
 
 async function deleteFinalProd(id){
-  if(!confirm('Delete this final product?')) return;
+  if(!_confirm('Delete this final product?')) return;
   await AGI.FinalProducts.delete(id);
   finalProducts=await AGI.FinalProducts.list();
   renderFinalProdList();
@@ -9576,7 +10338,7 @@ async function toggleGlassFam(id,active){
 }
 
 async function deleteGlassFam(id){
-  if(!confirm('Delete this glass family?')) return;
+  if(!_confirm('Delete this glass family?')) return;
   await AGI.GlassFamilies.delete(id);
   glassFamilies=await AGI.GlassFamilies.list();
   renderGlassFamList();
@@ -10052,6 +10814,181 @@ window.addEventListener('agi:logout', showLoginOverlay);
     </div>
   </div>
 </div>
+<!-- ═══════════════════════════════════════════════ -->
+<!-- ATTACHMENT LIGHTBOX -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="m-attach-lightbox" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);cursor:zoom-out" onclick="closeLightbox(event)">
+  <div style="position:absolute;top:12px;right:16px;display:flex;gap:8px;z-index:10000">
+    <button class="btn bg bsm" id="lb-zoom-in"  onclick="event.stopPropagation();lbZoom(1.25)" title="Zoom in"  style="font-size:1rem;padding:4px 10px">+</button>
+    <button class="btn bg bsm" id="lb-zoom-out" onclick="event.stopPropagation();lbZoom(0.8)"  title="Zoom out" style="font-size:1rem;padding:4px 10px">−</button>
+    <button class="btn bg bsm" id="lb-zoom-reset" onclick="event.stopPropagation();lbZoomReset()" title="Reset zoom" style="font-size:.7rem;padding:4px 10px">1:1</button>
+    <button class="btn bd bsm" onclick="closeLightbox()" title="Close" style="font-size:1rem;padding:4px 12px">&times;</button>
+  </div>
+  <div id="lb-filename" style="position:absolute;top:14px;left:16px;font-family:DM Mono,monospace;font-size:.7rem;color:rgba(255,255,255,.5);z-index:10000"></div>
+  <!-- Prev/Next arrows -->
+  <button id="lb-prev" onclick="event.stopPropagation();lbNav(-1)" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.1);border:none;color:#fff;font-size:1.8rem;padding:8px 14px;border-radius:6px;cursor:pointer;z-index:10000">&#8249;</button>
+  <button id="lb-next" onclick="event.stopPropagation();lbNav(1)"  style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.1);border:none;color:#fff;font-size:1.8rem;padding:8px 14px;border-radius:6px;cursor:pointer;z-index:10000">&#8250;</button>
+  <div style="width:100%;height:100%;overflow:auto;display:flex;align-items:center;justify-content:center" id="lb-scroll-area">
+    <img id="lb-img" src="" alt="" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px;transform-origin:center center;transition:transform .15s;cursor:grab" 
+      onmousedown="lbDragStart(event)" ondragstart="return false">
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- A-FRAME: ADD SLOT MODAL -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="mbg" id="m-af-slot">
+  <div class="md" style="max-width:400px">
+    <div class="mh">
+      <span class="mt" id="af-slot-title">Add Slot</span>
+      <button class="mx" onclick="CM('m-af-slot')">&times;</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div class="fg">
+        <label class="lbl">Frame Name (e.g. A1, B2)</label>
+        <input type="text" id="af-slot-frame" class="inp" placeholder="A1" oninput="afAutoName()">
+      </div>
+      <div class="fg">
+        <label class="lbl">Side</label>
+        <select id="af-slot-side" class="inp" onchange="afAutoName()">
+          <option value="L">Left (L)</option>
+          <option value="R">Right (R)</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="lbl">Slot Name (auto-generated)</label>
+        <input type="text" id="af-slot-name" class="inp" placeholder="A1L" style="font-family:monospace;font-weight:700">
+      </div>
+      <div class="fg">
+        <label class="lbl">Notes (optional)</label>
+        <input type="text" id="af-slot-notes" class="inp" placeholder="Location, capacity...">
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bg" onclick="CM('m-af-slot')">Cancel</button>
+      <button class="btn bp" onclick="afSaveSlot()">&#10003; Save Slot</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- A-FRAME: ASSIGN STOCK MODAL -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="mbg" id="m-af-assign">
+  <div class="md" style="max-width:460px">
+    <div class="mh">
+      <span class="mt">Assign Stock to Slot</span>
+      <button class="mx" onclick="CM('m-af-assign')">&times;</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div class="fg">
+        <label class="lbl">Slot</label>
+        <select id="af-assign-slot" class="inp">
+          <option value="">Select slot...</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="lbl">Raw Sheet</label>
+        <select id="af-assign-sheet" class="inp" onchange="afAssignSheetChanged()">
+          <option value="">Select sheet...</option>
+        </select>
+      </div>
+      <div id="af-assign-avail" style="font-size:.7rem;color:var(--a3);display:none"></div>
+      <div class="frow" style="grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg">
+          <label class="lbl">Quantity</label>
+          <input type="number" id="af-assign-qty" class="inp" min="1" placeholder="e.g. 10">
+        </div>
+        <div class="fg">
+          <label class="lbl">Date</label>
+          <input type="date" id="af-assign-date" class="inp">
+        </div>
+      </div>
+      <div class="fg">
+        <label class="lbl">Notes (optional)</label>
+        <input type="text" id="af-assign-notes" class="inp" placeholder="Invoice #, notes...">
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bg" onclick="CM('m-af-assign')">Cancel</button>
+      <button class="btn bp" onclick="afSaveAssign()">&#10003; Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- A-FRAME: OPT DEDUCTION MODAL -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="mbg" id="m-af-deduct">
+  <div class="md" style="max-width:520px">
+    <div class="mh">
+      <span class="mt" id="af-deduct-title">Assign Slots for Optimization Cut</span>
+      <button class="mx" onclick="CM('m-af-deduct')">&times;</button>
+    </div>
+    <div style="padding:16px">
+      <div id="af-deduct-info" style="font-size:.75rem;color:var(--tx2);margin-bottom:12px;padding:8px 12px;background:var(--surf);border-radius:var(--r);border:1px solid var(--border)"></div>
+      <div id="af-deduct-rows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+      <button class="btn bg bsm" onclick="afAddDeductRow()">+ Add Slot</button>
+      <div id="af-deduct-warn" style="font-size:.7rem;color:var(--a2);margin-top:8px;display:none"></div>
+    </div>
+    <div class="mf">
+      <button class="btn bg" onclick="CM('m-af-deduct')">Cancel</button>
+      <button class="btn bp" onclick="afSaveDeduct()">&#10003; Save Deductions</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- LEDGER ENTRY MODAL -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="mbg" id="m-ledger-entry">
+  <div class="md" style="max-width:460px">
+    <div class="mh">
+      <span class="mt" id="le-title">Add Stock Entry</span>
+      <button class="mx" onclick="CM('m-ledger-entry');document.getElementById('le-sheet').disabled=false">&times;</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div class="fg">
+        <label class="lbl">Raw Sheet</label>
+        <select id="le-sheet" class="inp" style="font-size:.78rem">
+          <option value="">Select sheet...</option>
+        </select>
+      </div>
+      <div class="frow" style="grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg">
+          <label class="lbl">Type</label>
+          <select id="le-type" class="inp" onchange="onLeTypeChange()">
+            <option value="purchase">&#43; Purchase (In)</option>
+            <option value="adjustment">&#177; Adjustment</option>
+            <option value="sale">&#8722; Sale (Out)</option>
+            <option value="optimization_use">&#9906; Optimization Cut</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="lbl">Quantity (sheets)</label>
+          <input type="number" id="le-qty" class="inp" placeholder="e.g. 10" min="1" step="1">
+        </div>
+      </div>
+      <div class="fg">
+        <label class="lbl">Date</label>
+        <input type="date" id="le-date" class="inp">
+      </div>
+      <div class="fg" id="le-buyer-row" style="display:none">
+        <label class="lbl">Buyer</label>
+        <input type="text" id="le-buyer" class="inp" placeholder="Buyer name...">
+      </div>
+      <div class="fg">
+        <label class="lbl">Reference / Notes</label>
+        <input type="text" id="le-notes" class="inp" placeholder="Invoice #, reason...">
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bg" onclick="CM('m-ledger-entry');document.getElementById('le-sheet').disabled=false">Cancel</button>
+      <button class="btn bp" onclick="ledgerSaveEntry()">&#10003; Save Entry</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════ -->
 <!-- CANCEL ORDER MODAL -->
 <!-- ═══════════════════════════════════════════════ -->

@@ -127,7 +127,7 @@ router.get('/:id/transactions', (req, res) => {
 router.post('/:id/transactions', requireAdmin, (req, res) => {
   try {
     const { type, qty, buyer, date, notes } = req.body;
-    if (!['sale','adjustment','purchase'].includes(type)) return res.status(400).json({ error: 'Invalid type' });
+    if (!['sale','adjustment','purchase','opening'].includes(type)) return res.status(400).json({ error: 'Invalid type' });
     if (!qty || qty === 0) return res.status(400).json({ error: 'qty required' });
     if (!date) return res.status(400).json({ error: 'date required' });
     // For sales and outward adjustments, qty should be negative
@@ -145,7 +145,7 @@ router.delete('/transactions/:txId', requireAdmin, (req, res) => {
   try {
     const tx = db.prepare('SELECT * FROM raw_sheet_transactions WHERE id=?').get(+req.params.txId);
     if (!tx) return res.status(404).json({ error: 'Not found' });
-    if (!['sale','adjustment'].includes(tx.type)) return res.status(400).json({ error: 'Can only delete sale or adjustment entries' });
+    if (!['purchase','sale','adjustment','optimization_use'].includes(tx.type)) return res.status(400).json({ error: 'Can only delete purchase, sale or adjustment entries' });
     db.prepare('DELETE FROM raw_sheet_transactions WHERE id=?').run(+req.params.txId);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({error:e.message}); }
@@ -167,3 +167,9 @@ router.post('/record-optimization', requireAdmin, (req, res) => {
 });
 
 module.exports = router;
+
+
+
+
+
+

@@ -65,7 +65,7 @@ router.post('/', (req, res) => {
 // POST /api/labels/scan — worker marks a process done  ← MUST be before /:uid
 router.post('/scan', (req, res) => {
   try {
-    const { pieceUid, process, action } = req.body;
+    const { pieceUid, process, action, ts } = req.body;
     if (!pieceUid || !process || !['start','done'].includes(action))
       return res.status(400).json({ error: 'pieceUid and process required' });
 
@@ -77,9 +77,9 @@ router.post('/scan', (req, res) => {
     try{ db.prepare('ALTER TABLE scan_log ADD COLUMN order_id INTEGER').run(); }catch(e){}
 
     const r = db.prepare(`
-      INSERT INTO scan_log (worker_id,worker_name,piece_uid,item_code,process,action,order_num,order_id)
-      VALUES (?,?,?,?,?,?,?,?)
-    `).run(req.user.id, req.user.name, pieceUid, piece.code||null, process, action, piece.order_num||null, piece.order_id||null);
+      INSERT INTO scan_log (worker_id,worker_name,piece_uid,item_code,process,action,order_num,order_id,ts)
+      VALUES (?,?,?,?,?,?,?,?,?)
+    `).run(req.user.id, req.user.name, pieceUid, piece.code||null, process, action, piece.order_num||null, piece.order_id||null, req.body.ts||new Date().toISOString());
 
     // Auto-complete order when last piece's last process is marked done
     if (action === 'done' && piece.order_id) {
@@ -245,3 +245,6 @@ router.delete('/:uid/process/:pid', (req, res) => {
 });
 
 module.exports = router;
+
+
+
