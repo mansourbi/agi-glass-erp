@@ -29,7 +29,6 @@ app.use('/api/customers', require('./routes/customers'));
 app.use('/api/orders',    require('./routes/orders'));
 app.use('/api/workers',   require('./routes/workers'));
 app.use('/api/labels',    require('./routes/labels'));
-app.use('/api/slots',     require('./routes/slots'));
 app.use('/api/rawsheets', require('./routes/rawsheets'));
 app.use('/api/optfiles',  require('./routes/optfiles'));
 app.use('/api/reports',   require('./routes/reports'));
@@ -41,6 +40,7 @@ app.use('/api/finalproducts', require('./routes/finalproducts'));
 app.use('/api/fpfields', require('./routes/fpfields'));
 app.use('/api/remnants', require('./routes/remnants'));
 app.use('/api/deliveries', require('./routes/deliveries'));
+app.use('/api/gsheets',    require('./routes/gsheets'));
 
 // ── Config ────────────────────────────────────────────────
 const { requireAuth, requireAdmin } = require('./middleware/auth');
@@ -82,6 +82,45 @@ app.get('/api/health', (req, res) => {
     res.status(503).json({ status: 'error', db: 'disconnected' });
   }
 });
+
+// ── Google Sheets Auto-Sync (9am–5pm, every hour) ───────────────────────────
+(function scheduleGSheetsSync() {
+  function runSync() {
+    const now = new Date();
+    const hour = now.getHours();
+    if (hour >= 9 && hour < 17) {
+      console.log('[gsheets cron] Auto-syncing at ' + now.toLocaleTimeString());
+      const http = require('http');
+      const opts = {
+        hostname: '127.0.0.1', port: process.env.PORT || 3000,
+        path: '/api/gsheets/sync', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-cron': '1' }
+      };
+      const req = http.request(opts, function(res) {
+        let data = '';
+        res.on('data', function(d) { data += d; });
+        res.on('end', function() {
+          try {
+            const r = JSON.parse(data);
+            const summary = (r.synced || []).map(function(s) { return s.customer + ': ' + s.rows + ' rows'; });
+            console.log('[gsheets cron] Done:', summary.join(', ') || 'no customers synced');
+          } catch(e) { console.warn('[gsheets cron] Parse error:', e.message); }
+        });
+      });
+      req.on('error', function(e) { console.warn('[gsheets cron] Error:', e.message); });
+      req.write('{}'); req.end();
+    }
+  }
+  function scheduleNext() {
+    const now = new Date();
+    const msUntilNextHour = (60 - now.getMinutes()) * 60000 - now.getSeconds() * 1000 - now.getMilliseconds();
+    setTimeout(function() {
+      runSync();
+      setInterval(runSync, 60 * 60 * 1000);
+    }, msUntilNextHour);
+  }
+  setTimeout(scheduleNext, 5000);
+})();
 
 // ── 404 ───────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found: ' + req.path }));
@@ -131,4 +170,3 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
     console.log('  ╚═══════════════════════════════════════╝\n');
   });
 }
-

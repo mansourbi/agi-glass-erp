@@ -60,9 +60,25 @@ router.post('/punch-in', (req, res) => {
     const dayMap = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
     const dayName = dayMap[dayOfWeek];
     const auto_day_type = (dayName === weekendDayName) ? 'weekend' : 'normal';
+    const now = nowStr();
+    // Detect lateness
+    let late_mins = 0;
+    try {
+      const sched = db.prepare('SELECT start_time, punch_in_tolerance_mins FROM work_schedule ORDER BY id LIMIT 1').get();
+      if (sched && sched.start_time) {
+        const tolerance = +sched.punch_in_tolerance_mins || 10;
+        const [sh,sm] = sched.start_time.split(':').map(Number);
+        const schedStartMins = sh*60+sm;
+        const pinTime = now.slice(11,16);
+        const [ph,pm] = pinTime.split(':').map(Number);
+        const actualMins = ph*60+pm;
+        const diff = actualMins - schedStartMins;
+        if (diff > tolerance) late_mins = diff;
+      }
+    } catch(e) { console.warn('[late calc]', e.message); }
     const r = db.prepare(
-      "INSERT INTO attendance (worker_id,worker_name,date,punch_in,type,day_type) VALUES (?,?,?,?,?,?)"
-    ).run(req.user.id, req.user.name, today, nowStr(), 'sign_in', auto_day_type);
+      "INSERT INTO attendance (worker_id,worker_name,date,punch_in,type,day_type,late_mins) VALUES (?,?,?,?,?,?,?)"
+    ).run(req.user.id, req.user.name, today, now, 'sign_in', auto_day_type, late_mins);
     res.status(201).json(db.prepare('SELECT * FROM attendance WHERE id=?').get(r.lastInsertRowid));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -82,31 +98,99 @@ router.post('/punch-out', (req, res) => {
       "UPDATE attendance SET punch_out=?, total_mins=? WHERE id=?"
     ).run(now, mins, row.id);
     const updated = db.prepare('SELECT * FROM attendance WHERE id=?').get(row.id);
-    // Auto-generate overtime if punched out after schedule end
+    // Check if overtime territory (worker app will handle the prompt)
     try {
-      const sched = db.prepare('SELECT end_time FROM work_schedule ORDER BY id LIMIT 1').get();
+      const sched = db.prepare('SELECT end_time, thursday_end_time, punch_out_grace_mins FROM work_schedule ORDER BY id LIMIT 1').get();
       if (sched) {
-        const endTime = sched.end_time;
+        const dayOfWeek = new Date(today).getDay();
+        const endTime = (dayOfWeek === 4) ? (sched.thursday_end_time||'15:00') : (sched.end_time||'16:30');
+        const grace = +sched.punch_out_grace_mins || 5;
         const punchOutTime = now.slice(11,16);
         const [eh,em] = endTime.split(':').map(Number);
         const [ph,pm] = punchOutTime.split(':').map(Number);
         const overMins = (ph*60+pm) - (eh*60+em);
-        if (overMins > 5) { // >5 min grace period
-          const existing = db.prepare("SELECT id FROM overtime WHERE worker_id=? AND date=? AND type='auto'")
-            .get(req.user.id, today);
-          if (!existing) {
-            db.prepare(`INSERT INTO overtime (worker_id,worker_name,date,type,start_time,end_time,mins,description,attendance_id)
-              VALUES (?,?,?,?,?,?,?,?,?)`)
-              .run(req.user.id, req.user.name, today, 'auto', endTime, punchOutTime, overMins,
-                'Auto: worked beyond '+endTime, updated.id);
-          }
-        }
+        // Return overtime info to worker app so it can prompt
+        const overtimeDetected = overMins > grace;
+        return res.json({ ...updated, overtime_detected: overtimeDetected, shift_end: endTime, over_mins: Math.max(0,overMins) });
       }
-    } catch(e) { console.warn('[auto-ot]', e.message); }
+    } catch(e) { console.warn('[ot check]', e.message); }
     res.json(updated);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── POST /overtime-decision — worker submits overtime yes/no ─────────────
+router.post('/overtime-decision', (req, res) => {
+  try {
+    const { worked_overtime, project, notes } = req.body;
+    const today = todayStr();
+    const row = db.prepare("SELECT * FROM attendance WHERE worker_id=? AND date=? ORDER BY id DESC LIMIT 1").get(req.user.id, today);
+    if (!row) return res.status(404).json({ error: 'No attendance record found for today' });
+    if (!worked_overtime) {
+      // Set punch_out to shift end time
+      const sched = db.prepare('SELECT end_time, thursday_end_time FROM work_schedule ORDER BY id LIMIT 1').get();
+      const dayOfWeek = new Date(today).getDay();
+      const endTime = (dayOfWeek === 4) ? (sched?.thursday_end_time||'15:00') : (sched?.end_time||'16:30');
+      const adjustedPunchOut = today + ' ' + endTime + ':00';
+      const mins = Math.round((new Date(adjustedPunchOut) - new Date(row.punch_in)) / 60000);
+      db.prepare("UPDATE attendance SET punch_out=?, total_mins=?, overtime_status='none', overtime_mins=0 WHERE id=?")
+        .run(adjustedPunchOut, mins, row.id);
+    } else {
+      // Record overtime as pending approval
+      const sched = db.prepare('SELECT end_time, thursday_end_time FROM work_schedule ORDER BY id LIMIT 1').get();
+      const dayOfWeek = new Date(today).getDay();
+      const endTime = (dayOfWeek === 4) ? (sched?.thursday_end_time||'15:00') : (sched?.end_time||'16:30');
+      const punchOutTime = row.punch_out ? row.punch_out.slice(11,16) : nowStr().slice(11,16);
+      const [eh,em] = endTime.split(':').map(Number);
+      const [ph,pm] = punchOutTime.split(':').map(Number);
+      const overMins = Math.max(0, (ph*60+pm) - (eh*60+em));
+      db.prepare("UPDATE attendance SET overtime_mins=?, overtime_status='pending', overtime_notes=?, overtime_project=? WHERE id=?")
+        .run(overMins, notes||null, project||null, row.id);
+    }
+    res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(row.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PATCH /:id/overtime — admin approves/rejects overtime ─────────────────
+router.patch('/:id/overtime', requireAdmin, (req, res) => {
+  try {
+    const { status, notes } = req.body; // status: approved | rejected
+    if (!['approved','rejected'].includes(status)) return res.status(400).json({ error: 'status must be approved or rejected' });
+    const row = db.prepare('SELECT * FROM attendance WHERE id=?').get(+req.params.id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    if (status === 'rejected') {
+      // Set punch_out back to shift end
+      const sched = db.prepare('SELECT end_time, thursday_end_time FROM work_schedule ORDER BY id LIMIT 1').get();
+      const dayOfWeek = new Date(row.date).getDay();
+      const endTime = (dayOfWeek === 4) ? (sched?.thursday_end_time||'15:00') : (sched?.end_time||'16:30');
+      const adjustedPunchOut = row.date + ' ' + endTime + ':00';
+      const mins = Math.round((new Date(adjustedPunchOut) - new Date(row.punch_in)) / 60000);
+      db.prepare("UPDATE attendance SET punch_out=?, total_mins=?, overtime_status='rejected', overtime_mins=0, overtime_notes=? WHERE id=?")
+        .run(adjustedPunchOut, mins, notes||null, +req.params.id);
+    } else {
+      db.prepare("UPDATE attendance SET overtime_status='approved', overtime_notes=? WHERE id=?")
+        .run(notes||null, +req.params.id);
+    }
+    res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(+req.params.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /pending-overtime — admin list of pending overtime requests ─────────
+router.get('/pending-overtime', requireAdmin, (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM attendance WHERE overtime_status='pending' ORDER BY date DESC").all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /schedule — public schedule for worker app ────────────────────────
+router.get('/schedule', (req, res) => {
+  try {
+    const s = db.prepare('SELECT start_time, end_time, thursday_end_time, break_mins, punch_in_tolerance_mins, punch_out_grace_mins, weekend_day FROM work_schedule ORDER BY id LIMIT 1').get();
+    res.json(s || {});
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /admin list with filters ──────────────────────────────────────────
 // ── GET / — admin list with filters ──────────────────────────────────────
 router.get('/', (req, res) => {
   try {

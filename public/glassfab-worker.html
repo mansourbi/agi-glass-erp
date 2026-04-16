@@ -57,8 +57,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 .topbar-logout:active{color:var(--a2);border-color:var(--a2)}
 
 /* ── SCROLL BODY ── */
-.scroll-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;
-  padding-bottom:calc(24px + var(--safe-b))}
+.scroll-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;
+  padding-bottom:calc(16px + var(--safe-b))}
 
 /* ── CARDS ── */
 .card{background:var(--s2);border:1px solid var(--br);border-radius:var(--r);overflow:hidden;margin-bottom:12px}
@@ -68,18 +68,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 .card-body{padding:14px}
 
 /* ── HOME TAB ── */
-.home-logo{display:flex;justify-content:center;padding:28px 0 16px}
+.home-logo{display:flex;justify-content:center;padding:16px 0 10px}
 .home-logo img{width:90px;height:90px;border-radius:16px;object-fit:contain}
-.home-greeting{text-align:center;margin-bottom:20px}
+.home-greeting{text-align:center;margin-bottom:10px}
 .home-greeting h2{font-size:1.3rem;font-weight:700;color:var(--tx);letter-spacing:.5px}
 .home-greeting p{font-size:.78rem;color:var(--tx2);margin-top:4px}
 .status-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:.72rem;font-weight:600;margin-top:8px}
 .status-in{background:rgba(54,255,138,.12);border:1px solid rgba(54,255,138,.3);color:var(--a3)}
 .status-out{background:rgba(255,90,90,.08);border:1px solid rgba(255,90,90,.3);color:#ff6464}
 .status-none{background:rgba(106,144,176,.1);border:1px solid var(--br);color:var(--tx2)}
-.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .quick-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:6px;padding:18px 10px;border-radius:var(--r);border:1.5px solid;cursor:pointer;
+  gap:5px;padding:14px 10px;border-radius:var(--r);border:1.5px solid;cursor:pointer;
   font-size:.78rem;font-weight:600;letter-spacing:.3px;transition:all .15s;-webkit-appearance:none}
 .quick-btn .qbi{font-size:1.5rem}
 .quick-btn-primary{background:var(--a);border-color:var(--a);color:#000}
@@ -183,10 +183,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 .bottom-nav{background:rgba(6,12,20,.97);border-top:1px solid var(--br);
   display:flex;padding:0;padding-bottom:var(--safe-b);flex-shrink:0}
 .bn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:10px 0;cursor:pointer;border:none;background:none;color:var(--mu);
+  padding:10px 0;cursor:pointer;border:none;background:none;color:rgba(180,210,230,.55);
   font-size:.55rem;letter-spacing:.8px;text-transform:uppercase;gap:4px;transition:color .15s}
-.bn .bni{font-size:1.2rem}
+.bn .bni{font-size:1.3rem}
 .bn.on{color:var(--a)}
+.bn.on .bni{filter:drop-shadow(0 0 6px var(--a))}
 .bn:active{color:var(--tx2)}
 
 /* ── SUCCESS FLASH ── */
@@ -227,8 +228,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 <!-- SCREEN: LOGIN -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div class="screen on" id="scr-login">
-  <div class="login-logo"><img src="/agi-logo.png" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=\'width:72px;height:72px;background:var(--a);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:#000\'>AGI</div>'"></div>
-  <div class="login-title">AGI Glass</div>
+  <div id="login-factory-logo" style="margin:0 auto 16px;display:flex;align-items:center;justify-content:center"></div>
+  <div class="login-title" id="login-factory-name">AGI Glass</div>
   <div class="login-sub">WORKER PORTAL</div>
   <div class="login-box">
     <input class="inp" type="email" id="l-email" placeholder="worker@factory.com" autocomplete="email" inputmode="email">
@@ -243,14 +244,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 <!-- ══════════════════════════════════════════════════════ -->
 <div class="screen" id="scr-home">
   <div class="topbar">
-    <div class="topbar-brand">AGI Glass</div>
+    <div id="topbar-logo-home" style="display:flex;align-items:center;gap:8px"><div id="topbar-logo-img" style="height:28px;width:auto;display:flex;align-items:center"></div><span class="topbar-brand" id="topbar-factory-name">AGI Glass</span></div>
     <div class="topbar-worker" id="wn-home"></div>
     <button class="topbar-logout" onclick="doLogout()">Logout</button>
   </div>
   <div class="scroll-body">
-    <!-- Logo -->
+    <!-- Worker avatar -->
     <div class="home-logo">
-      <img src="/agi-logo.png" onerror="this.outerHTML='<div style=\'width:90px;height:90px;background:var(--a);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:900;color:#000\'>AGI</div>'">
+      <div id="home-worker-avatar" style="width:88px;height:88px;border-radius:50%;border:3px solid var(--a);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:2.1rem;background:var(--s2);color:var(--a);background-size:cover;background-position:center">&#9786;</div>
     </div>
     <!-- Greeting -->
     <div class="home-greeting">
@@ -258,21 +259,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
       <p id="home-date"></p>
       <div id="home-status-badge" class="status-badge status-none">&#9643; Not checked in</div>
     </div>
-    <!-- Today's times summary -->
-    <div class="card" id="home-times-card" style="display:none">
-      <div class="card-hd"><span class="card-title">Today</span></div>
-      <div class="card-body" style="padding:0">
-        <div class="att-row" style="padding:10px 14px">
-          <span class="att-label">Punch In</span>
-          <span class="att-value" id="home-punch-in">—</span>
+    <!-- Today's times summary — compact strip -->
+    <div id="home-times-card" style="display:none;background:var(--s2);border:1px solid var(--br);border-radius:10px;margin-bottom:10px;padding:8px 14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <div style="text-align:center;flex:1">
+          <div style="font-size:.55rem;color:var(--mu);letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">In</div>
+          <div id="home-punch-in" style="font-size:.9rem;font-weight:700;font-family:monospace;color:var(--a3)">—</div>
         </div>
-        <div class="att-row" style="padding:10px 14px">
-          <span class="att-label">Punch Out</span>
-          <span class="att-value" id="home-punch-out">—</span>
+        <div style="width:1px;height:28px;background:var(--br)"></div>
+        <div style="text-align:center;flex:1">
+          <div style="font-size:.55rem;color:var(--mu);letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">Out</div>
+          <div id="home-punch-out" style="font-size:.9rem;font-weight:700;font-family:monospace;color:var(--a2)">—</div>
         </div>
-        <div class="att-row" style="padding:10px 14px;border:none">
-          <span class="att-label">Hours</span>
-          <span class="att-value" id="home-hours">—</span>
+        <div style="width:1px;height:28px;background:var(--br)"></div>
+        <div style="text-align:center;flex:1">
+          <div style="font-size:.55rem;color:var(--mu);letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">Hours</div>
+          <div id="home-hours" style="font-size:.9rem;font-weight:700;font-family:monospace;color:var(--a)">—</div>
         </div>
       </div>
     </div>
@@ -334,6 +336,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
         <button onclick="openOTModal()" style="padding:14px 10px;background:rgba(0,204,255,.08);border:1.5px solid rgba(0,204,255,.3);border-radius:10px;color:var(--a);font-size:.8rem;font-weight:600;cursor:pointer">
           &#8987; Log Overtime
         </button>
+      </div>
+    </div>
+    <!-- Last 7 days -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">&#128336; Last 7 Days</span></div>
+      <div id="att-week-body" style="padding:0">
+        <div style="padding:14px;color:var(--mu);font-size:.75rem;text-align:center">Loading...</div>
       </div>
     </div>
   </div>
@@ -588,29 +597,86 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
   </div>
 </div>
 
-<div id="m-leave" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:var(--bg);border:1px solid var(--br);border-radius:var(--r);padding:20px;width:90%;max-width:360px">
+<div id="m-leave" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;overflow-y:auto">
+  <div style="background:var(--bg);border:1px solid var(--br);border-radius:var(--r);padding:20px;width:90%;max-width:400px;margin:20px auto">
     <div style="font-weight:700;margin-bottom:14px;font-size:.9rem">&#9992; Leave Request</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Type</label>
-        <select id="lv-type" class="inp" style="padding:10px 12px">
-          <option value="vacation">Vacation</option>
-          <option value="sick">Sick Leave</option>
-          <option value="emergency">Emergency</option>
-          <option value="unpaid">Unpaid</option>
-        </select></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">From</label>
-          <input type="date" id="lv-from" class="inp" style="padding:10px 12px"></div>
-        <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">To</label>
-          <input type="date" id="lv-to" class="inp" style="padding:10px 12px"></div>
+
+      <!-- Kind toggle -->
+      <div>
+        <label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:6px">Leave Kind</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button id="lv-kind-vacation" onclick="setLeaveKind('vacation')" style="padding:10px;border-radius:var(--r);border:2px solid var(--a);background:var(--a);color:#000;font-weight:700;cursor:pointer;font-size:.8rem">&#128197; Full Day(s)</button>
+          <button id="lv-kind-hourly" onclick="setLeaveKind('hourly')" style="padding:10px;border-radius:var(--r);border:2px solid var(--br);background:var(--s2);color:var(--tx);cursor:pointer;font-size:.8rem">&#128336; Hourly</button>
+        </div>
       </div>
-      <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Reason (optional)</label>
-        <textarea id="lv-reason" rows="2" class="inp" style="padding:10px 12px;resize:none" placeholder="Optional reason..."></textarea></div>
+
+      <!-- FULL DAY section -->
+      <div id="lv-section-vacation">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div>
+            <label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Leave Type</label>
+            <select id="lv-type" class="inp" style="padding:10px 12px" onchange="onLeaveTypeChange()">
+              <option value="vacation">Vacation</option>
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">From</label>
+              <input type="date" id="lv-from" class="inp" style="padding:10px 12px"></div>
+            <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">To</label>
+              <input type="date" id="lv-to" class="inp" style="padding:10px 12px"></div>
+          </div>
+          <!-- Medical report (shown for Sick Leave) -->
+          <div id="lv-medical-section" style="display:none">
+            <label style="font-size:.68rem;color:var(--a2);display:block;margin-bottom:3px">&#128196; Medical Report <span style="color:var(--a2)">* Required</span></label>
+            <input type="file" id="lv-medical-file" accept="image/*,.pdf" style="display:none" onchange="onMedicalFileChange(this)">
+            <button onclick="document.getElementById('lv-medical-file').click()" style="width:100%;padding:10px;border:2px dashed var(--a2);border-radius:var(--r);background:rgba(255,80,80,.07);color:var(--a2);cursor:pointer;font-size:.8rem">&#128247; Attach Medical Report</button>
+            <div id="lv-medical-preview" style="margin-top:6px;font-size:.72rem;color:var(--a3)"></div>
+          </div>
+          <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Notes (optional)</label>
+            <textarea id="lv-reason" rows="2" class="inp" style="padding:10px 12px;resize:none" placeholder="Optional notes..."></textarea></div>
+        </div>
+      </div>
+
+      <!-- HOURLY section -->
+      <div id="lv-section-hourly" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Date</label>
+            <input type="date" id="lv-hourly-date" class="inp" style="padding:10px 12px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">From</label>
+              <input type="time" id="lv-time-from" class="inp" style="padding:10px 12px" oninput="calcLeaveHours()"></div>
+            <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">To</label>
+              <input type="time" id="lv-time-to" class="inp" style="padding:10px 12px" oninput="calcLeaveHours()"></div>
+          </div>
+          <div id="lv-hours-display" style="display:none;text-align:center;padding:8px;background:var(--s1);border-radius:var(--r);font-size:.85rem;font-weight:700;color:var(--a)"></div>
+          <div><label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Notes (optional)</label>
+            <textarea id="lv-hourly-reason" rows="2" class="inp" style="padding:10px 12px;resize:none" placeholder="Optional notes..."></textarea></div>
+        </div>
+      </div>
+
     </div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button onclick="document.getElementById('m-leave').style.display='none'" style="flex:1;padding:10px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer">Cancel</button>
       <button onclick="submitLeave()" style="flex:1;padding:10px;background:var(--a);border:none;border-radius:var(--r);color:#000;font-weight:700;cursor:pointer">Submit</button>
+    </div>
+  </div>
+</div>
+<!-- OVERTIME DECISION MODAL -->
+<div id="m-ot-decision" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:1px solid var(--a4);border-radius:var(--r);padding:24px;width:90%;max-width:360px">
+    <div style="font-weight:700;margin-bottom:8px;font-size:1rem;color:var(--a4)">&#8987; Overtime Detected</div>
+    <div id="ot-decision-info" style="font-size:.8rem;color:var(--tx2);margin-bottom:16px"></div>
+    <div id="ot-project-section" style="display:none;margin-bottom:10px">
+      <label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Project / Notes <span style="color:var(--a2)">*</span></label>
+      <input type="text" id="ot-project" class="inp" style="padding:10px 12px" placeholder="e.g. REF-19 rework, client request">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="submitOTDecision(false)" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer;font-weight:600">No — Clock out now</button>
+      <button onclick="showOTProjectField()" id="btn-ot-yes" style="flex:1;padding:12px;background:var(--a4);border:none;border-radius:var(--r);color:#000;font-weight:700;cursor:pointer">Yes — OT</button>
+    </div>
+    <div id="ot-submit-section" style="display:none;margin-top:10px">
+      <button onclick="submitOTDecision(true)" style="width:100%;padding:12px;background:var(--a3);border:none;border-radius:var(--r);color:#000;font-weight:700;cursor:pointer">&#10003; Submit Overtime Request</button>
     </div>
   </div>
 </div>
@@ -683,7 +749,7 @@ async function doLogin(){
   try{
     const worker = await AGI.Auth.login(email,pass);
     currentWorker = worker;
-    sessionStorage.setItem('gfw_session',JSON.stringify({id:worker.id,ts:Date.now()}));
+    localStorage.setItem('gfw_session',JSON.stringify({id:worker.id,ts:Date.now(),date:new Date().toISOString().slice(0,10)}));
     await startSession();
   }catch(e){
     errEl.textContent = e.message||'Login failed';
@@ -695,7 +761,7 @@ async function doLogin(){
 }
 
 function doLogout(){
-  sessionStorage.removeItem('gfw_session');
+  localStorage.removeItem('gfw_session');
   AGI.Auth.logout();
   currentWorker = null;
   stopCamera();
@@ -706,11 +772,16 @@ function doLogout(){
 
 async function restoreSession(){
   try{
-    const s = JSON.parse(sessionStorage.getItem('gfw_session')||'null');
+    const s = JSON.parse(localStorage.getItem('gfw_session')||'null');
     if(!s) return false;
-    if(Date.now()-s.ts > 12*60*60*1000){ sessionStorage.removeItem('gfw_session'); return false; }
+    // Expire if the stored date is not today (new day = must re-login)
+    const today = new Date().toISOString().slice(0,10);
+    if(s.date && s.date !== today){ localStorage.removeItem('gfw_session'); AGI.clearToken(); return false; }
+    // Fallback: expire after 20 hours if no date stored (old sessions)
+    if(!s.date && Date.now()-s.ts > 20*60*60*1000){ localStorage.removeItem('gfw_session'); return false; }
     if(!AGI.getToken()) return false;
     const res = await AGI.Auth.me();
+    if(!res || !res.worker) return false;
     currentWorker = res.worker;
     return true;
   }catch{ return false; }
@@ -726,11 +797,48 @@ async function startSession(){
   ['wn-home','wn-att','wn-scan','wn-queue','wn-hist'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.textContent=currentWorker.name;
   });
+  // Hide Deliver tab for non-admin workers
+  const isAdmin = currentWorker.role === 'admin';
+  ['bnh-dlv','bna-dlv','bns-dlv','bnq-dlv','bnh2-dlv'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display=isAdmin?'':'none';
+  });
   // Home greeting
   const nameEl=document.getElementById('home-name');
   if(nameEl) nameEl.textContent='Hello, '+currentWorker.name.split(' ')[0];
   const dateEl=document.getElementById('home-date');
   if(dateEl) dateEl.textContent=new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  // Worker avatar — fetch full worker record to ensure photo_url is present
+  const avatarEl=document.getElementById('home-worker-avatar');
+  if(avatarEl){
+    function applyAvatar(photoUrl){
+      if(photoUrl){
+        // Normalise: ensure full data URI prefix is present
+        let src = photoUrl;
+        if(src && !src.startsWith('data:') && !src.startsWith('http') && !src.startsWith('//')){
+          src = 'data:image/jpeg;base64,' + src;
+        }
+        // Use an <img> tag inside the div — more reliable than background-image for large base64
+        avatarEl.innerHTML='<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:50%">';
+        avatarEl.style.backgroundImage='none';
+        avatarEl.style.fontSize='0';
+      } else {
+        avatarEl.innerHTML='';
+        avatarEl.style.backgroundImage='none';
+        avatarEl.style.fontSize='2.6rem';
+        avatarEl.style.fontWeight='700';
+        const initials=(currentWorker.name||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+        avatarEl.textContent=initials;
+      }
+    }
+    // Apply immediately if already on currentWorker
+    applyAvatar(currentWorker.photo_url||null);
+    // Also fetch full worker record (auth/me may not include photo_url)
+    if(currentWorker.id){
+      AGI.Workers.get(currentWorker.id).then(w=>{
+        if(w && w.photo_url) applyAvatar(w.photo_url);
+      }).catch(()=>{});
+    }
+  }
   showScreen('home');
   switchTab('home');
 }
@@ -835,6 +943,76 @@ async function loadAttendance(){
     if(btnIn)  { btnIn.disabled  = pi;           btnIn.style.opacity  = pi?'0.4':'1'; }
     if(btnOut) { btnOut.disabled = !pi||po;       btnOut.style.opacity = (!pi||po)?'0.4':'1'; }
   }catch(e){ console.warn('attendance:',e.message); }
+  loadAttWeek();
+}
+
+async function loadAttWeek(){
+  const el = document.getElementById('att-week-body');
+  if(!el) return;
+  try{
+    // Build date range: today and 6 days back
+    const today = new Date();
+    const from  = new Date(today); from.setDate(today.getDate()-6);
+    const toStr   = today.toISOString().slice(0,10);
+    const fromStr = from.toISOString().slice(0,10);
+    const res = await AGI.Attendance.list({from:fromStr, to:toStr, worker_id:currentWorker.id});
+    const rows = res.records || res.rows || res || [];
+    // Build a map by date
+    const byDate = {};
+    rows.forEach(r=>{ if(r.date) byDate[r.date]=r; });
+    // Render 7 rows, newest first
+    let html = '';
+    for(let i=0;i<7;i++){
+      const d = new Date(today); d.setDate(today.getDate()-i);
+      const dateStr = d.toISOString().slice(0,10);
+      const dayName = d.toLocaleDateString('en-GB',{weekday:'short'});
+      const dayNum  = d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      const r = byDate[dateStr];
+      const isToday = i===0;
+      let statusDot, inTime, outTime, hoursStr;
+      if(!r || (!r.punch_in && r.day_type!=='leave' && r.day_type!=='holiday')){
+        // No record
+        if(d.getDay()===5||d.getDay()===6){
+          statusDot='<span style="color:var(--mu)">—</span>'; inTime=''; outTime=''; hoursStr='<span style="color:var(--mu);font-size:.65rem">Weekend</span>';
+        } else {
+          statusDot='<span style="color:var(--a2)">&#9679;</span>'; inTime='—'; outTime='—'; hoursStr='<span style="color:var(--a2);font-size:.7rem">Absent</span>';
+        }
+      } else if(r.day_type==='leave'){
+        statusDot='<span style="color:var(--a4)">&#9679;</span>'; inTime=''; outTime=''; hoursStr='<span style="color:var(--a4);font-size:.65rem">Leave</span>';
+      } else if(r.day_type==='holiday'){
+        statusDot='<span style="color:var(--mu)">&#9679;</span>'; inTime=''; outTime=''; hoursStr='<span style="color:var(--mu);font-size:.65rem">Holiday</span>';
+      } else {
+        const fmt=ts=>ts?ts.slice(11,16):'—';
+        inTime  = fmt(r.punch_in);
+        outTime = fmt(r.punch_out);
+        const hrs = r.total_mins ? (r.total_mins/60).toFixed(1)+'h' : (r.punch_in&&!r.punch_out?'<span style="color:var(--a3);font-size:.65rem">Active</span>':'—');
+        hoursStr = '<span style="color:var(--a);font-weight:700">'+hrs+'</span>';
+        statusDot = r.punch_out
+          ? '<span style="color:var(--a3)">&#9679;</span>'
+          : '<span style="color:var(--a3);animation:pulse 1.5s infinite">&#9679;</span>';
+      }
+      html += `<div style="display:grid;grid-template-columns:18px 70px 1fr 1fr 1fr;align-items:center;gap:6px;padding:9px 14px;border-bottom:1px solid var(--br);${isToday?'background:rgba(0,204,255,.04)':''}">
+        <div style="font-size:.7rem;text-align:center">${statusDot}</div>
+        <div>
+          <div style="font-size:.72rem;font-weight:${isToday?'700':'500'};color:${isToday?'var(--a)':'var(--tx)'}">${dayName}</div>
+          <div style="font-size:.6rem;color:var(--mu)">${dayNum}</div>
+        </div>
+        <div style="font-size:.68rem;color:var(--tx2);text-align:center">${inTime||''}</div>
+        <div style="font-size:.68rem;color:var(--tx2);text-align:center">${outTime||''}</div>
+        <div style="text-align:right;font-size:.72rem">${hoursStr}</div>
+      </div>`;
+    }
+    // Header row
+    const header = `<div style="display:grid;grid-template-columns:18px 70px 1fr 1fr 1fr;gap:6px;padding:6px 14px;border-bottom:1px solid var(--br)">
+      <div></div><div></div>
+      <div style="font-size:.55rem;color:var(--mu);text-align:center;letter-spacing:.5px;text-transform:uppercase">IN</div>
+      <div style="font-size:.55rem;color:var(--mu);text-align:center;letter-spacing:.5px;text-transform:uppercase">OUT</div>
+      <div style="font-size:.55rem;color:var(--mu);text-align:right;letter-spacing:.5px;text-transform:uppercase">HRS</div>
+    </div>`;
+    el.innerHTML = header + (html || '<div style="padding:14px;color:var(--mu);font-size:.75rem;text-align:center">No records found</div>');
+  }catch(e){
+    if(el) el.innerHTML='<div style="padding:14px;color:var(--a2);font-size:.75rem">Error loading history</div>';
+  }
 }
 
 async function doPunchIn(){
@@ -850,8 +1028,52 @@ async function doPunchIn(){
 async function doPunchOut(){
   try{
     const r = await AGI.Attendance.punchOut();
-    const hrs = r.total_mins?(r.total_mins/60).toFixed(1)+'h':'';
-    showFlash('&#9632;','Punched Out','Total: '+hrs,'var(--a)');
+    if(r.overtime_detected){
+      // Show overtime decision modal
+      const overH = r.over_mins ? Math.floor(r.over_mins/60)+'h '+( r.over_mins%60)+'m' : '';
+      document.getElementById('ot-decision-info').textContent =
+        'You punched out ' + overH + ' after your shift end (' + (r.shift_end||'') + '). Did you work overtime?';
+      document.getElementById('ot-project-section').style.display='none';
+      document.getElementById('ot-submit-section').style.display='none';
+      document.getElementById('ot-project').value='';
+      document.getElementById('btn-ot-yes').style.display='';
+      document.getElementById('m-ot-decision').style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;align-items:center;justify-content:center';
+    } else {
+      const hrs = r.total_mins?(r.total_mins/60).toFixed(1)+'h':'';
+      showFlash('&#9632;','Punched Out','Total: '+hrs,'var(--a)');
+      vibrate([50,30,50,30,50]);
+      await loadAttendance();
+      await loadHomeStatus();
+    }
+  }catch(e){ showFlash('&#9888;','Error',e.message,'var(--a2)'); }
+}
+
+function showOTProjectField(){
+  document.getElementById('ot-project-section').style.display='block';
+  document.getElementById('ot-submit-section').style.display='block';
+  document.getElementById('btn-ot-yes').style.display='none';
+}
+
+async function submitOTDecision(workedOT){
+  try{
+    if(workedOT){
+      const project = document.getElementById('ot-project').value.trim();
+      if(!project){ alert('Please fill in the project or notes for overtime'); return; }
+      await fetch('/api/attendance/overtime-decision',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},
+        body:JSON.stringify({worked_overtime:true, project, notes:project})
+      }).then(r=>r.json());
+      showFlash('&#8987;','Overtime Submitted','Pending admin approval','var(--a4)');
+    } else {
+      await fetch('/api/attendance/overtime-decision',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},
+        body:JSON.stringify({worked_overtime:false})
+      }).then(r=>r.json());
+      showFlash('&#9632;','Punched Out','Good work today!','var(--a)');
+    }
+    document.getElementById('m-ot-decision').style.display='none';
     vibrate([50,30,50,30,50]);
     await loadAttendance();
     await loadHomeStatus();
@@ -880,24 +1102,121 @@ async function submitOvertime(){
     showFlash('&#8987;','Overtime Submitted','Pending admin approval','var(--a3)');
   }catch(e){ alert(e.message); }
 }
-function openLeaveModal(){
+var _lvKind = 'vacation';
+var _lvMedicalBase64 = null;
+var _lvLeaveTypes = [];
+
+async function loadLeaveTypes(){
+  try{
+    const allLT = await fetch('/api/hr/leave-types',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json());
+    _lvLeaveTypes = allLT.filter(lt=>lt.is_system===1||lt.is_system==='1');
+  }catch(e){ _lvLeaveTypes=[{label:'Vacation',requires_file:0},{label:'Sick Leave',requires_file:1}]; }
+}
+
+function onLeaveTypeChange(){
+  const sel=document.getElementById('lv-type');
+  const lt=_lvLeaveTypes.find(x=>x.label===sel.value);
+  const needsFile=lt&&lt.requires_file;
+  document.getElementById('lv-medical-section').style.display=needsFile?'':'none';
+  _lvMedicalBase64=null;
+  document.getElementById('lv-medical-preview').textContent='';
+}
+
+function calcLeaveHours(){
+  const from=document.getElementById('lv-time-from').value;
+  const to=document.getElementById('lv-time-to').value;
+  const disp=document.getElementById('lv-hours-display');
+  if(!from||!to){disp.style.display='none';return;}
+  const [fh,fm]=from.split(':').map(Number);
+  const [th,tm]=to.split(':').map(Number);
+  const mins=(th*60+tm)-(fh*60+fm);
+  if(mins<=0){disp.style.display='none';return;}
+  const hrs=(mins/60).toFixed(1);
+  disp.style.display='';
+  disp.textContent='Total: '+hrs+' hour'+(hrs!=='1.0'?'s':'');
+}
+
+function onMedicalFileChange(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    _lvMedicalBase64=e.target.result;
+    document.getElementById('lv-medical-preview').textContent='Attached: '+file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+function setLeaveKind(kind){
+  _lvKind=kind;
+  const isHourly=kind==='hourly';
+  document.getElementById('lv-section-vacation').style.display=isHourly?'none':'';
+  document.getElementById('lv-section-hourly').style.display=isHourly?'':'none';
+  document.getElementById('lv-kind-vacation').style.cssText=isHourly
+    ?'padding:10px;border-radius:var(--r);border:2px solid var(--br);background:var(--s2);color:var(--tx);cursor:pointer;font-size:.8rem'
+    :'padding:10px;border-radius:var(--r);border:2px solid var(--a);background:var(--a);color:#000;font-weight:700;cursor:pointer;font-size:.8rem';
+  document.getElementById('lv-kind-hourly').style.cssText=isHourly
+    ?'padding:10px;border-radius:var(--r);border:2px solid var(--a4);background:var(--a4);color:#000;font-weight:700;cursor:pointer;font-size:.8rem'
+    :'padding:10px;border-radius:var(--r);border:2px solid var(--br);background:var(--s2);color:var(--tx);cursor:pointer;font-size:.8rem';
+}
+
+async function openLeaveModal(){
   const today=new Date().toISOString().slice(0,10);
+  _lvKind='vacation';
+  _lvMedicalBase64=null;
+  await loadLeaveTypes();
+  // Populate type dropdown — Vacation always first and selected
+  const sel=document.getElementById('lv-type');
+  const sorted=[..._lvLeaveTypes].sort((a,b)=>a.label==='Vacation'?-1:b.label==='Vacation'?1:0);
+  sel.innerHTML=sorted.map(lt=>'<option value="'+lt.label+'"'+(lt.label==='Vacation'?' selected':'')+'>'+lt.label+'</option>').join('');
+  sel.value='Vacation';
+  onLeaveTypeChange(); // reset medical section
+  setLeaveKind('vacation');
   document.getElementById('lv-from').value=today;
   document.getElementById('lv-to').value=today;
+  document.getElementById('lv-hourly-date').value=today;
+  document.getElementById('lv-time-from').value='';
+  document.getElementById('lv-time-to').value='';
+  document.getElementById('lv-hours-display').style.display='none';
   document.getElementById('lv-reason').value='';
-  document.getElementById('m-leave').style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center';
+  document.getElementById('lv-hourly-reason').value='';
+  document.getElementById('lv-medical-section').style.display='none';
+  document.getElementById('lv-medical-preview').textContent='';
+  document.getElementById('m-leave').style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;overflow-y:auto';
 }
+
 async function submitLeave(){
-  const from=document.getElementById('lv-from').value;
-  const to=document.getElementById('lv-to').value;
-  const type=document.getElementById('lv-type').value;
-  const reason=document.getElementById('lv-reason').value.trim();
-  if(!from||!to){ alert('Dates required'); return; }
+  let payload;
+  if(_lvKind==='hourly'){
+    const date=document.getElementById('lv-hourly-date').value;
+    const timeFrom=document.getElementById('lv-time-from').value;
+    const timeTo=document.getElementById('lv-time-to').value;
+    const notes=document.getElementById('lv-hourly-reason').value.trim();
+    if(!date){alert('Date required');return;}
+    if(!timeFrom||!timeTo){alert('From and To times required');return;}
+    const [fh,fm]=timeFrom.split(':').map(Number);
+    const [th,tm]=timeTo.split(':').map(Number);
+    const hrs=Math.max(0,((th*60+tm)-(fh*60+fm))/60);
+    if(hrs<=0){alert('To time must be after From time');return;}
+    payload={date_from:date,date_to:date,type:'Hourly Leave',leave_kind:'hourly',
+      hours:+hrs.toFixed(2),time_from:timeFrom,time_to:timeTo,notes};
+  } else {
+    const type=document.getElementById('lv-type').value;
+    const from=document.getElementById('lv-from').value;
+    const to=document.getElementById('lv-to').value;
+    const notes=document.getElementById('lv-reason').value.trim();
+    const lt=_lvLeaveTypes.find(x=>x.label===type);
+    if(lt&&lt.requires_file&&!_lvMedicalBase64){
+      alert('Medical report is required for '+type);return;
+    }
+    if(!from||!to){alert('Dates required');return;}
+    payload={date_from:from,date_to:to,type,leave_kind:'vacation',notes,
+      medical_report:_lvMedicalBase64||null};
+  }
   try{
-    await AGI.HR.leave.submit({date_from:from,date_to:to,type,reason});
+    await AGI.HR.leave.submit(payload);
     document.getElementById('m-leave').style.display='none';
     showFlash('&#9992;','Leave Submitted','Pending admin approval','var(--a4)');
-  }catch(e){ alert(e.message); }
+  }catch(e){alert(e.message);}
 }
 
 // ════════════════════════════════════════════════════════
@@ -1339,6 +1658,31 @@ function downloadAtt(){
 // INIT
 // ════════════════════════════════════════════════════════
 document.getElementById('l-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+
+// Populate login logo + factory name from config
+(async function initLoginBranding(){
+  try{
+    const cfg = await AGI.Config.get();
+    const logoEl = document.getElementById('login-factory-logo');
+    const nameEl = document.getElementById('login-factory-name');
+    const topbarName = document.getElementById('topbar-factory-name');
+    const topbarImg  = document.getElementById('topbar-logo-img');
+    if(cfg && cfg.factory_logo){
+      if(logoEl) logoEl.innerHTML='<img src="'+cfg.factory_logo+'" style="max-height:88px;max-width:200px;object-fit:contain;border-radius:12px">';
+      if(topbarImg) topbarImg.innerHTML='<img src="'+cfg.factory_logo+'" style="height:28px;width:auto;object-fit:contain;border-radius:4px">';
+    } else {
+      if(logoEl) logoEl.innerHTML='<div style="width:72px;height:72px;background:var(--a);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:#000">AGI</div>';
+    }
+    if(cfg && cfg.factory){ 
+      if(nameEl) nameEl.textContent=cfg.factory;
+      if(topbarName) topbarName.textContent=cfg.factory;
+    }
+  }catch(e){ 
+    // fallback: show default AGI block
+    const logoEl=document.getElementById('login-factory-logo');
+    if(logoEl) logoEl.innerHTML='<div style="width:72px;height:72px;background:var(--a);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;color:#000">AGI</div>';
+  }
+})();
 document.getElementById('l-email').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('l-pass').focus(); });
 document.getElementById('manual-uid').addEventListener('keydown',e=>{ if(e.key==='Enter') lookupManual(); });
 
@@ -1800,6 +2144,24 @@ async function unmarkProcess(uid, pid){
   const ok=await restoreSession();
   if(ok) await startSession();
   else showScreen('login');
+})();
+
+// ── Auto-logout at midnight ───────────────────────────────────────────────
+(function scheduleWorkerAutoLogout(){
+  const now = new Date();
+  const msUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 0, 0, 0) - now;
+  setTimeout(function(){
+    // Only logout if a worker is currently logged in
+    if(currentWorker){
+      localStorage.removeItem('gfw_session');
+      AGI.Auth.logout();
+      currentWorker = null;
+      stopCamera();
+      showScreen('login');
+      document.getElementById('l-err').textContent = 'Session ended — new day. Please sign in.';
+    }
+    scheduleWorkerAutoLogout(); // reschedule for next midnight
+  }, msUntilMidnight);
 })();
 </script>
 </body>

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>AGI Glass — Factory Management System</title>
+</head>
+<body>
 <!-- ── Admin Delivery Modal — New Delivery ─────────────────────────────── -->
 <div class="modal mbg" id="m-new-delivery">
   <div class="mc" style="max-width:560px;width:95%">
@@ -504,8 +506,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 @media(max-width:1100px){.cut-ws{grid-template-columns:1fr}}
 @media(max-width:700px){.frow{grid-template-columns:1fr!important}.srow{grid-template-columns:repeat(2,1fr)}}
 </style>
-</head>
-<body>
+
 
 <nav class="nav">
   <div class="nav-brand">
@@ -525,6 +526,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="nt"    onclick="SP('aframes')" id="nt-aframes">&#128230; A-Frames</button>
     <button class="nt"    onclick="SP('settings')"id="nt-settings">&#9881; Settings</button>
   </div>
+  <button id="nav-logout-btn" onclick="doLogout()" style="flex-shrink:0;margin-left:8px;background:none;border:1px solid #1b3a5a;border-radius:4px;color:#3d7aaa;font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:1px;padding:5px 10px;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s" onmouseover="this.style.color='#00ccff';this.style.borderColor='#00ccff'" onmouseout="this.style.color='#3d7aaa';this.style.borderColor='#1b3a5a'">&#x23FB; LOG OUT</button>
 </nav>
 
 <div class="pg on" id="pg-dash">
@@ -882,6 +884,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <button class="btn bg" onclick="renderTrack()" style="font-size:.65rem">&#8635; Refresh</button>
       <button class="btn bg" onclick="exportProcessLog()" style="font-size:.65rem">&#8659; Export Log</button>
       <button class="btn bg" onclick="exportPivot()" style="font-size:.65rem">&#8659; Export Pivot</button>
+      <button class="btn bs" onclick="syncToGSheets()" id="btn-gsync" style="font-size:.65rem">&#128196; Sync to Google Sheets</button>
     </div>
   </div>
 
@@ -892,6 +895,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">ORDER STATUS</div>
         <select id="track-status-filter" onchange="onTrackFilterChange()"
           style="font-size:.7rem;padding:5px 8px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);color:var(--tx)">
+          <option value="open-undelivered" selected>Open + Undelivered</option>
           <option value="open">Open Orders</option>
           <option value="all">All Orders</option>
           <option value="done">Completed</option>
@@ -1149,7 +1153,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   <!-- Sub-tabs -->
   <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
     <button class="rtab on" id="aft-slots"   onclick="showAFTab('slots')">&#9632; Slot Management</button>
-    <button class="rtab"    id="aft-assign"  onclick="showAFTab('assign')">&#128230; Assign Stock</button>
+    <button class="rtab"    id="aft-log"     onclick="showAFTab('log')">&#128203; Assignments &amp; Transfers</button>
     <button class="rtab"    id="aft-deduct"  onclick="showAFTab('deduct')">&#9906; Opt Deductions</button>
     <button class="rtab"    id="aft-sheets"  onclick="showAFTab('sheets')">&#9635; Sheets &amp; Slots</button>
   </div>
@@ -1159,38 +1163,43 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <div class="card">
       <div class="ch">
         <span class="ct">&#9632; A-Frame Slots</span>
-        <button class="btn bp bsm" onclick="afOpenAddSlot()">+ Add Slot</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn bs bsm" onclick="afOpenAssign()">&#128230; Assign Stock</button>
+          <button class="btn bs bsm" onclick="afOpenTransfer()">&#8652; Transfer</button>
+          <button class="btn bp bsm" onclick="afOpenAddSlot()">+ Add Slot</button>
+        </div>
       </div>
       <div id="af-slots-grid" style="padding:16px"></div>
     </div>
   </div>
 
-  <!-- Tab: Assign Stock -->
-  <div id="aftab-assign" style="display:none">
+  <!-- Tab: Sheets & Slots -->
+  <!-- Tab: Assignments & Transfers Log -->
+  <div id="aftab-log" style="display:none">
     <div class="card">
       <div class="ch">
-        <span class="ct">&#128230; Assign Stock to Slots</span>
-        <button class="btn bp bsm" onclick="afOpenAssign()">+ Assign Stock</button>
+        <span class="ct">&#128203; Assignments &amp; Transfers</span>
+        <button class="btn bg bsm" onclick="renderAFLog()">&#8635; Refresh</button>
       </div>
       <div class="tw">
         <table>
-          <thead>
-            <tr>
-              <th>Slot</th><th>Raw Sheet</th><th>Qty</th><th>Date</th><th>Notes</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="af-assign-tbody"></tbody>
+          <thead><tr>
+            <th>Date</th><th>Type</th><th>Slot</th><th>Raw Sheet</th><th>Qty</th><th>Notes</th><th>By</th>
+          </tr></thead>
+          <tbody id="af-log-tbody"><tr><td colspan="7" style="padding:12px;text-align:center;color:var(--mu)">Click Refresh to load</td></tr></tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- Tab: Sheets & Slots -->
   <div id="aftab-sheets" style="display:none">
     <div class="card">
       <div class="ch">
         <span class="ct">&#9635; Sheets &amp; Slots Overview</span>
-        <button class="btn bg bsm" onclick="renderAFSheets()">&#8635; Refresh</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn bg bsm" onclick="printAFSheets()">&#128438; Print</button>
+          <button class="btn bg bsm" onclick="renderAFSheets()">&#8635; Refresh</button>
+        </div>
       </div>
       <div id="af-sheets-body" style="padding:8px"></div>
     </div>
@@ -1206,7 +1215,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <table>
           <thead>
             <tr>
-              <th>Opt #</th><th>Date</th><th>Raw Sheet</th><th>Sheets Used</th><th>Assigned to Slots</th><th>Unassigned</th><th></th>
+              <th>Opt #</th><th>Date</th><th>Raw Sheet</th><th>Sheets Used</th><th>Assigned to Slots</th><th>Unassigned</th><th></th><th></th>
             </tr>
           </thead>
           <tbody id="af-deduct-tbody"></tbody>
@@ -1440,6 +1449,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <button class="hrb on" id="hrb-attendance" onclick="showHRTab('attendance')">&#9654; Attendance</button>
       <button class="hrb" id="hrb-overtime" onclick="showHRTab('overtime')">&#8987; Overtime</button>
       <button class="hrb" id="hrb-leave" onclick="showHRTab('leave')">&#9992; Leave</button>
+      <button class="hrb" id="hrb-pending-ot" onclick="showHRTab('pending-ot')">&#8987; Pending OT</button>
+      <button class="hrb" id="hrb-leavetypes" onclick="showHRTab('leavetypes')">&#9992; Leave Types</button>
       <button class="hrb" id="hrb-payroll" onclick="showHRTab('payroll')">&#9776; Payroll</button>
       <button class="hrb" id="hrb-schedule" onclick="showHRTab('schedule')">&#9881; Schedule</button>
       <button class="hrb" id="hrb-vacation" onclick="showHRTab('vacation')">&#9956; Vacation</button>
@@ -1492,6 +1503,34 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       </div>
     </div>
 
+    <!-- LEAVE TYPES MANAGEMENT -->
+    <div id="hrtab-leavetypes" style="display:none">
+      <div class="card">
+        <div class="ch">
+          <span class="ct">&#9992; Leave Types</span>
+          <button class="btn bp bsm" onclick="openAddLeaveType()">+ Add Type</button>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>Label</th><th>Requires File</th><th>System</th><th></th></tr></thead>
+          <tbody id="hr-leavetypes-body"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- PENDING OVERTIME -->
+    <div id="hrtab-attendance" style="display:none">
+      <div class="card" style="margin-bottom:16px">
+        <div class="ch">
+          <span class="ct">&#8987; Pending Overtime Requests</span>
+          <button class="btn bg bsm" onclick="renderPendingOT()">&#8635; Refresh</button>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>Worker</th><th>Date</th><th>OT Mins</th><th>Project / Notes</th><th>Actions</th></tr></thead>
+          <tbody id="hr-pending-ot-body"><tr><td colspan="5" style="text-align:center;color:var(--mu);padding:12px">Click Refresh to load</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
     <!-- LEAVE -->
     <div id="hrtab-leave" style="display:none">
       <div class="card">
@@ -1507,7 +1546,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           </div>
         </div>
         <div class="tw"><table>
-          <thead><tr><th>Worker</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Worker</th><th>Kind</th><th>Type</th><th>From</th><th>To</th><th>Days/Hours</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="hr-lv-body"></tbody>
         </table></div>
       </div>
@@ -1573,6 +1612,16 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
                 </select>
               </div>
               <div class="fg"><label class="lbl">Vacation Accrual (days/month)</label><input type="number" id="sched-vacation-accrual" class="inp" value="1.167" step="0.001" min="0"></div>
+            </div>
+            <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="fg">
+                <label class="lbl">Punch-In Tolerance (mins late before marked late)</label>
+                <input type="number" id="sched-punch-in-tolerance" class="inp" value="10" min="0" max="60">
+              </div>
+              <div class="fg">
+                <label class="lbl">Punch-Out Grace (mins after shift end before overtime)</label>
+                <input type="number" id="sched-punch-out-grace" class="inp" value="5" min="0" max="30">
+              </div>
             </div>
             <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
               <div style="background:var(--surf);border-radius:var(--r);padding:10px;font-size:.7rem">
@@ -1990,6 +2039,71 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   </div>
 </div>
 
+<!-- ── Edit Leave Modal ─────────────────────────────────────────── -->
+<div class="mbg" id="m-edit-leave">
+  <div class="md" style="max-width:480px">
+    <div class="mh"><span class="mt">Edit Leave Request</span><button class="mx" onclick="CM('m-edit-leave')">&times;</button></div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div class="frow" style="grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg">
+          <label class="lbl">Leave Kind</label>
+          <select id="el-kind" class="inp" onchange="toggleEditLeaveKind(this.value)">
+            <option value="vacation">Full Day(s)</option>
+            <option value="hourly">Hourly</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="lbl">Type</label>
+          <select id="el-type" class="inp">
+            <option value="">Loading...</option>
+          </select>
+        </div>
+      </div>
+      <div id="el-section-dates">
+        <div class="frow" style="grid-template-columns:1fr 1fr;gap:10px">
+          <div class="fg"><label class="lbl">From</label><input type="date" id="el-from" class="inp"></div>
+          <div class="fg"><label class="lbl">To</label><input type="date" id="el-to" class="inp"></div>
+        </div>
+      </div>
+      <div id="el-section-hours" style="display:none">
+        <div class="frow" style="grid-template-columns:1fr 1fr;gap:10px">
+          <div class="fg"><label class="lbl">Date</label><input type="date" id="el-hourly-date" class="inp"></div>
+          <div class="fg"><label class="lbl">Hours</label><input type="number" id="el-hours" class="inp" min="0.5" max="8" step="0.5" placeholder="e.g. 2"></div>
+        </div>
+      </div>
+      <div class="fg"><label class="lbl">Notes</label><input type="text" id="el-notes" class="inp" placeholder="Reason or notes"></div>
+      <div class="fg">
+        <label class="lbl">Status</label>
+        <select id="el-status" class="inp">
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bg" onclick="CM('m-edit-leave')">Cancel</button>
+      <button class="btn bp" onclick="saveEditLeave()">&#10003; Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Approve Overtime Modal ───────────────────────────────────── -->
+<div class="mbg" id="m-approve-ot">
+  <div class="md" style="max-width:440px">
+    <div class="mh"><span class="mt">Review Overtime Request</span><button class="mx" onclick="CM('m-approve-ot')">&times;</button></div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div id="m-ot-info" style="font-size:.8rem;color:var(--tx2);padding:10px;background:var(--s1);border-radius:6px"></div>
+      <div class="fg"><label class="lbl">Admin Notes (optional)</label><input type="text" id="ot-admin-notes" class="inp" placeholder="Reason for rejection, etc."></div>
+    </div>
+    <div class="mf">
+      <button class="btn bg" onclick="CM('m-approve-ot')">Cancel</button>
+      <button class="btn bd" onclick="submitOTReview('rejected')" style="color:#ff6464">&#10005; Reject</button>
+      <button class="btn ba" onclick="submitOTReview('approved')">&#10003; Approve</button>
+    </div>
+  </div>
+</div>
+
 <div class="mbg" id="m-cust">
   <div class="mdl" style="max-width:620px">
     <div class="mh"><span class="mt" id="cust-mt">New Customer</span><button class="mx" onclick="CM('m-cust')">&times;</button></div>
@@ -2004,7 +2118,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       </div>
       <div class="frow" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
         <div class="fg"><label class="lbl">Email</label><input type="email" id="c-email"></div>
-        <div class="fg"></div>
+        <div class="fg"><label class="lbl">Google Sheet ID <span style="font-size:.58rem;color:var(--mu)">(from sheet URL)</span></label><input type="text" id="c-sheet-id" class="inp" placeholder="1zNaHj..."></div>
       </div>
       <div class="fg" style="margin-bottom:10px"><label class="lbl">Address</label><textarea id="c-addr"></textarea></div>
       <div class="fg"><label class="lbl">Notes</label><textarea id="c-notes"></textarea></div>
@@ -2562,12 +2676,22 @@ function getOrderProcs(o){
   return [...set];
 }
 
+function isOrderAllProcessesDone(o){
+  const procs=getOrderProcs(o);
+  if(!procs.length) return false;
+  return (o.items||[]).every(function(item){
+    const uids=item.pieceUIDs||item.piece_uids||Array.from({length:item.qty||0},function(_,i){return o.num+'-'+(item.startSerial?item.startSerial+i:i+1);});
+    return (item.processes||[]).every(function(pid){return uids.every(function(uid){return scanLog.some(function(s){return s.pieceUid===uid&&s.process===pid&&s.action==='done';});});});
+  });
+}
+
 function renderOrderMatrix(containerId, compact=false){
   const el=document.getElementById(containerId); if(!el) return;
   const statusF=document.getElementById('track-status-filter')?.value||'open';
   const custF=document.getElementById('track-cust-filter')?.value||'';
   let filtered;
   if(containerId!=='track-matrix'||compact) filtered=orders.filter(o=>o.status!=='done'&&o.status!=='cancelled');
+  else if(statusF==='open-undelivered') filtered=orders.filter(o=>o.status!=='cancelled'&&(o.status!=='done'||!getOrderDeliveryStats(o).allFinalised));
   else if(statusF==='open')      filtered=orders.filter(o=>o.status!=='done'&&o.status!=='cancelled');
   else if(statusF==='done')      filtered=orders.filter(o=>o.status==='done');
   else if(statusF==='cancelled') filtered=orders.filter(o=>o.status==='cancelled');
@@ -2586,6 +2710,17 @@ function renderOrderMatrix(containerId, compact=false){
   const procList=[...allProcs];
   const cMap=Object.fromEntries(customers.map(c=>[c.id,c]));
 
+  // Two-section split for open-undelivered mode
+  const isOUMode = !compact && containerId==='track-matrix' && statusF==='open-undelivered';
+  let completeNotDel=[], openOrd=filtered;
+  if(isOUMode){
+    completeNotDel=filtered.filter(o=>isOrderAllProcessesDone(o)&&!getOrderDeliveryStats(o).allFinalised);
+    const completeNotDelIds=new Set(completeNotDel.map(o=>o.id));
+    openOrd=filtered.filter(o=>!completeNotDelIds.has(o.id)&&!isOrderAllProcessesDone(o));
+  }
+  const colSpan=5+(!compact?2:0)+procList.length+(!compact?2:0);
+
+
   let html=`<table class="matrix"><thead><tr>
     <th class="ord-col">Order Date</th>
     <th class="ord-col">Order Ref</th>
@@ -2599,7 +2734,8 @@ function renderOrderMatrix(containerId, compact=false){
   if(!compact) html+=`<th>Actions</th>`;
   html+=`</tr></thead><tbody>`;
 
-  filtered.forEach(o=>{
+  function renderSection(list){
+    list.forEach(o=>{
     const ordProcs=getOrderProcs(o);
     const isCancelled=o.status==='cancelled';
     const isDone=o.status==='done';
@@ -2658,7 +2794,21 @@ function renderOrderMatrix(containerId, compact=false){
       }
     }
     html+=`</tr>`;
-  });
+    });
+  }
+
+  if(isOUMode){
+    if(completeNotDel.length){
+      html+='<tr><td colspan="'+colSpan+'" style="padding:7px 12px;background:var(--panel,#0d1825);border-top:2px solid var(--a4);border-bottom:1px solid var(--border)"><span style="font-size:.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--a4)">&#10003; Complete &#8212; Awaiting Delivery</span><span style="margin-left:8px;font-size:.6rem;background:var(--a4);color:#000;border-radius:3px;padding:1px 6px;font-weight:700">'+completeNotDel.length+'</span></td></tr>';
+      renderSection(completeNotDel);
+    }
+    if(openOrd.length){
+      html+='<tr><td colspan="'+colSpan+'" style="padding:7px 12px;background:var(--panel,#0d1825);border-top:2px solid var(--a);border-bottom:1px solid var(--border)"><span style="font-size:.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--a)">&#9899; In Progress</span><span style="margin-left:8px;font-size:.6rem;background:var(--a);color:#000;border-radius:3px;padding:1px 6px;font-weight:700">'+openOrd.length+'</span></td></tr>';
+      renderSection(openOrd);
+    }
+  } else {
+    renderSection(filtered);
+  }
   html+=`</tbody></table>`;
   el.innerHTML=html;
 }
@@ -2721,10 +2871,50 @@ function openCustModal(id=null){
   const c=id?customers.find(x=>x.id===id):{};
   document.getElementById('cust-mt').textContent=id?'Edit Customer':'New Customer';
   ['code','name','company','phone','email'].forEach(f=>document.getElementById('c-'+f).value=c[f]||'');
+  document.getElementById('c-sheet-id').value=c.sheet_id||'';
+  document.getElementById('c-sheet-id').value=c.sheet_id||'';
   document.getElementById('c-addr').value=c.address||'';
   document.getElementById('c-notes').value=c.notes||'';
   OM('m-cust');
 }
+var _custViewers=[];
+
+function renderViewerChips(){
+  var el=document.getElementById('c-viewers-list'); if(!el) return;
+  el.innerHTML=_custViewers.map(function(e,i){
+    return '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surf);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:.7rem">'+e+'<button onclick="_custViewers.splice('+i+',1);renderViewerChips()" style="background:none;border:none;color:var(--mu);cursor:pointer;font-size:.9rem;line-height:1">&times;</button></span>';
+  }).join('');
+}
+
+function addViewerEmail(){
+  var inp=document.getElementById('c-viewer-input');
+  var email=(inp.value||'').trim().toLowerCase();
+  if(!email||!email.includes('@')){ inp.classList.add('err'); setTimeout(function(){inp.classList.remove('err');},1000); return; }
+  if(!_custViewers.includes(email)) _custViewers.push(email);
+  inp.value='';
+  renderViewerChips();
+}
+
+async function syncToGSheets(){
+  var btn=document.getElementById('btn-gsync');
+  if(btn){ btn.disabled=true; btn.textContent='Syncing...'; }
+  try{
+    var res=await AGI.api('/api/gsheets/sync',{method:'POST',body:JSON.stringify({})});
+    if(!res.synced||!res.synced.length){
+      var noMsg='No customers have a Google Sheet ID configured. Edit a customer and add their Sheet ID first.';
+      alert(res.message||noMsg);
+    } else {
+      var msg='Synced '+res.synced.length+' customer'+(res.synced.length!==1?'s':'')+':\n\n';
+      res.synced.forEach(function(s){ msg+=s.customer+': '+s.rows+' orders\n'; });
+      if(res.errors&&res.errors.length){ msg+='\nErrors:\n'; res.errors.forEach(function(e){ msg+=e.customer+': '+e.error+'\n'; }); }
+      alert(msg);
+    }
+    try{ customers=await AGI.Customers.list(); }catch(e){}
+    showToast('Google Sheets synced');
+  }catch(e){ alert('Sync failed: '+e.message); }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML='&#128196; Sync to Google Sheets'; } }
+}
+
 async function saveCust(){
   const code=document.getElementById('c-code').value.trim().toUpperCase();
   const name=document.getElementById('c-name').value.trim();
@@ -2737,7 +2927,8 @@ async function saveCust(){
     company:document.getElementById('c-company').value.trim(),
     email:document.getElementById('c-email').value.trim(),
     address:document.getElementById('c-addr').value.trim(),
-    notes:document.getElementById('c-notes').value.trim()};
+    notes:document.getElementById('c-notes').value.trim(),
+    sheet_id:document.getElementById('c-sheet-id').value.trim()||null};
   try{
     await apiSaveCustomer(data, _editCid||null);
     CM('m-cust'); renderCust(); badges();
@@ -5734,6 +5925,17 @@ async function markOptDone(id){
     showToast('Optimization marked done — no remnant plates created');
   }
 
+  // ── Slot Assignment step ──────────────────────────────────────────────
+  const assignSlots = _confirm('Assign slot deductions for this optimization?\n\nThis will record which A-Frame slots this raw sheet was taken from.');
+  if(assignSlots){
+    // Ensure prerequisites are loaded for the deduct modal
+    try{ if(!afSlots.length) afSlots = await AF.slots(); }catch(e){}
+    try{ if(!rawSheetCatalog.length) rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
+    // Update optFiles so afOpenDeduct can find this file
+    try{ optFiles = await AGI.OptFiles.list(); }catch(e){}
+    await afOpenDeduct(id);
+  }
+
   renderOptFiles();
   renderSettingsRSCatalog();
 }
@@ -5997,9 +6199,10 @@ function onTrackFilterChange(){
   const statusF=document.getElementById('track-status-filter')?.value||'open';
   const custF=document.getElementById('track-cust-filter')?.value||'';
   let filtered=[];
-  if(statusF==='open')           filtered=orders.filter(o=>o.status!=='done'&&o.status!=='cancelled');
-  else if(statusF==='done')      filtered=orders.filter(o=>o.status==='done');
-  else if(statusF==='cancelled') filtered=orders.filter(o=>o.status==='cancelled');
+  if(statusF==='open-undelivered') filtered=orders.filter(o=>o.status!=='cancelled'&&(o.status!=='done'||!getOrderDeliveryStats(o).allFinalised));
+  else if(statusF==='open')        filtered=orders.filter(o=>o.status!=='done'&&o.status!=='cancelled');
+  else if(statusF==='done')        filtered=orders.filter(o=>o.status==='done');
+  else if(statusF==='cancelled')   filtered=orders.filter(o=>o.status==='cancelled');
   else filtered=[...orders];
   if(custF) filtered=filtered.filter(o=>String(o.customerId)===custF);
   // Populate datalist for autocomplete
@@ -6016,9 +6219,10 @@ function renderPieceView(){
   const custF=document.getElementById('track-cust-filter')?.value||'';
   const ordF=(document.getElementById('track-order-filter')?.value||'').trim().toLowerCase();
   let filtered=[];
-  if(statusF==='open')           filtered=orders.filter(o=>o.status!=='done'&&o.status!=='cancelled');
-  else if(statusF==='done')      filtered=orders.filter(o=>o.status==='done');
-  else if(statusF==='cancelled') filtered=orders.filter(o=>o.status==='cancelled');
+  if(statusF==='open-undelivered') filtered=orders.filter(o=>o.status!=='cancelled'&&(o.status!=='done'||!getOrderDeliveryStats(o).allFinalised));
+  else if(statusF==='open')        filtered=orders.filter(o=>o.status!=='done'&&o.status!=='cancelled');
+  else if(statusF==='done')        filtered=orders.filter(o=>o.status==='done');
+  else if(statusF==='cancelled')   filtered=orders.filter(o=>o.status==='cancelled');
   else filtered=[...orders];
   if(custF) filtered=filtered.filter(o=>String(o.customerId)===custF);
   if(ordF)  filtered=filtered.filter(o=>
@@ -8492,14 +8696,51 @@ async function renderAFSheets(){
   }catch(e){ el.innerHTML='<div style="color:var(--a2);padding:16px">Error: '+e.message+'</div>'; }
 }
 
+function printAFSheets(){
+  var bodyEl=document.getElementById('af-sheets-body');
+  if(!bodyEl||!bodyEl.querySelector('table')){ alert('No data to print. Load the Sheets & Slots tab first.'); return; }
+  var factoryName=(typeof cfg!=='undefined'&&cfg&&cfg.factory)||'AGI Glass Factory';
+  var now=new Date().toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  var win=window.open('','_blank','width=900,height=650');
+  var css='<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:20px}.ph{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #222}table{width:100%;border-collapse:collapse}th{background:#1a2233;color:#fff;padding:7px 10px;text-align:left;font-size:10px;letter-spacing:.5px;text-transform:uppercase}td{padding:7px 10px;border-bottom:1px solid #ddd;vertical-align:top}tr:nth-child(even) td{background:#f7f9fc}.code{font-family:monospace;font-size:10px;color:#2a6a9a}.sn{font-weight:600;font-size:11px}.ss{font-size:9px;color:#666;margin-top:2px}.bal{font-size:14px;font-weight:700;text-align:center}.ok{color:#1a9e5c}.low{color:#d47e00}.zero{color:#cc3333}.sub{font-size:9px;color:#888;text-align:center;margin-top:2px}.badge{display:inline-block;border:1px solid #bcd;border-radius:3px;padding:1px 6px;font-family:monospace;font-size:10px;margin:2px 2px 0 0}.bn{font-weight:700;color:#1a5f8a}.bq{color:#555}.tot{font-size:9px;color:#888;margin-top:4px}@media print{th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>';
+  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sheets &amp; Slots</title>'+css+'</head><body>';
+  html+='<div class="ph"><div><b>Sheets &amp; Slots Overview</b><div style="font-size:10px;color:#555;margin-top:4px">'+factoryName+'</div></div><div style="font-size:10px;color:#555;text-align:right">Printed: '+now+'</div></div>';
+  html+='<table><thead><tr><th>Code</th><th>Raw Sheet</th><th style="text-align:center">Balance</th><th>Slots &amp; Quantities</th></tr></thead><tbody>';
+  var rows=bodyEl.querySelectorAll('tbody tr');
+  rows.forEach(function(row){
+    var cells=row.querySelectorAll('td'); if(cells.length<4) return;
+    var code=cells[0].textContent.trim();
+    var nameEl=cells[1].querySelectorAll('div');
+    var name=nameEl[0]?nameEl[0].textContent.trim():'';
+    var sub=nameEl[1]?nameEl[1].textContent.trim():'';
+    var balDivs=cells[2].querySelectorAll('div');
+    var bal=balDivs[0]?balDivs[0].textContent.trim():'';
+    var balNum=parseInt(bal)||0;
+    var balClass=balNum<=0?'zero':balNum<=3?'low':'ok';
+    var sub2El=cells[2].querySelector('div:nth-child(2)');
+    var sub2=sub2El?sub2El.textContent.trim():'';
+    var isOver=sub2.includes('over');
+    var slotSpans=cells[3].querySelectorAll('span');
+    var badges='';
+    slotSpans.forEach(function(sp){ var inner=sp.querySelectorAll('span'); if(inner.length>=2) badges+='<span class="badge"><span class="bn">'+inner[0].textContent.trim()+'</span><span class="bq"> '+inner[1].textContent.trim()+'</span></span>'; });
+    if(!badges){ var d=cells[3].querySelector('div'); if(d) badges=d.textContent.trim(); }
+    var totEl=cells[3].querySelector('div:last-child');
+    var tot=totEl?totEl.textContent.trim():'';
+    html+='<tr><td class="code">'+code+'</td><td><div class="sn">'+name+'</div><div class="ss">'+sub+'</div></td><td><div class="bal '+balClass+'">'+bal+'</div>'+(sub2&&!isOver?'<div class="sub">'+sub2+'</div>':'')+(isOver?'<div style="font-size:9px;color:#cc3333;text-align:center;margin-top:2px">'+sub2+'</div>':'')+'</td><td><div>'+badges+'</div><div class="tot">'+tot+'</div></td></tr>';
+  });
+  html+='</tbody></table></body></html>';
+  win.document.write(html); win.document.close();
+  win.onload=function(){ win.focus(); win.print(); };
+}
+
 // ── Tab switching ────────────────────────────────────────────────────────
 async function showAFTab(id){
-  ['slots','assign','deduct','sheets'].forEach(t=>{
+  ['slots','deduct','sheets','log'].forEach(t=>{
     document.getElementById('aftab-'+t).style.display=t===id?'':'none';
     document.getElementById('aft-'+t).classList.toggle('on',t===id);
   });
   if(id==='slots')  await renderAFSlots();
-  if(id==='assign') await renderAFAssign();
+  if(id==='log')    await renderAFLog();
   if(id==='deduct') await renderAFDeduct();
   if(id==='sheets') await renderAFSheets();
 }
@@ -8609,6 +8850,36 @@ async function afDelSlot(id){
 }
 
 // ── Assign Stock ─────────────────────────────────────────────────────────
+// ── Stock Log ─────────────────────────────────────────────────────────────
+async function renderAFLog(){
+  const tbody = document.getElementById('af-log-tbody'); if(!tbody) return;
+  tbody.innerHTML='<tr><td colspan="7" style="padding:12px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+  try{
+    const inv = await AF.allInventory();
+    if(!inv.length){
+      tbody.innerHTML='<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--mu)">No stock transactions yet</td></tr>';
+      return;
+    }
+    // Also get transfers
+    let transfers=[];
+    try{ transfers = await AF.transfers(); }catch(e){}
+    // Combine and sort by date desc
+    const rows = [
+      ...inv.map(r=>({date:r.date||'',type:'Assignment',slot:r.slot_name,sheet:(r.sheet_notes||r.sheet_code||''),qty:r.qty,notes:r.notes||'',by:r.created_by||''})),
+      ...transfers.map(r=>({date:r.date||'',type:'Transfer',slot:(r.from_slot_name||'')+(r.to_slot_name?' → '+r.to_slot_name:''),sheet:(r.sheet_notes||r.sheet_code||''),qty:r.qty,notes:r.notes||'',by:r.created_by||''}))
+    ].sort((a,b)=>b.date.localeCompare(a.date));
+    tbody.innerHTML = rows.map(r=>'<tr>'+
+      '<td style="font-size:.72rem;color:var(--mu)">'+r.date+'</td>'+
+      '<td><span style="font-size:.6rem;padding:2px 6px;border-radius:3px;background:'+(r.type==='Transfer'?'rgba(0,204,255,.1)':'rgba(54,255,138,.1)')+';color:'+(r.type==='Transfer'?'var(--a)':'var(--a3)')+'">'+r.type+'</span></td>'+
+      '<td style="font-family:monospace;font-weight:700;color:var(--a)">'+r.slot+'</td>'+
+      '<td><div style="font-size:.72rem">'+r.sheet+'</div></td>'+
+      '<td style="font-weight:700;color:'+(r.qty>0?'var(--a3)':'var(--a2)')+'">'+r.qty+'</td>'+
+      '<td style="font-size:.7rem;color:var(--mu)">'+r.notes+'</td>'+
+      '<td style="font-size:.65rem;color:var(--mu)">'+r.by+'</td>'+
+    '</tr>').join('');
+  }catch(e){ tbody.innerHTML='<tr><td colspan="7" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
+}
+
 async function renderAFAssign(){
   const tbody = document.getElementById('af-assign-tbody'); if(!tbody) return;
   tbody.innerHTML='<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--mu)">Loading...</td></tr>';
@@ -8640,15 +8911,28 @@ function afOpenAssign(preSlotId){
   document.getElementById('af-assign-date').value=new Date().toISOString().slice(0,10);
   document.getElementById('af-assign-notes').value='';
   document.getElementById('af-assign-avail').style.display='none';
+  document.getElementById('af-assign-unassigned').style.display='none';
   OM('m-af-assign');
 }
 
-function afAssignSheetChanged(){
+async function afAssignSheetChanged(){
   const sheetId = +document.getElementById('af-assign-sheet').value;
   const avail = document.getElementById('af-assign-avail');
-  if(!sheetId){ avail.style.display='none'; return; }
+  const unassignedEl = document.getElementById('af-assign-unassigned');
+  if(!sheetId){ avail.style.display='none'; unassignedEl.style.display='none'; return; }
   const sheet = rawSheetCatalog.find(s=>s.id===sheetId);
-  if(sheet){ avail.style.display=''; avail.textContent='Current balance: '+sheet.balance+' sheets available'; }
+  if(sheet){
+    avail.style.display='';
+    avail.textContent='Current balance: '+sheet.balance+' sheets available';
+    try{
+      const inv = await AF.allInventory();
+      const inSlots = inv.filter(r=>r.sheet_id===sheetId).reduce((s,r)=>s+r.qty,0);
+      const free = sheet.balance - inSlots;
+      unassignedEl.style.display='';
+      unassignedEl.textContent='Unassigned: '+free+' sheets';
+      unassignedEl.style.color = free<0 ? 'var(--a2)' : free===0 ? 'var(--mu)' : 'var(--a4)';
+    }catch(e){ unassignedEl.style.display='none'; }
+  }
 }
 
 async function afSaveAssign(){
@@ -8667,15 +8951,16 @@ async function afSaveAssign(){
     showToast('Stock assigned to slot');
     afSlots=await AF.slots();
     renderAFSlots();
-    renderAFAssign();
+    renderAFSheets();
   }catch(e){ alert('Error: '+e.message); }
 }
 
 // ── Optimization Deductions ───────────────────────────────────────────────
 async function renderAFDeduct(){
   const tbody=document.getElementById('af-deduct-tbody'); if(!tbody) return;
-  tbody.innerHTML='<tr><td colspan="7" style="padding:12px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+  tbody.innerHTML='<tr><td colspan="8" style="padding:12px;text-align:center;color:var(--mu)">Loading...</td></tr>';
   try{
+    try{ optFiles=await AGI.OptFiles.list(); rawSheetCatalog=await AGI.RawSheets.list(); }catch(e){}
     // Get all opt_use transactions
     const allOptTxs=[];
     for(const s of rawSheetCatalog){
@@ -8694,10 +8979,25 @@ async function renderAFDeduct(){
       });
     }
     if(!allOptTxs.length){
-      tbody.innerHTML='<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--mu)">No optimization cuts recorded</td></tr>';
+      tbody.innerHTML='<tr><td colspan="8" style="padding:16px;text-align:center;color:var(--mu)">No optimization cuts recorded</td></tr>';
       return;
     }
+    // Detect sheet mismatches
+    allOptTxs.forEach(tx=>{
+      const f=optFiles.find(x=>x.id===tx.ref_id);
+      if(f){
+        const cs=rawSheetCatalog.find(s=>s.id===(f.raw_sheet_id||(f.rawSheet&&f.rawSheet.id)));
+        if(cs&&cs.id!==tx._sheet.id){tx._sheetMismatch=true;tx._currentSheet=cs;}
+      }
+    });
+    // Build data map for edit/delete (avoids quote issues in onclick)
+    window._afDeductMap={};
     allOptTxs.sort((a,b)=>b.date.localeCompare(a.date));
+    allOptTxs.forEach(tx=>{
+      const displaySheet=tx._currentSheet||tx._sheet;
+      const deducts=slotDeductions[tx.ref_id]||[];
+      window._afDeductMap[tx.id]={txId:tx.id,optId:tx.ref_id,date:tx.date,qty:Math.abs(tx.qty),sheetLabel:displaySheet.notes||displaySheet.code,deductIds:deducts.map(d=>d.id).join(','),sheetId:displaySheet.id,mismatch:!!tx._sheetMismatch};
+    });
     tbody.innerHTML=allOptTxs.map(tx=>{
       const sheetsUsed=Math.abs(tx.qty);
       const deducts=slotDeductions[tx.ref_id]||[];
@@ -8705,46 +9005,167 @@ async function renderAFDeduct(){
       const unassigned=sheetsUsed-assigned;
       const f=optFiles.find(x=>x.id===tx.ref_id);
       const deductSummary=deducts.map(d=>`${d.slot_name}: ${Math.abs(d.qty)}`).join(', ')||'—';
-      return `<tr>
-        <td style="font-family:monospace;font-weight:700;color:var(--a)">#${tx.ref_id}</td>
+      const displaySheet=tx._currentSheet||tx._sheet;
+      const deductIds=deducts.map(d=>d.id).join(',');
+      const sheetWarning=tx._sheetMismatch?'<div style="font-size:.58rem;color:var(--a4)">&#9888; ledger sheet differs — click &#9998; to fix</div>':'';
+      return `<tr${tx._sheetMismatch?' style="background:rgba(255,210,63,.04)"':''}>
+        <td style="font-family:monospace;font-weight:700;color:var(--a)">#${tx.ref_id}${f?`<div style="font-size:.58rem;color:var(--mu);font-weight:400">${f.name}</div>`:''}</td>
         <td style="font-size:.72rem;color:var(--mu)">${tx.date}</td>
-        <td><div style="font-size:.72rem">${tx._sheet.notes||tx._sheet.code}</div><div style="font-size:.6rem;color:var(--mu)">${tx._sheet.code}</div></td>
+        <td><div style="font-size:.72rem">${displaySheet.notes||displaySheet.code}</div><div style="font-size:.6rem;color:var(--mu)">${displaySheet.code}</div>${sheetWarning}</td>
         <td style="text-align:center;font-weight:700">${sheetsUsed}</td>
         <td style="font-size:.7rem;color:var(--a4)">${deductSummary}</td>
         <td style="text-align:center;font-weight:700;color:${unassigned>0?'var(--a2)':'var(--a3)'}">${unassigned>0?unassigned:'✓'}</td>
-        <td><button class="btn bs bsm" onclick="afOpenDeduct(${tx.ref_id})" style="font-size:.6rem">&#9906; Assign</button></td>
+        <td style="white-space:nowrap">
+          <button class="btn bs bsm" onclick="afOpenDeduct(${tx.ref_id})" style="font-size:.6rem;margin-right:3px">&#9906; Assign</button>
+          ${tx.id?`<button class="btn bs bsm" onclick="afOpenEditDeductById(${tx.id})" style="font-size:.6rem;margin-right:3px${tx._sheetMismatch?';color:var(--a4)':''}" title="${tx._sheetMismatch?'Fix sheet mismatch':'Edit'}">&#9998;${tx._sheetMismatch?' &#9888;':''}</button>`:''}
+          <button class="btn bd bsm" onclick="afDeleteDeductById(${tx.id},'${deductIds}')" style="font-size:.6rem;color:#ff6464">&#10005;</button>
+        </td>
       </tr>`;
     }).join('');
   }catch(e){ tbody.innerHTML='<tr><td colspan="7" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
 }
 
+// ── Edit / Delete Opt Deduction ──────────────────────────────────────────
+var _afEditDeductData=null;
+
+async function afOpenEditDeduct(txId,optId,date,qty,sheetLabel,deductIdsStr,sheetId){
+  if(!txId||txId==='undefined'||isNaN(+txId)){alert('Cannot edit: transaction ID not found.');return;}
+  var deductIds=deductIdsStr?deductIdsStr.split(',').map(Number).filter(Boolean):[];
+  var slotRecs=[];
+  for(var _si=0;_si<afSlots.length;_si++){
+    var inv=await AF.inventory(afSlots[_si].id).catch(function(){return [];});
+    inv.filter(function(r){return deductIds.includes(r.id);}).forEach(function(r){slotRecs.push(Object.assign({},r,{_slotName:afSlots[_si].name}));});
+  }
+  _afEditDeductData={txId:txId,optId:optId,sheetId:sheetId,totalQty:qty,deductIds:deductIds,slotRecs:slotRecs};
+  document.getElementById('af-ed-label').textContent='Opt #'+optId+' — '+sheetLabel;
+  document.getElementById('af-ed-qty').value=qty;
+  document.getElementById('af-ed-date').value=date;
+  var slotsEl=document.getElementById('af-ed-slots');
+  if(slotRecs.length){
+    slotsEl.innerHTML=slotRecs.map(function(r){
+      return '<div style="display:flex;align-items:center;gap:8px"><span style="font-family:monospace;font-weight:700;color:var(--a);min-width:48px;font-size:.75rem">'+r._slotName+'</span><input type="number" class="inp af-ed-slot-qty" data-inv-id="'+r.id+'" value="'+Math.abs(r.qty)+'" min="0" style="width:80px;font-size:.75rem" oninput="afEdCheckBalance()"><span style="font-size:.65rem;color:var(--mu)">sheets</span></div>';
+    }).join('');
+  }else{
+    slotsEl.innerHTML='<div style="font-size:.72rem;color:var(--mu)">No slot assignments found — only the ledger entry will be updated.</div>';
+  }
+  afEdCheckBalance();
+  OM('m-af-edit-deduct');
+}
+
+function afEdCheckBalance(){
+  var total=+document.getElementById('af-ed-qty').value||0;
+  var inputs=[...document.querySelectorAll('.af-ed-slot-qty')];
+  var slotSum=inputs.reduce(function(a,i){return a+(+i.value||0);},0);
+  var warn=document.getElementById('af-ed-balance-warn');
+  var ok=document.getElementById('af-ed-balance-ok');
+  var btn=document.getElementById('af-ed-save-btn');
+  if(!inputs.length){warn.style.display='none';ok.style.display='none';btn.disabled=false;return;}
+  if(slotSum===total){warn.style.display='none';ok.style.display='';btn.disabled=false;}
+  else{warn.style.display='';warn.textContent='Slot quantities sum to '+slotSum+' but total is '+total+'. Please fix before saving.';ok.style.display='none';btn.disabled=true;}
+}
+
+async function afSaveEditDeduct(){
+  if(!_afEditDeductData) return;
+  var qty=+document.getElementById('af-ed-qty').value;
+  var date=document.getElementById('af-ed-date').value;
+  if(!qty||qty<=0){alert('Enter a valid quantity');return;}
+  if(!date){alert('Select a date');return;}
+  var slotInputs=[...document.querySelectorAll('.af-ed-slot-qty')];
+  var slotUpdates=slotInputs.map(function(i){return {id:+i.dataset.invId,qty:+i.value||0};});
+  try{
+    var f=optFiles.find(function(x){return x.id===_afEditDeductData.optId;});
+    var putRes=await fetch('/api/rawsheets/transactions/'+_afEditDeductData.txId,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},
+      body:JSON.stringify({sheet_id:_afEditDeductData.sheetId,qty:-Math.abs(qty),date:date,notes:f?f.name:'Opt #'+_afEditDeductData.optId})
+    });
+    if(!putRes.ok){var e=await putRes.json();throw new Error(e.error||'Failed to update ledger');}
+    for(var _ui=0;_ui<slotUpdates.length;_ui++){
+      if(slotUpdates[_ui].id) await AF.editInv(slotUpdates[_ui].id,{qty:-Math.abs(slotUpdates[_ui].qty),date:date}).catch(function(){});
+    }
+    CM('m-af-edit-deduct');
+    showToast('Deduction updated');
+    await renderAFDeduct();
+    renderAFSheets();
+  }catch(e){alert('Error: '+e.message);}
+}
+
+async function afDeleteDeduct(txId,deductIdsStr){
+  if(!_confirm('Delete this optimization deduction? This will remove it from the ledger and slot inventory.')) return;
+  try{
+    var delRes=await fetch('/api/rawsheets/transactions/'+txId,{method:'DELETE',headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}});
+    if(!delRes.ok){var e=await delRes.json();throw new Error(e.error||'Failed to delete');}
+    var ids=deductIdsStr?deductIdsStr.split(',').map(Number).filter(Boolean):[];
+    for(var _di=0;_di<ids.length;_di++){await AF.delInv(ids[_di]).catch(function(){});}
+    showToast('Deduction deleted');
+    await renderAFDeduct();
+    renderAFSheets();
+  }catch(e){alert('Error: '+e.message);}
+}
+
+
+function afOpenEditDeductById(txId){
+  var d=window._afDeductMap&&window._afDeductMap[txId];
+  if(!d){alert('Data not found. Please refresh the tab.');return;}
+  afOpenEditDeduct(d.txId,d.optId,d.date,d.qty,d.sheetLabel,d.deductIds,d.sheetId);
+}
+async function afDeleteDeductById(txId,deductIdsStr){
+  await afDeleteDeduct(txId,deductIdsStr);
+}
 async function afOpenDeduct(optId){
-  _afDeductOptData = {optId};
   const f=optFiles.find(x=>x.id===optId);
+  const sheetId = f ? (f.raw_sheet_id||f.rawSheetId||null) : null;
+  _afDeductOptData = {optId, sheetId};
+  // Load all inventory for slot filtering
+  try{ window._afAllInv = await AF.allInventory(); }catch(e){ window._afAllInv=[]; }
   document.getElementById('af-deduct-title').textContent='Assign Slots — Opt #'+optId;
   const info=document.getElementById('af-deduct-info');
-  info.innerHTML=`<strong>Opt #${optId}</strong> — ${f?.name||''}`;
+  // Show sheet name in info bar
+  const sheet = sheetId ? rawSheetCatalog.find(s=>s.id===sheetId) : null;
+  const sheetLabel = sheet ? (sheet.notes||sheet.code) : '';
+  info.innerHTML='<strong>Opt #'+optId+'</strong> — '+(f?f.name:'')+(sheetLabel?' | <span style="color:var(--a4)">'+sheetLabel+'</span>':'');
   document.getElementById('af-deduct-rows').innerHTML='';
   document.getElementById('af-deduct-warn').style.display='none';
-  afAddDeductRow();
+  afAddDeductRow(sheetId);
   OM('m-af-deduct');
 }
 
-function afAddDeductRow(){
+function afSlotsForSheet(sheetId){
+  // Return slot IDs that have positive inventory for this sheet
+  if(!sheetId||!window._afAllInv) return afSlots.filter(s=>s.active).map(s=>s.id);
+  const withSheet = new Set(window._afAllInv.filter(r=>r.sheet_id===sheetId&&r.qty>0).map(r=>r.slot_id));
+  return withSheet.size ? [...withSheet] : afSlots.filter(s=>s.active).map(s=>s.id);
+}
+
+function afBuildSlotOpts(sheetId, selectedSlotId){
+  const validIds = afSlotsForSheet(sheetId);
+  return '<option value="">Select slot...</option>'+
+    afSlots.filter(s=>s.active&&validIds.includes(s.id)).map(s=>
+      '<option value="'+s.id+'"'+(selectedSlotId&&s.id===selectedSlotId?' selected':'')+'>'+s.name+'</option>'
+    ).join('');
+}
+
+function afUpdateDeductRowSlots(sheetSel){
+  const row = sheetSel.parentElement;
+  const sid = +sheetSel.value||null;
+  const slotSel = row.querySelector('.af-dr-slot');
+  const curSlot = +slotSel.value||null;
+  slotSel.innerHTML = afBuildSlotOpts(sid, curSlot);
+}
+
+function afAddDeductRow(preSheetId){
+  const sid = preSheetId || (_afDeductOptData&&_afDeductOptData.sheetId) || null;
   const container=document.getElementById('af-deduct-rows');
   const div=document.createElement('div');
-  div.style.cssText='display:flex;gap:8px;align-items:center';
-  div.innerHTML=`
-    <select class="inp af-dr-slot" style="flex:1;font-size:.72rem">
-      <option value="">Select slot...</option>
-      ${afSlots.filter(s=>s.active).map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
-    </select>
-    <select class="inp af-dr-sheet" style="flex:1.5;font-size:.72rem">
-      <option value="">Select sheet...</option>
-      ${rawSheetCatalog.map(s=>`<option value="${s.id}">${s.notes||s.code}</option>`).join('')}
-    </select>
-    <input type="number" class="inp af-dr-qty" placeholder="Qty" min="1" style="width:70px;font-size:.72rem">
-    <button class="btn bd bsm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button>`;
+  div.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:6px';
+  const slotOpts = afBuildSlotOpts(sid, null);
+  const sheetOpts='<option value="">Select sheet...</option>'+rawSheetCatalog.map(s=>
+    '<option value="'+s.id+'"'+(sid&&s.id===sid?' selected':'')+'>'+( s.notes||s.code)+'</option>'
+  ).join('');
+  div.innerHTML='<select class="inp af-dr-sheet" style="flex:1.5;font-size:.72rem" onchange="afUpdateDeductRowSlots(this)">'+sheetOpts+'</select>'
+    +'<select class="inp af-dr-slot" style="flex:1;font-size:.72rem">'+slotOpts+'</select>'
+    +'<input type="number" class="inp af-dr-qty" placeholder="Qty" min="1" style="width:70px;font-size:.72rem">'
+    +'<button class="btn bd bsm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button>';
   container.appendChild(div);
 }
 
@@ -9363,7 +9784,7 @@ function deleteReceiver(id){
 let hrSchedule = null;
 
 function showHRTab(tab){
-  ['attendance','overtime','leave','payroll','schedule','vacation'].forEach(t=>{
+  ['attendance','overtime','leave','payroll','schedule','vacation','pending-ot','leavetypes'].forEach(t=>{
     const el=document.getElementById('hrtab-'+t); if(el) el.style.display=t===tab?'':'none';
     const btn=document.getElementById('hrb-'+t);
     if(btn){ btn.classList.toggle('on',t===tab); }
@@ -9373,6 +9794,8 @@ function showHRTab(tab){
   if(tab==='vacation') renderVacationBalance();
   if(tab==='overtime')   renderHROT();
   if(tab==='leave')      renderHRLeave();
+  if(tab==='pending-ot') renderPendingOT();
+  if(tab==='leavetypes')  renderLeaveTypes();
   if(tab==='payroll')    renderHRPayroll();
   if(tab==='schedule')   loadSchedule();
 }
@@ -9397,9 +9820,9 @@ async function renderHRAttendance(){
   const tbody=document.getElementById('hr-att-body'); if(!tbody) return;
   if(!rows.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:16px">No records</td></tr>'; return; }
   const [sh,sm]=startTime.split(':').map(Number);
-  tbody.innerHTML=rows.map(r=>{
+  let lastDate='', html='', rowIndex=0;
+  rows.forEach(r=>{
     const totalH=r.total_mins?+(r.total_mins/60).toFixed(1):'—';
-    // Calculate lateness
     let lateStr='—', lateColor='var(--mu)';
     if(r.punch_in){
       const [ph,pm]=r.punch_in.slice(11,16).split(':').map(Number);
@@ -9411,21 +9834,33 @@ async function renderHRAttendance(){
     const statusColor={Absent:'#ff6464',Working:'var(--a3)',Done:'var(--mu)'}[status];
     const dayType=r.day_type||'normal';
     const dayTypeColor={normal:'var(--mu)',weekend:'var(--a2)',holiday:'var(--a4)'}[dayType]||'var(--mu)';
-    return `<tr>
-      <td class="mn">${r.date}</td>
+    if(r.date!==lastDate){
+      const d=new Date(r.date);
+      const label=d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short',year:'numeric'});
+      const isToday=r.date===new Date().toISOString().slice(0,10);
+      html+=`<tr style="background:var(--panel,#0d1825)"><td colspan="9" style="padding:6px 10px 5px;border-top:${rowIndex>0?'2px solid var(--border)':'none'};border-bottom:1px solid var(--border)"><span style="font-size:.65rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${isToday?'var(--a)':'var(--tx2)'}">${label}</span>${isToday?'<span style="margin-left:8px;font-size:.58rem;background:var(--a);color:#000;border-radius:3px;padding:1px 5px;font-weight:700">TODAY</span>':''}</td></tr>`;
+      lastDate=r.date; rowIndex++;
+    }
+    const lateBadge=r.late_mins>0?`<div style="font-size:.55rem;color:var(--a2)">Late ${r.late_mins}m</div>`:'';
+    const otStatus=r.overtime_status&&r.overtime_status!=='none'?r.overtime_status:'';
+    const otColor=otStatus==='pending'?'var(--a4)':otStatus==='approved'?'var(--a3)':'#ff6464';
+    const otBadge=otStatus?`<div style="font-size:.55rem;color:${otColor}">OT: ${otStatus}${r.overtime_mins?' ('+r.overtime_mins+'m)':''}</div>`:'';
+    html+=`<tr>
+      <td class="mn" style="color:var(--mu);font-size:.65rem">${r.date}</td>
       <td>${r.worker_name}</td>
-      <td class="mn" style="color:var(--a3)">${(r.punch_in||'').slice(11,16)||'—'}</td>
-      <td class="mn" style="color:var(--a)">${(r.punch_out||'').slice(11,16)||'—'}</td>
+      <td class="mn" style="color:var(--a3)">${(r.punch_in||'').slice(11,16)||'—'}${lateBadge}</td>
+      <td class="mn" style="color:var(--a)">${(r.punch_out||'').slice(11,16)||'—'}${otBadge}</td>
       <td class="mn">${totalH}${r.total_mins?' h':''}</td>
       <td class="mn" style="color:${lateColor}">${lateStr}</td>
       <td class="mn" style="color:${dayTypeColor};text-transform:capitalize">${dayType}</td>
-      <td class="mn" style="color:${statusColor}">${status}</td>
+      <td class="mn" style="color:${statusColor};font-weight:700">${status}</td>
       <td class="mn" style="display:flex;gap:4px">
         <button class="btn bg bsm" onclick="openEditAttModal(${r.id},'${r.date}','${r.worker_id}','${r.worker_name}','${(r.punch_in||'').slice(11,16)}','${(r.punch_out||'').slice(11,16)}','${dayType}')">Edit</button>
         <button class="btn bd bsm" style="color:#ff6464" onclick="deleteAttRecord(${r.id},'${r.worker_name}','${r.date}')">&#10005;</button>
       </td>
     </tr>`;
-  }).join('');
+  });
+  tbody.innerHTML=html;
 }
 
 function openAddAttModal(){
@@ -9500,6 +9935,10 @@ async function loadScheduleTab(){
     document.getElementById('sched-vacation-accrual').value=s.vacation_accrual||1.167;
     const wd=document.getElementById('sched-weekend');
     if(wd) wd.value=s.weekend_day||'fri';
+    const pit=document.getElementById('sched-punch-in-tolerance');
+    if(pit) pit.value=s.punch_in_tolerance_mins||10;
+    const pog=document.getElementById('sched-punch-out-grace');
+    if(pog) pog.value=s.punch_out_grace_mins||5;
   }catch(e){ console.warn('schedule load:',e.message); }
 }
 
@@ -9511,10 +9950,14 @@ async function saveSchedule(){
   const weekend=document.getElementById('sched-weekend').value;
   const accrual=+document.getElementById('sched-vacation-accrual').value;
   try{
+    const punchInTol=+(document.getElementById('sched-punch-in-tolerance')?.value||10);
+    const punchOutGrace=+(document.getElementById('sched-punch-out-grace')?.value||5);
     await AGI.HR.schedule.update({
       start_time:start, end_time:end, thursday_end_time:thuEnd,
       break_mins:brk, weekend_day:weekend, vacation_accrual:accrual,
-      work_days:['sun','mon','tue','wed','thu']
+      work_days:['sun','mon','tue','wed','thu'],
+      punch_in_tolerance_mins:punchInTol,
+      punch_out_grace_mins:punchOutGrace
     });
     showToast('Schedule saved ✓');
   }catch(e){ alert('Error: '+e.message); }
@@ -9603,29 +10046,193 @@ async function renderHRLeave(){
   let rows=[];
   try{ rows=await AGI.HR.leave.list({status}); }catch(e){}
   const tbody=document.getElementById('hr-lv-body'); if(!tbody) return;
-  if(!rows.length){ tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--mu);padding:16px">No leave requests</td></tr>'; return; }
+  if(!rows.length){ tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--mu);padding:16px">No leave requests</td></tr>'; return; }
   const statusColor={pending:'var(--a4)',approved:'var(--a3)',rejected:'#ff6464'};
   const typeLabel={vacation:'Vacation',sick:'Sick',emergency:'Emergency',unpaid:'Unpaid'};
-  tbody.innerHTML=rows.map(r=>`<tr>
-    <td>${r.worker_name}</td>
-    <td class="mn">${typeLabel[r.type]||r.type}</td>
-    <td class="mn">${r.date_from}</td>
-    <td class="mn">${r.date_to}</td>
-    <td class="mn" style="color:var(--a)">${r.days} days</td>
-    <td style="font-size:.7rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason||'—'}</td>
-    <td class="mn" style="color:${statusColor[r.status]||'var(--tx)'}">${r.status}</td>
-    <td style="white-space:nowrap">
-      ${r.status==='pending'?`
-        <button class="btn ba bsm" onclick="reviewLeave(${r.id},'approved')">✓ Approve</button>
-        <button class="btn br bsm" onclick="reviewLeave(${r.id},'rejected')" style="margin-left:3px">✕</button>
-      `:''}
-    </td>
-  </tr>`).join('');
+  tbody.innerHTML=rows.map(r=>{
+    const kind=r.leave_kind||'vacation';
+    const kindBadge=kind==='hourly'
+      ?'<span style="font-size:.58rem;background:rgba(255,165,0,.15);color:var(--a4);padding:1px 5px;border-radius:3px">Hourly</span>'
+      :'<span style="font-size:.58rem;background:rgba(0,204,255,.1);color:var(--a);padding:1px 5px;border-radius:3px">Full Day</span>';
+    const daysHours=kind==='hourly'?(r.hours||0)+' hrs':(r.days||0)+' days';
+    const timeInfo=kind==='hourly'&&r.time_from&&r.time_to?'<div style="font-size:.6rem;color:var(--mu)">'+r.time_from+'–'+r.time_to+'</div>':'';
+    const medIcon=r.medical_report?'<button class="btn bg bsm" onclick="viewMedicalReport('+r.id+')" title="View medical report" style="font-size:.6rem">&#128196;</button>':'';
+    return '<tr>'+
+      '<td>'+r.worker_name+'</td>'+
+      '<td class="mn">'+kindBadge+'</td>'+
+      '<td class="mn" style="font-size:.7rem">'+(r.type||'—')+'</td>'+
+      '<td class="mn">'+r.date_from+timeInfo+'</td>'+
+      '<td class="mn">'+(kind==='hourly'?r.time_to||r.date_from:r.date_to)+'</td>'+
+      '<td class="mn" style="color:var(--a);font-weight:700">'+daysHours+'</td>'+
+      '<td style="font-size:.7rem;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(r.reason||r.notes||'—')+'</td>'+
+      '<td class="mn" style="color:'+(statusColor[r.status]||'var(--tx)')+'">'+r.status+'</td>'+
+      '<td style="white-space:nowrap;display:flex;gap:3px;flex-wrap:wrap">'+medIcon+
+        (r.status==='pending'?
+          '<button class="btn ba bsm" onclick="reviewLeave('+r.id+',\'approved\')">✓</button>'+
+          '<button class="btn bd bsm" style="color:#ff6464" onclick="reviewLeave('+r.id+',\'rejected\')">✕</button>':'')+
+        '<button class="btn bg bsm" onclick="openEditLeave('+r.id+')" style="font-size:.6rem">✎ Edit</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
 }
 
 async function reviewLeave(id, status){
   try{ await AGI.HR.leave.review(id,status); showToast('Leave request '+status); renderHRLeave(); }
   catch(e){ alert(e.message); }
+}
+
+let _editLeaveId=null;
+function openEditLeave(id){
+  Promise.all([
+    AGI.HR.leave.list({}),
+    fetch('/api/hr/leave-types',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json())
+  ]).then(([all, leaveTypes])=>{
+    const r=all.find(x=>x.id===id); if(!r) return;
+    _editLeaveId=id;
+    const kind=r.leave_kind||'vacation';
+    // Populate type dropdown from DB
+    const typeSel=document.getElementById('el-type');
+    typeSel.innerHTML=leaveTypes.map(lt=>'<option value="'+lt.label+'"'+(lt.label===r.type?' selected':'')+'>'+lt.label+'</option>').join('');
+    if(r.type) typeSel.value=r.type;
+    document.getElementById('el-kind').value=kind;
+    document.getElementById('el-from').value=r.date_from||'';
+    document.getElementById('el-to').value=r.date_to||r.date_from||'';
+    document.getElementById('el-hourly-date').value=r.date_from||'';
+    document.getElementById('el-hours').value=r.hours||'';
+    document.getElementById('el-notes').value=r.notes||r.reason||'';
+    document.getElementById('el-status').value=r.status||'pending';
+    toggleEditLeaveKind(kind);
+    OM('m-edit-leave');
+  });
+}
+function toggleEditLeaveKind(kind){
+  document.getElementById('el-section-dates').style.display=kind==='hourly'?'none':'';
+  document.getElementById('el-section-hours').style.display=kind==='hourly'?'':'none';
+}
+async function saveEditLeave(){
+  if(!_editLeaveId) return;
+  const kind=document.getElementById('el-kind').value;
+  const type=document.getElementById('el-type').value;
+  const status=document.getElementById('el-status').value;
+  const notes=document.getElementById('el-notes').value.trim();
+  const payload={leave_kind:kind,type,status,notes};
+  if(kind==='hourly'){
+    payload.date_from=document.getElementById('el-from').value;
+    payload.date_to=document.getElementById('el-from').value;
+    payload.hours=+document.getElementById('el-hours').value||0;
+  } else {
+    payload.date_from=document.getElementById('el-from').value;
+    payload.date_to=document.getElementById('el-to').value;
+  }
+  try{
+    await fetch('/api/hr/leave/'+_editLeaveId,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},
+      body:JSON.stringify(payload)
+    }).then(r=>r.json());
+    CM('m-edit-leave');
+    showToast('Leave updated');
+    renderHRLeave();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+// ── PENDING OVERTIME ──────────────────────────────────────────────────────
+// ── Leave Types Management ────────────────────────────────────────────────
+var _leaveTypes=[];
+async function renderLeaveTypes(){
+  const tbody=document.getElementById('hr-leavetypes-body'); if(!tbody) return;
+  try{
+    _leaveTypes=await fetch('/api/hr/leave-types',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json());
+    tbody.innerHTML=_leaveTypes.map(lt=>
+      '<tr>'+
+        '<td style="font-weight:600">'+lt.label+'</td>'+
+        '<td class="mn">'+(lt.requires_file?'<span style="color:var(--a2)">Yes</span>':'—')+'</td>'+
+        '<td class="mn">'+(lt.is_system?'<span style="color:var(--mu);font-size:.65rem">System</span>':'—')+'</td>'+
+        '<td>'+(lt.is_system?'':'<button class="btn bd bsm" style="color:#ff6464" onclick="deleteLeaveType('+lt.id+')">❌</button>')+'</td>'+
+      '</tr>'
+    ).join('');
+  }catch(e){ tbody.innerHTML='<tr><td colspan="4" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
+}
+function openAddLeaveType(){
+  const label=prompt('Leave type name (e.g. "Bereavement Leave"):');
+  if(!label||!label.trim()) return;
+  const req=confirm('Does this leave type require a file attachment (e.g. medical report)?');
+  fetch('/api/hr/leave-types',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},body:JSON.stringify({label:label.trim(),requires_file:req})})
+    .then(r=>r.json()).then(()=>{ showToast('Leave type added'); renderLeaveTypes(); }).catch(e=>alert(e.message));
+}
+async function deleteLeaveType(id){
+  if(!_confirm('Delete this leave type?')) return;
+  try{
+    await fetch('/api/hr/leave-types/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json());
+    showToast('Leave type deleted');
+    renderLeaveTypes();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+async function viewMedicalReport(leaveId){
+  try{
+    const all=await AGI.HR.leave.list({});
+    const r=all.find(x=>x.id===+leaveId);
+    if(!r||!r.medical_report){ alert('No medical report attached'); return; }
+    // Open in new tab
+    const win=window.open();
+    if(r.medical_report.startsWith('data:application/pdf')){
+      win.document.write('<iframe src="'+r.medical_report+'" style="width:100%;height:100vh;border:none"></iframe>');
+    } else {
+      win.document.write('<img src="'+r.medical_report+'" style="max-width:100%;height:auto">');
+    }
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+async function renderPendingOT(){
+  const tbody=document.getElementById('hr-pending-ot-body'); if(!tbody) return;
+  tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:12px">Loading...</td></tr>';
+  try{
+    const rows=await fetch('/api/attendance/pending-overtime',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json());
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:12px">No pending overtime requests</td></tr>'; return; }
+    tbody.innerHTML=rows.map(r=>
+      '<tr>'+
+        '<td>'+r.worker_name+'</td>'+
+        '<td class="mn">'+r.date+'</td>'+
+        '<td class="mn" style="color:var(--a4);font-weight:700">'+(r.overtime_mins||0)+' min ('+(((r.overtime_mins||0)/60).toFixed(1))+'h)</td>'+
+        '<td style="font-size:.75rem;color:var(--tx2)">'+(r.overtime_project||r.overtime_notes||'—')+'</td>'+
+        '<td style="white-space:nowrap">'+
+          '<button class="btn ba bsm" onclick="openApproveOT('+r.id+')">Review</button>'+
+        '</td>'+
+      '</tr>'
+    ).join('');
+  }catch(e){ tbody.innerHTML='<tr><td colspan="5" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
+}
+
+let _otReviewId=null;
+function openApproveOT(id){
+  _otReviewId=id;
+  document.getElementById('ot-admin-notes').value='';
+  // fetch row details
+  fetch('/api/attendance/pending-overtime',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}})
+    .then(r=>r.json()).then(rows=>{
+      const r=rows.find(x=>x.id===id); if(!r) return;
+      document.getElementById('m-ot-info').innerHTML=
+        '<strong>'+r.worker_name+'</strong> — '+r.date+'<br>'+
+        '<span style="color:var(--a4)">'+( r.overtime_mins||0)+' min overtime</span><br>'+
+        '<span style="font-size:.75rem;color:var(--tx2)">Project: '+(r.overtime_project||r.overtime_notes||'—')+'</span>';
+      OM('m-approve-ot');
+    });
+}
+
+async function submitOTReview(status){
+  if(!_otReviewId) return;
+  const notes=document.getElementById('ot-admin-notes').value.trim();
+  try{
+    await fetch('/api/attendance/'+_otReviewId+'/overtime',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},
+      body:JSON.stringify({status,notes})
+    }).then(r=>r.json());
+    CM('m-approve-ot');
+    showToast('Overtime '+status);
+    renderPendingOT();
+  }catch(e){ alert('Error: '+e.message); }
 }
 
 // ── PAYROLL ───────────────────────────────────────────────────────────────
@@ -10663,7 +11270,7 @@ function printMode(mode){
 // ═══════════════════════════════════════════════════════
 
 // Login overlay (shown if no valid token)
-function showLoginOverlay(){
+async function showLoginOverlay(){
   let ov = document.getElementById('agi-login-ov');
   if(ov){ ov.style.display='flex'; return; }
   ov = document.createElement('div');
@@ -10674,10 +11281,8 @@ function showLoginOverlay(){
   const loginName = (typeof cfg!=='undefined' && cfg && cfg.factory) ? cfg.factory : 'AGI GLASS';
   ov.innerHTML=`
     <img src="/agi-api.js" style="display:none">
-    ${loginLogoSrc
-      ? `<img src="${loginLogoSrc}" style="max-height:72px;max-width:220px;object-fit:contain;margin-bottom:4px">`
-      : `<div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:#00ccff">${loginName}</div>`
-    }
+    ${loginLogoSrc ? `<img src="${loginLogoSrc}" style="max-height:80px;max-width:220px;object-fit:contain;margin-bottom:6px">` : ''}
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:#00ccff">${loginName}</div>
     <div style="font-family:'DM Mono',monospace;font-size:.75rem;color:#3d5570;letter-spacing:2px;margin-bottom:8px">FACTORY MANAGEMENT SYSTEM</div>
     <div style="display:flex;flex-direction:column;gap:10px;width:300px">
       <input id="agi-l-email" type="email" placeholder="Email" style="background:#0d1825;border:1px solid #1b2e45;border-radius:5px;color:#d8eaf8;font-family:'DM Mono',monospace;font-size:.85rem;padding:10px 12px;outline:none;width:100%">
@@ -10733,9 +11338,23 @@ setInterval(async()=>{
 
 window.addEventListener('agi:logout', showLoginOverlay);
 
+function doLogout(){
+  AGI.Auth.logout();
+  showLoginOverlay();
+}
+
+(function scheduleAutoLogout(){
+  var now=new Date();
+  var ms=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,0)-now;
+  setTimeout(function(){
+    if(AGI.getToken()){ AGI.Auth.logout(); showLoginOverlay(); }
+    scheduleAutoLogout();
+  }, ms);
+})();
+
 // Always show login first, then auto-login if token valid
 (async()=>{
-  showLoginOverlay(); // always show login screen
+  await showLoginOverlay(); // always show login screen
   if(AGI.getToken()){
     try{
       const res = await AGI.Auth.me(); // validate token against server
@@ -10756,7 +11375,9 @@ window.addEventListener('agi:logout', showLoginOverlay);
         AGI.clearToken();
       }
     }catch(e){
-      AGI.clearToken(); // token invalid, force fresh login
+      if(e.status===401){ AGI.clearToken(); return; }
+      var errEl2=document.getElementById('agi-l-err');
+      if(errEl2) errEl2.textContent='Server unreachable. Please try again.';
     }
   }
 })();
@@ -11020,6 +11641,26 @@ window.addEventListener('agi:logout', showLoginOverlay);
 <!-- ═══════════════════════════════════════════════ -->
 <!-- A-FRAME: ASSIGN STOCK MODAL -->
 <!-- ═══════════════════════════════════════════════ -->
+<div class="mbg" id="m-af-edit-deduct">
+  <div class="md" style="max-width:480px">
+    <div class="mh"><span class="mt">Edit Opt Deduction</span><button class="mx" onclick="CM('m-af-edit-deduct')">&times;</button></div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div id="af-ed-label" style="font-size:.78rem;color:var(--tx2);padding:8px 10px;background:var(--s1);border-radius:6px"></div>
+      <div class="frow" style="grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label class="lbl">Sheets Used (Total)</label><input type="number" id="af-ed-qty" class="inp" min="1" placeholder="e.g. 6" oninput="afEdCheckBalance()"></div>
+        <div class="fg"><label class="lbl">Date</label><input type="date" id="af-ed-date" class="inp"></div>
+      </div>
+      <div>
+        <label class="lbl" style="margin-bottom:6px;display:block">Slot Breakdown</label>
+        <div id="af-ed-slots" style="display:flex;flex-direction:column;gap:6px"></div>
+        <div id="af-ed-balance-warn" style="display:none;margin-top:8px;font-size:.72rem;padding:7px 10px;border-radius:6px;border:1px solid var(--a2);color:var(--a2);background:rgba(255,80,80,.07)"></div>
+        <div id="af-ed-balance-ok" style="display:none;margin-top:8px;font-size:.72rem;padding:7px 10px;border-radius:6px;border:1px solid var(--a3);color:var(--a3);background:rgba(54,255,138,.07)">&#10003; Slot quantities match total</div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn bg" onclick="CM('m-af-edit-deduct')">Cancel</button><button class="btn bp" id="af-ed-save-btn" onclick="afSaveEditDeduct()">&#10003; Save</button></div>
+  </div>
+</div>
+
 <div class="mbg" id="m-af-assign">
   <div class="md" style="max-width:460px">
     <div class="mh">
@@ -11040,6 +11681,7 @@ window.addEventListener('agi:logout', showLoginOverlay);
         </select>
       </div>
       <div id="af-assign-avail" style="font-size:.7rem;color:var(--a3);display:none"></div>
+      <div id="af-assign-unassigned" style="font-size:.7rem;display:none"></div>
       <div class="frow" style="grid-template-columns:1fr 1fr;gap:10px">
         <div class="fg">
           <label class="lbl">Quantity</label>

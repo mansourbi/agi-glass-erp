@@ -5,6 +5,11 @@ const { requireAuth } = require('../middleware/auth');
 
 router.use(requireAuth);
 
+// ── Schema migration ──────────────────────────────────────────────────────
+try { db.prepare('ALTER TABLE customers ADD COLUMN sheet_viewers TEXT DEFAULT "[]"').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE customers ADD COLUMN sheet_url TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE customers ADD COLUMN sheet_id TEXT').run(); } catch(e) {}
+
 router.get('/', (req, res) => {
   try {
     const { search } = req.query;
@@ -54,14 +59,14 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   try {
-    const { code, name, company, phone, email, address, notes } = req.body;
+    const { code, name, company, phone, email, address, notes, sheet_id } = req.body;
     if (!code || !name || !phone)
       return res.status(400).json({ error: 'code, name, phone required' });
     db.prepare(`
-      UPDATE customers SET code=?,name=?,company=?,phone=?,email=?,address=?,notes=?,
+      UPDATE customers SET code=?,name=?,company=?,phone=?,email=?,address=?,notes=?,sheet_id=?,
       updated_at=datetime('now') WHERE id=?
     `).run(code.trim().toUpperCase(), name.trim(), company||null, phone.trim(),
-           email||null, address||null, notes||null, +req.params.id);
+           email||null, address||null, notes||null, sheet_id||null, +req.params.id);
     res.json(db.prepare('SELECT * FROM customers WHERE id=?').get(+req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
