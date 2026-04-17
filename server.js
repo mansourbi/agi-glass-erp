@@ -39,6 +39,7 @@ app.use('/api/glassfamilies', require('./routes/glassfamilies'));
 app.use('/api/finalproducts', require('./routes/finalproducts'));
 app.use('/api/fpfields', require('./routes/fpfields'));
 app.use('/api/remnants', require('./routes/remnants'));
+app.use('/api/slots',      require('./routes/slots'));
 app.use('/api/deliveries', require('./routes/deliveries'));
 app.use('/api/gsheets',    require('./routes/gsheets'));
 
@@ -170,3 +171,4 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
     console.log('  ╚═══════════════════════════════════════╝\n');
   });
 }
+
