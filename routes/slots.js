@@ -95,22 +95,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
 
 // ── Slot Inventory ────────────────────────────────────────────────────────
 
-// GET /api/slots/:id/inventory — full history for one slot
-router.get('/:id/inventory', (req, res) => {
-  try {
-    const rows = db.prepare(`
-      SELECT si.*, rs.code AS sheet_code, rs.notes AS sheet_notes,
-             rs.thickness, rs.color, rs.glass_type
-      FROM slot_inventory si
-      JOIN raw_sheets rs ON rs.id=si.sheet_id
-      WHERE si.slot_id=?
-      ORDER BY si.date DESC, si.id DESC
-    `).all(+req.params.id);
-    res.json(rows);
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
-
-// GET /api/slots/all-inventory — all slot contents summary
+// GET /api/slots/all-inventory — all slot contents summary (MUST be before /:id routes)
 router.get('/all-inventory', (req, res) => {
   try {
     const rows = db.prepare(`
@@ -129,27 +114,29 @@ router.get('/all-inventory', (req, res) => {
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// POST /api/slots/:id/assign — assign stock to slot
-router.post('/:id/assign', requireAdmin, (req, res) => {
+// PUT /api/slots/inventory/:txId — edit a slot inventory entry
+router.put('/inventory/:txId', requireAdmin, (req, res) => {
   try {
-    const { sheet_id, qty, date, notes, ref_type, ref_id } = req.body;
-    if(!sheet_id||!qty||!date) return res.status(400).json({error:'sheet_id, qty, date required'});
-    if(qty <= 0) return res.status(400).json({error:'qty must be positive for assignment'});
-
-    // Check raw sheet balance is sufficient
-    const txBal = db.prepare('SELECT COALESCE(SUM(qty),0) AS bal FROM raw_sheet_transactions WHERE sheet_id=?').get(+sheet_id);
-    const totalAssigned = db.prepare('SELECT COALESCE(SUM(qty),0) AS bal FROM slot_inventory WHERE sheet_id=?').get(+sheet_id);
-    const availableForSlots = (txBal?.bal||0) + (totalAssigned?.bal||0);
-    if(qty > availableForSlots) return res.status(400).json({error:`Only ${availableForSlots} sheets available to assign`});
-
-    const r = db.prepare(
-      'INSERT INTO slot_inventory (slot_id,sheet_id,qty,type,ref_type,ref_id,date,notes,created_by) VALUES (?,?,?,?,?,?,?,?,?)'
-    ).run(+req.params.id, +sheet_id, +qty, 'assign', ref_type||'', ref_id||null, date, notes||'', req.user?.name||'');
-    res.status(201).json(db.prepare('SELECT * FROM slot_inventory WHERE id=?').get(r.lastInsertRowid));
+    const tx = db.prepare('SELECT * FROM slot_inventory WHERE id=?').get(+req.params.txId);
+    if(!tx) return res.status(404).json({error:'Not found'});
+    const { qty, date, notes } = req.body;
+    db.prepare('UPDATE slot_inventory SET qty=COALESCE(?,qty), date=COALESCE(?,date), notes=COALESCE(?,notes) WHERE id=?')
+      .run(qty!=null?+qty:null, date||null, notes!=null?notes:null, +req.params.txId);
+    res.json(db.prepare('SELECT * FROM slot_inventory WHERE id=?').get(+req.params.txId));
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
-// POST /api/slots/deduct — deduct from slot(s) for optimization
+// DELETE /api/slots/inventory/:txId — delete a slot inventory entry (MUST be before /:id routes)
+router.delete('/inventory/:txId', requireAdmin, (req, res) => {
+  try {
+    const tx = db.prepare('SELECT * FROM slot_inventory WHERE id=?').get(+req.params.txId);
+    if(!tx) return res.status(404).json({error:'Not found'});
+    db.prepare('DELETE FROM slot_inventory WHERE id=?').run(+req.params.txId);
+    res.json({ok:true});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// POST /api/slots/deduct — deduct from slot(s) for optimization (MUST be before /:id routes)
 router.post('/deduct', requireAdmin, (req, res) => {
   try {
     const { deductions, opt_file_id, opt_name, date } = req.body;
@@ -176,13 +163,38 @@ router.post('/deduct', requireAdmin, (req, res) => {
   } catch(e) { res.status(400).json({error:e.message}); }
 });
 
-// DELETE /api/slots/inventory/:txId — delete a slot inventory entry
-router.delete('/inventory/:txId', requireAdmin, (req, res) => {
+// GET /api/slots/:id/inventory — full history for one slot
+router.get('/:id/inventory', (req, res) => {
   try {
-    const tx = db.prepare('SELECT * FROM slot_inventory WHERE id=?').get(+req.params.txId);
-    if(!tx) return res.status(404).json({error:'Not found'});
-    db.prepare('DELETE FROM slot_inventory WHERE id=?').run(+req.params.txId);
-    res.json({ok:true});
+    const rows = db.prepare(`
+      SELECT si.*, rs.code AS sheet_code, rs.notes AS sheet_notes,
+             rs.thickness, rs.color, rs.glass_type
+      FROM slot_inventory si
+      JOIN raw_sheets rs ON rs.id=si.sheet_id
+      WHERE si.slot_id=?
+      ORDER BY si.date DESC, si.id DESC
+    `).all(+req.params.id);
+    res.json(rows);
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+// POST /api/slots/:id/assign — assign stock to slot
+router.post('/:id/assign', requireAdmin, (req, res) => {
+  try {
+    const { sheet_id, qty, date, notes, ref_type, ref_id } = req.body;
+    if(!sheet_id||!qty||!date) return res.status(400).json({error:'sheet_id, qty, date required'});
+    if(qty <= 0) return res.status(400).json({error:'qty must be positive for assignment'});
+
+    // unassigned = total stock balance - total already in slots (net)
+    const txBal      = db.prepare('SELECT COALESCE(SUM(qty),0) AS bal FROM raw_sheet_transactions WHERE sheet_id=?').get(+sheet_id);
+    const totalInSlots = db.prepare('SELECT COALESCE(SUM(qty),0) AS bal FROM slot_inventory WHERE sheet_id=?').get(+sheet_id);
+    const unassigned = (txBal?.bal||0) - (totalInSlots?.bal||0);
+    if(qty > unassigned) return res.status(400).json({error:`Only ${unassigned} sheets available to assign`});
+
+    const r = db.prepare(
+      'INSERT INTO slot_inventory (slot_id,sheet_id,qty,type,ref_type,ref_id,date,notes,created_by) VALUES (?,?,?,?,?,?,?,?,?)'
+    ).run(+req.params.id, +sheet_id, +qty, 'assign', ref_type||'', ref_id||null, date, notes||'', req.user?.name||'');
+    res.status(201).json(db.prepare('SELECT * FROM slot_inventory WHERE id=?').get(r.lastInsertRowid));
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 

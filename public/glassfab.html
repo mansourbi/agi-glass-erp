@@ -7,7 +7,7 @@
 </head>
 <body>
 <!-- ── Admin Delivery Modal — New Delivery ─────────────────────────────── -->
-<div class="modal mbg" id="m-new-delivery">
+<div class="modal mbg" id="m-new-delivery" style="display:none">
   <div class="mc" style="max-width:560px;width:95%">
     <div class="mh"><span class="mt">&#128666; New Delivery</span><button class="mx" onclick="CM('m-new-delivery')">&times;</button></div>
     <div class="mb" style="display:flex;flex-direction:column;gap:12px">
@@ -50,7 +50,7 @@
 </div>
 
 <!-- ── Admin Delivery Modal — Finalise ──────────────────────────────────── -->
-<div class="modal mbg" id="m-adlv-finalise">
+<div class="modal mbg" id="m-adlv-finalise" style="display:none">
   <div class="mc" style="max-width:440px;width:95%">
     <div class="mh"><span class="mt">Finalise Delivery</span><button class="mx" onclick="CM('m-adlv-finalise')">&times;</button></div>
     <div class="mb" style="display:flex;flex-direction:column;gap:12px">
@@ -2040,7 +2040,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 </div>
 
 <!-- ── Edit Leave Modal ─────────────────────────────────────────── -->
-<div class="mbg" id="m-edit-leave">
+<div class="mbg" id="m-edit-leave" style="display:none">
   <div class="md" style="max-width:480px">
     <div class="mh"><span class="mt">Edit Leave Request</span><button class="mx" onclick="CM('m-edit-leave')">&times;</button></div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
@@ -2089,7 +2089,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 </div>
 
 <!-- ── Approve Overtime Modal ───────────────────────────────────── -->
-<div class="mbg" id="m-approve-ot">
+<div class="mbg" id="m-approve-ot" style="display:none">
   <div class="md" style="max-width:440px">
     <div class="mh"><span class="mt">Review Overtime Request</span><button class="mx" onclick="CM('m-approve-ot')">&times;</button></div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
@@ -2104,7 +2104,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   </div>
 </div>
 
-<div class="mbg" id="m-cust">
+<div class="mbg" id="m-cust" style="display:none">
   <div class="mdl" style="max-width:620px">
     <div class="mh"><span class="mt" id="cust-mt">New Customer</span><button class="mx" onclick="CM('m-cust')">&times;</button></div>
     <div class="mb">
@@ -2127,7 +2127,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   </div>
 </div>
 
-<div class="mbg" id="m-order">
+<div class="mbg" id="m-order" style="display:none">
   <div class="mdl" style="max-width:960px">
     <div class="mh"><span class="mt" id="ord-mt">New Order</span><button class="mx" onclick="CM('m-order')">&times;</button></div>
     <div class="mb">
@@ -2278,7 +2278,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 
 
 <!-- Raw Sheet Catalog Modal -->
-<div class="mbg" id="m-rawsheet">
+<div class="mbg" id="m-rawsheet" style="display:none">
   <div class="mdl" style="max-width:660px">
     <div class="mh"><span class="mt" id="rs-mt">Add Raw Sheet</span><button class="mx" onclick="CM('m-rawsheet')">&times;</button></div>
     <div class="mb">
@@ -2315,7 +2315,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     </div>
   </div>
 </div>
-<div class="mbg" id="m-load">
+<div class="mbg" id="m-load" style="display:none">
   <div class="mdl" style="max-width:620px">
     <div class="mh"><span class="mt">Load Orders to Cutting</span><button class="mx" onclick="CM('m-load')">&times;</button></div>
     <div class="mb">
@@ -2331,7 +2331,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   </div>
 </div>
 
-<div class="mbg" id="m-view-ord">
+<div class="mbg" id="m-view-ord" style="display:none">
   <div class="mdl" style="max-width:860px;max-height:90vh;display:flex;flex-direction:column">
     <div class="mh" style="flex-shrink:0">
       <span class="mt" id="vord-title">Order</span>
@@ -2351,7 +2351,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 </div>
 
 <!-- Add Document Modal -->
-<div class="mbg" id="m-add-doc">
+<div class="mbg" id="m-add-doc" style="display:none">
   <div class="mdl" style="max-width:440px">
     <div class="mh"><span>Add Document</span><button class="mc" onclick="CM('m-add-doc')">&#10005;</button></div>
     <div class="mb" style="display:flex;flex-direction:column;gap:12px">
@@ -2397,7 +2397,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   </div>
 </div>
 
-<div class="mbg" id="m-worker">
+<div class="mbg" id="m-worker" style="display:none">
   <div class="mdl" style="max-width:520px">
     <div class="mh"><span class="mt" id="wkr-mt">Add Worker</span><button class="mx" onclick="CM('m-worker')">&times;</button></div>
     <div class="mb">
@@ -2616,7 +2616,7 @@ async function badges(){
 // ═══════════════════════════════════════════════════════
 // MODAL helpers
 // ═══════════════════════════════════════════════════════
-function OM(id){document.getElementById(id).classList.add('on')}
+function OM(id){const el=document.getElementById(id);if(!el)return;el.style.display='';el.classList.add('on');}
 function CM(id){document.getElementById(id).classList.remove('on')}
 document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{
   if(e.target===m && m.id!=='m-order') m.classList.remove('on');
@@ -3626,7 +3626,7 @@ async function saveOrder(){
   let serial=1;
   document.querySelectorAll('#oi-list>div[id^="oi-"]').forEach(row=>{
     const i=row.id.split('-')[1];
-    const code=(document.getElementById('oic-'+i).value.trim().toUpperCase())||'PC';
+    const code=(document.getElementById('oic-'+i).value.trim().toUpperCase())||'';
     const w=+document.getElementById('oiw-'+i).value;
     const h=+document.getElementById('oih-'+i).value;
     const t=+document.getElementById('oit-'+i).value;
@@ -5081,7 +5081,7 @@ function importOIExcel(input){
         var w = parseFloat(row[cW]);
         var h = parseFloat(row[cH]);
         if(w>0 && h>0){
-          var code = String(row[cDesc]||'').trim().toUpperCase()||'PC';
+          var code = String(row[cDesc]||'').trim().toUpperCase()||'';
           var qty  = parseInt(row[cQty])||1;
           addOI({code:code, w:w, h:h, qty:qty});
           imported++;
@@ -6659,8 +6659,11 @@ function renderCutLabels(){
       t += 'Bevel    : '  + (item.bevelMM||item.bevel_mm) + ' mm\n';
     if (procStr)
       t += 'Processes: '  + procStr + '\n';
-    if (order.notes)
-      t += '---\nNotes    : ' + order.notes + '\n';
+    if (order.notes){
+      // Strip non-ASCII characters (Arabic etc) — QR byte mode only supports ASCII
+      const safeNotes = order.notes.replace(/[^\x00-\x7F]/g,'').trim();
+      if(safeNotes) t += '---\nNotes    : ' + safeNotes + '\n';
+    }
     t += 'AGI GLASS FACTORY';
     return t;
   }
@@ -6754,7 +6757,10 @@ function renderCutLabels(){
     qrText += 'GLASS:' + typeStr + (item.color?'/'+colorStr:'') + '\n';
     if(item.bevelMM||item.bevel_mm) qrText += 'BEVEL:'+(item.bevelMM||item.bevel_mm)+'mm\n';
     if(procNames.length) qrText += 'PROC:' + procNames.join(',') + '\n';
-    if(ord.notes) qrText += 'NOTE:' + ord.notes + '\n';
+    if(ord.notes){
+      const safeNotes2 = ord.notes.replace(/[^\x00-\x7F]/g,'').trim();
+      if(safeNotes2) qrText += 'NOTE:' + safeNotes2 + '\n';
+    }
     qrText += 'AGI GLASS';
 
     // Logo for print labels
@@ -6762,7 +6768,8 @@ function renderCutLabels(){
     const logoHtml=logoSrc
       ? `<img src="${logoSrc}" class="lbl-logo" style="display:block;max-height:12mm;max-width:36mm;object-fit:contain;margin-top:1mm">`
       : '';
-    const descHtml=item.description||item.code?`<div class="lbl-desc">${item.description||item.code||''}</div>`:'';
+    const _descVal=(item.description&&item.description!=='PC'?item.description:'') || (item.code&&item.code!=='PC'?item.code:'');
+    const descHtml=_descVal?`<div class="lbl-desc">${_descVal}</div>`:'';
     // Logo bar — only injected when printing, empty string on screen
     const logoBarHtml=logoSrc
       ?`<div class="lbl-logo-bar"><img src="${logoSrc}" class="lbl-logo-img" style="max-width:100%;max-height:100%"></div>`
@@ -6777,11 +6784,12 @@ function renderCutLabels(){
         <div class="lbl-sep"></div>
         <div class="lbl-info">
           <div class="lbl-uid">${item.uid}${isManual?'<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span>':''}</div>
-          ${ord.extref?`<div class="lbl-glass" style="font-size:8pt;color:#666;text-align:center">${ord.extref}</div>`:''}
           <div class="lbl-size">&#9632; ${item.w} &times; ${item.h} mm</div>
           <div class="lbl-glass">${item.thickness}mm ${typeStr} &bull; ${colorStr}</div>
           <hr class="lbl-divider">
           <div class="lbl-procs">${isManual?'<span style="background:var(--a4);color:#000;border-radius:2px;padding:0 3px;font-size:.75em;margin-right:3px">REM</span>':''}${procNames.join(' — ')||'—'}</div>
+          ${ord.notes?`<div class="lbl-procs" style="border-top:1px solid #eee;margin-top:1mm;padding-top:1mm">${ord.notes}</div>`:''}
+          ${ord.extref?`<div class="lbl-procs">${ord.extref}</div>`:''}
           ${descHtml}
         </div>
       </div>`;
@@ -11224,9 +11232,9 @@ function printMode(mode){
       const wrap=document.getElementById('cw-'+r.idx);
       if(!wrap) return;
       wrap.innerHTML='';
-      const MW=Math.max(400,wrap.clientWidth-10)||600;
-      const MH=380; // compact height for print
-      const sc=Math.min(MW/r.sh.w,MH/r.sh.h,1.5);
+      const MW=400; // small fixed print width — readable on A4, minimal spool size
+      const MH=220; // compact height for print
+      const sc=Math.min(MW/r.sh.w,MH/r.sh.h,0.25); // hard cap at 0.25x
       const cw=Math.round(r.sh.w*sc), ch=Math.round(r.sh.h*sc);
       const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
       cv.style.cssText='display:block;max-width:100%';
@@ -11239,7 +11247,7 @@ function printMode(mode){
     const _replacedCanvases = [];
     document.querySelectorAll('.cw-wrap canvas, [id^="cw-"] canvas').forEach(cv=>{
       try{
-        const jpeg = cv.toDataURL('image/jpeg', 0.75);
+        const jpeg = cv.toDataURL('image/jpeg', 0.4); // low quality — layout is readable, keeps spool small
         const img = document.createElement('img');
         img.src = jpeg;
         img.style.cssText = cv.style.cssText || 'display:block;max-width:100%';
@@ -11385,7 +11393,7 @@ function doLogout(){
 </script>
 
 <!-- MODAL: Glass Family -->
-<div class="mbg" id="m-glassfam">
+<div class="mbg" id="m-glassfam" style="display:none">
   <div class="mdl" style="max-width:420px">
     <div class="mh"><span id="gf-mt">Add Glass Family</span><button class="mc" onclick="CM('m-glassfam')">&#10005;</button></div>
     <div class="mb">
@@ -11415,7 +11423,7 @@ function doLogout(){
 </div>
 
 <!-- MODAL: Final Product -->
-<div class="mbg" id="m-finalproduct">
+<div class="mbg" id="m-finalproduct" style="display:none">
   <div class="mdl" style="max-width:520px">
     <div class="mh"><span id="fpmod-title">Add Final Product</span><button class="mc" onclick="CM('m-finalproduct')">&#10005;</button></div>
     <div class="mb">
@@ -11457,7 +11465,7 @@ function doLogout(){
 </div>
 
 <!-- MODAL: Add Remnant -->
-<div class="mbg" id="m-remnant">
+<div class="mbg" id="m-remnant" style="display:none">
   <div class="mdl" style="max-width:480px">
     <div class="mh"><span id="rem-mt">Add Remnant Plate</span><button class="mc" onclick="CM('m-remnant')">&#10005;</button></div>
     <div class="mb">
@@ -11491,7 +11499,7 @@ function doLogout(){
 </div>
 
 <!-- MODAL: Add Slot -->
-<div class="mbg" id="m-remslot">
+<div class="mbg" id="m-remslot" style="display:none">
   <div class="mdl" style="max-width:380px">
     <div class="mh"><span id="remslot-mt">Add Storage Slot</span><button class="mc" onclick="CM('m-remslot')">&#10005;</button></div>
     <div class="mb">
@@ -11508,7 +11516,7 @@ function doLogout(){
 </div>
 
 <!-- MODAL: Assign Slot to Remnant -->
-<div class="mbg" id="m-rem-assign">
+<div class="mbg" id="m-rem-assign" style="display:none">
   <div class="mdl" style="max-width:360px">
     <div class="mh"><span>Assign Storage Slot</span><button class="mc" onclick="CM('m-rem-assign')">&#10005;</button></div>
     <div class="mb">
@@ -11524,7 +11532,7 @@ function doLogout(){
 </div>
 
 <!-- MODAL: Record Remnants from Optimization -->
-<div class="mbg" id="m-rem-from-opt">
+<div class="mbg" id="m-rem-from-opt" style="display:none">
   <div class="mdl" style="max-width:560px">
     <div class="mh"><span>Record Remnant Plates</span><button class="mc" onclick="CM('m-rem-from-opt')">&#10005;</button></div>
     <div class="mb">
@@ -11542,7 +11550,7 @@ function doLogout(){
 </div>
 
 <!-- MODAL: Use Remnant for Piece (from cutting) -->
-<div class="mbg" id="m-use-remnant">
+<div class="mbg" id="m-use-remnant" style="display:none">
   <div class="mdl" style="max-width:480px">
     <div class="mh"><span>Use Remnant for Piece</span><button class="mc" onclick="CM('m-use-remnant')">&#10005;</button></div>
     <div class="mb">
@@ -11557,7 +11565,7 @@ function doLogout(){
 </div>
 
 <!-- MODAL: Mark Remnant as Used (from Remnants page) -->
-<div class="mbg" id="m-rem-use-manual">
+<div class="mbg" id="m-rem-use-manual" style="display:none">
   <div class="mdl" style="max-width:420px">
     <div class="mh"><span>Mark Remnant as Used</span><button class="mc" onclick="CM('m-rem-use-manual')">&#10005;</button></div>
     <div class="mb">
@@ -11604,7 +11612,7 @@ function doLogout(){
 <!-- ═══════════════════════════════════════════════ -->
 <!-- A-FRAME: ADD SLOT MODAL -->
 <!-- ═══════════════════════════════════════════════ -->
-<div class="mbg" id="m-af-slot">
+<div class="mbg" id="m-af-slot" style="display:none">
   <div class="md" style="max-width:400px">
     <div class="mh">
       <span class="mt" id="af-slot-title">Add Slot</span>
@@ -11641,7 +11649,7 @@ function doLogout(){
 <!-- ═══════════════════════════════════════════════ -->
 <!-- A-FRAME: ASSIGN STOCK MODAL -->
 <!-- ═══════════════════════════════════════════════ -->
-<div class="mbg" id="m-af-edit-deduct">
+<div class="mbg" id="m-af-edit-deduct" style="display:none">
   <div class="md" style="max-width:480px">
     <div class="mh"><span class="mt">Edit Opt Deduction</span><button class="mx" onclick="CM('m-af-edit-deduct')">&times;</button></div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
@@ -11661,7 +11669,7 @@ function doLogout(){
   </div>
 </div>
 
-<div class="mbg" id="m-af-assign">
+<div class="mbg" id="m-af-assign" style="display:none">
   <div class="md" style="max-width:460px">
     <div class="mh">
       <span class="mt">Assign Stock to Slot</span>
@@ -11707,7 +11715,7 @@ function doLogout(){
 <!-- ═══════════════════════════════════════════════ -->
 <!-- A-FRAME: OPT DEDUCTION MODAL -->
 <!-- ═══════════════════════════════════════════════ -->
-<div class="mbg" id="m-af-deduct">
+<div class="mbg" id="m-af-deduct" style="display:none">
   <div class="md" style="max-width:520px">
     <div class="mh">
       <span class="mt" id="af-deduct-title">Assign Slots for Optimization Cut</span>
@@ -11729,7 +11737,7 @@ function doLogout(){
 <!-- ═══════════════════════════════════════════════ -->
 <!-- LEDGER ENTRY MODAL -->
 <!-- ═══════════════════════════════════════════════ -->
-<div class="mbg" id="m-ledger-entry">
+<div class="mbg" id="m-ledger-entry" style="display:none">
   <div class="md" style="max-width:460px">
     <div class="mh">
       <span class="mt" id="le-title">Add Stock Entry</span>
@@ -11781,7 +11789,7 @@ function doLogout(){
 <!-- ═══════════════════════════════════════════════ -->
 <!-- CANCEL ORDER MODAL -->
 <!-- ═══════════════════════════════════════════════ -->
-<div class="mbg" id="m-cancel-order">
+<div class="mbg" id="m-cancel-order" style="display:none">
   <div class="md" style="max-width:420px">
     <div class="mh">
       <span class="mt" style="color:var(--a2)">&#10005; Cancel Order</span>

@@ -39,8 +39,8 @@ app.use('/api/glassfamilies', require('./routes/glassfamilies'));
 app.use('/api/finalproducts', require('./routes/finalproducts'));
 app.use('/api/fpfields', require('./routes/fpfields'));
 app.use('/api/remnants', require('./routes/remnants'));
-app.use('/api/slots',      require('./routes/slots'));
 app.use('/api/deliveries', require('./routes/deliveries'));
+app.use('/api/slots',      require('./routes/slots'));
 app.use('/api/gsheets',    require('./routes/gsheets'));
 
 // ── Config ────────────────────────────────────────────────
@@ -84,12 +84,12 @@ app.get('/api/health', (req, res) => {
   }
 });
 
-// ── Google Sheets Auto-Sync (9am–5pm, every hour) ───────────────────────────
+// ── Google Sheets Auto-Sync (8am–5pm, top of every hour) ────────────────────
 (function scheduleGSheetsSync() {
   function runSync() {
     const now = new Date();
     const hour = now.getHours();
-    if (hour >= 9 && hour < 17) {
+    if (hour >= 8 && hour < 17) {
       console.log('[gsheets cron] Auto-syncing at ' + now.toLocaleTimeString());
       const http = require('http');
       const opts = {
@@ -112,15 +112,16 @@ app.get('/api/health', (req, res) => {
       req.write('{}'); req.end();
     }
   }
-  function scheduleNext() {
+  // Fire at the top of every hour, check window inside runSync
+  function scheduleNextHour() {
     const now = new Date();
-    const msUntilNextHour = (60 - now.getMinutes()) * 60000 - now.getSeconds() * 1000 - now.getMilliseconds();
+    const msUntilNextHour = (60 - now.getMinutes()) * 60000 - now.getSeconds() * 1000 - now.getMilliseconds() + 100;
     setTimeout(function() {
       runSync();
-      setInterval(runSync, 60 * 60 * 1000);
+      scheduleNextHour(); // re-schedule after each fire to stay aligned to top of hour
     }, msUntilNextHour);
   }
-  setTimeout(scheduleNext, 5000);
+  setTimeout(scheduleNextHour, 5000); // small delay on startup
 })();
 
 // ── 404 ───────────────────────────────────────────────────
@@ -171,4 +172,3 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
     console.log('  ╚═══════════════════════════════════════╝\n');
   });
 }
-

@@ -32,7 +32,10 @@ const PROC_LABELS = {
 
 function buildCustomerData(customerId) {
   const orders = db.prepare(`
-    SELECT o.* FROM orders o WHERE o.customer_id=? ORDER BY o.date DESC, o.id DESC
+    SELECT o.* FROM orders o WHERE o.customer_id=?
+    ORDER BY
+      CASE WHEN o.status='done' THEN 0 ELSE 1 END ASC,
+      o.date DESC, o.id DESC
   `).all(customerId);
   if (!orders.length) return null;
 
