@@ -65,7 +65,15 @@ router.post('/', requireAdmin, (req, res) => {
       hourly_rate||null, monthly_salary||null, employment_type||'hourly',
       national_id||null, phone||null, join_date||null, dob||null, notes_hr||null,
       vacation_days_balance||0, social_security_pct||0, photo_url||null);
-    res.status(201).json(parseW(db.prepare('SELECT * FROM workers WHERE id=?').get(r.lastInsertRowid)));
+    const newId = r.lastInsertRowid;
+    // Mirror the vacation balance to the vacation_balance table (the source of truth for payroll)
+    try {
+      db.prepare(`INSERT INTO vacation_balance (worker_id, worker_name, balance_days, accrual_rate, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now','localtime'))
+        ON CONFLICT(worker_id) DO UPDATE SET balance_days=excluded.balance_days, worker_name=excluded.worker_name, updated_at=excluded.updated_at`)
+        .run(newId, name.trim(), +vacation_days_balance||0, 1.6667);
+    } catch(e) { /* vacation_balance table may not exist yet; skip */ }
+    res.status(201).json(parseW(db.prepare('SELECT * FROM workers WHERE id=?').get(newId)));
   } catch(e) {
     if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Email already exists' });
     res.status(500).json({ error: e.message });
@@ -102,6 +110,17 @@ router.put('/:id', (req, res) => {
         join_date=?,dob=?,notes_hr=?,vacation_days_balance=?,social_security_pct=?,photo_url=?,
         updated_at=datetime('now') WHERE id=?`).run(...base);
     }
+    // Mirror the vacation balance to the vacation_balance table (the source of truth for payroll).
+    // Only admin can set this via this endpoint; a worker editing their own profile should
+    // not accidentally overwrite their banked balance. The UI normally hides the field from workers.
+    if (req.user.role === 'admin') {
+      try {
+        db.prepare(`INSERT INTO vacation_balance (worker_id, worker_name, balance_days, accrual_rate, updated_at)
+          VALUES (?, ?, ?, ?, datetime('now','localtime'))
+          ON CONFLICT(worker_id) DO UPDATE SET balance_days=excluded.balance_days, worker_name=excluded.worker_name, updated_at=excluded.updated_at`)
+          .run(targetId, name.trim(), +vacation_days_balance||0, 1.6667);
+      } catch(e) { /* vacation_balance table may not exist yet; skip */ }
+    }
     res.json(parseW(db.prepare('SELECT * FROM workers WHERE id=?').get(targetId)));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -117,47 +136,105 @@ router.delete('/:id', requireAdmin, (req, res) => {
 });
 
 // GET /:id/payroll?month=YYYY-MM — calculate payroll for a worker
+// Scheme (per factory rules):
+//  - Normal day, first 8h       → 100% Regular
+//  - Normal day, OT beyond 8h   → 125% (ONLY if overtime_status='approved')
+//  - Weekend day, all hours     → 150% (ONLY if overtime_status='approved')
+//  - Holiday day, all hours     → 150% (ONLY if overtime_status='approved')
+//  - Approved paid leave        → 100% (deducts from vacation balance elsewhere)
 router.get('/:id/payroll', requireAdmin, (req, res) => {
   try {
     const { month } = req.query;
     const w = db.prepare('SELECT * FROM workers WHERE id=?').get(+req.params.id);
     if (!w) return res.status(404).json({ error: 'Not found' });
     const hourlyRate = +w.hourly_rate || 0;
-    const rows = db.prepare(
-      "SELECT * FROM attendance WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL"
-    ).all(+req.params.id, (month||new Date().toISOString().slice(0,7))+'%');
+    const monthFilter = month || new Date().toISOString().slice(0,7);
 
-    let regularMins = 0, overtimeMins = 0, vacationMins = 0;
-    rows.forEach(r => {
-      const mins = r.total_mins || 0;
-      const stdMins = 8 * 60; // 8hr standard day
-      if (r.note && r.note.includes('vacation')) {
-        vacationMins += mins;
-      } else if (mins > stdMins) {
-        regularMins  += stdMins;
-        overtimeMins += mins - stdMins;
-      } else {
-        regularMins += mins;
+    // Attendance rows in month
+    const attRows = db.prepare(
+      "SELECT * FROM attendance WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL"
+    ).all(+req.params.id, monthFilter + '%');
+
+    const STD_MINS = 8 * 60;
+    let regularMins = 0;          // normal day, <=8h
+    let otNormalMins = 0;         // normal day, approved OT beyond 8h
+    let weekendMins = 0;          // weekend, approved
+    let holidayMins = 0;          // holiday, approved
+    let unapprovedOtMins = 0;     // FYI: pending/none/rejected OT on non-normal OR beyond 8h normal
+    let absentDays = 0;
+
+    attRows.forEach(r => {
+      const mins = +r.total_mins || 0;
+      if (mins <= 0) { absentDays += 1; return; }
+      const dt = (r.day_type || 'normal').toLowerCase();
+      const otApproved = r.overtime_status === 'approved';
+
+      if (dt === 'weekend') {
+        if (otApproved) weekendMins += mins;
+        else           unapprovedOtMins += mins;
+      } else if (dt === 'holiday') {
+        if (otApproved) holidayMins += mins;
+        else           unapprovedOtMins += mins;
+      } else { // normal
+        if (mins <= STD_MINS) {
+          regularMins += mins;
+        } else {
+          regularMins += STD_MINS;
+          const excess = mins - STD_MINS;
+          if (otApproved) otNormalMins += excess;
+          else           unapprovedOtMins += excess;
+        }
       }
     });
 
-    const regularPay  = (regularMins  / 60) * hourlyRate;
-    const overtimePay = (overtimeMins / 60) * hourlyRate * 1.25;  // +25%
-    const vacationPay = (vacationMins / 60) * hourlyRate * 1.50;  // +50%
-    const totalPay    = regularPay + overtimePay + vacationPay;
+    // Paid leave hours (approved + leave_type.is_paid=1). Treat as 8h/day for vacation-kind,
+    // exact hours for hourly-kind.
+    const leaveRows = db.prepare(`
+      SELECT lr.days, lr.hours, lr.leave_kind
+      FROM leave_requests lr
+      LEFT JOIN leave_types lt ON lower(trim(lt.label)) = lower(trim(lr.type))
+      WHERE lr.worker_id = ?
+        AND lr.status = 'approved'
+        AND COALESCE(lt.is_paid, 1) = 1
+        AND (
+          (lr.leave_kind = 'hourly' AND lr.date_from LIKE ?) OR
+          (lr.leave_kind != 'hourly' AND (lr.date_from LIKE ? OR lr.date_to LIKE ?))
+        )
+    `).all(+req.params.id, monthFilter + '%', monthFilter + '%', monthFilter + '%');
+    let leaveMins = 0;
+    leaveRows.forEach(lr => {
+      if (lr.leave_kind === 'hourly') leaveMins += Math.round((+lr.hours || 0) * 60);
+      else                             leaveMins += Math.round((+lr.days  || 0) * STD_MINS);
+    });
+
+    // Pay calculations
+    const regularPay   = (regularMins   / 60) * hourlyRate * 1.00;
+    const otNormalPay  = (otNormalMins  / 60) * hourlyRate * 1.25;
+    const weekendPay   = (weekendMins   / 60) * hourlyRate * 1.50;
+    const holidayPay   = (holidayMins   / 60) * hourlyRate * 1.50;
+    const leavePay     = (leaveMins     / 60) * hourlyRate * 1.00;
+    const totalPay     = regularPay + otNormalPay + weekendPay + holidayPay + leavePay;
 
     res.json({
-      worker_id: w.id, worker_name: w.name,
-      month: month||new Date().toISOString().slice(0,7),
-      days_worked: rows.length,
-      regular_hours:  +(regularMins/60).toFixed(2),
-      overtime_hours: +(overtimeMins/60).toFixed(2),
-      vacation_hours: +(vacationMins/60).toFixed(2),
+      worker_id: w.id,
+      worker_name: w.name,
+      month: monthFilter,
       hourly_rate: hourlyRate,
-      regular_pay:  +regularPay.toFixed(2),
-      overtime_pay: +overtimePay.toFixed(2),
-      vacation_pay: +vacationPay.toFixed(2),
-      total_pay:    +totalPay.toFixed(2)
+      days_worked: attRows.length,
+      // Hour breakdown (field names matched to frontend)
+      regular_hours:  +(regularMins   / 60).toFixed(2),
+      overtime_hours: +(otNormalMins  / 60).toFixed(2),
+      weekend_hours:  +(weekendMins   / 60).toFixed(2),
+      holiday_hours:  +(holidayMins   / 60).toFixed(2),
+      leave_hours:    +(leaveMins     / 60).toFixed(2),
+      unapproved_ot_hours: +(unapprovedOtMins / 60).toFixed(2),
+      // Pay breakdown
+      regular_pay:    +regularPay.toFixed(2),
+      overtime_pay:   +otNormalPay.toFixed(2),
+      weekend_pay:    +weekendPay.toFixed(2),
+      holiday_pay:    +holidayPay.toFixed(2),
+      leave_pay:      +leavePay.toFixed(2),
+      total_pay:      +totalPay.toFixed(2)
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

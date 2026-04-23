@@ -5,3 +5,4 @@ node_modules/
 uploads/
 *.log
 .env
+agi-glass.db.backup-*

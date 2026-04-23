@@ -28,7 +28,18 @@ try {
   });
   // New tolerance columns
   try { db.prepare('ALTER TABLE work_schedule ADD COLUMN punch_in_tolerance_mins INTEGER DEFAULT 10').run(); } catch(e) {}
-  try { db.prepare('ALTER TABLE work_schedule ADD COLUMN punch_out_grace_mins INTEGER DEFAULT 5').run(); } catch(e) {}
+  try { db.prepare('ALTER TABLE work_schedule ADD COLUMN punch_out_grace_mins INTEGER DEFAULT 15').run(); } catch(e) {}
+  // Annual vacation entitlement (default 14 days/year → ~1.167/mo accrual).
+  // This supersedes the legacy vacation_accrual column (which stored the monthly rate).
+  try { db.prepare('ALTER TABLE work_schedule ADD COLUMN annual_vacation_days REAL DEFAULT 14').run(); } catch(e) {}
+  try {
+    // Backfill annual_vacation_days from legacy vacation_accrual (monthly × 12)
+    const row = db.prepare('SELECT annual_vacation_days, vacation_accrual FROM work_schedule LIMIT 1').get();
+    if (row && (!row.annual_vacation_days || +row.annual_vacation_days === 0) && row.vacation_accrual) {
+      const annual = +row.vacation_accrual * 12;
+      db.prepare('UPDATE work_schedule SET annual_vacation_days=? WHERE id=1').run(Math.round(annual * 100) / 100);
+    }
+  } catch(e) {}
   // Leave request extra columns
   try { db.prepare('ALTER TABLE leave_requests ADD COLUMN medical_report TEXT').run(); } catch(e) {}
   // Ensure Hourly Leave system type exists
@@ -57,6 +68,13 @@ try {
     insLT.run('Injury Leave', 0, 0, 1);
     insLT.run('Unpaid Leave', 0, 0, 1);
   }
+  // is_paid flag on leave_types — paid leave pays 100% + deducts from balance
+  try { db.prepare('ALTER TABLE leave_types ADD COLUMN is_paid INTEGER DEFAULT 1').run(); } catch(e) {}
+  try {
+    // Unpaid leave shouldn't be paid
+    db.prepare("UPDATE leave_types SET is_paid=0 WHERE lower(label) LIKE '%unpaid%' AND is_paid IS NULL").run();
+    db.prepare("UPDATE leave_types SET is_paid=1 WHERE is_paid IS NULL").run();
+  } catch(e) {}
   // Leave request new columns
   try { db.prepare('ALTER TABLE leave_requests ADD COLUMN leave_kind TEXT DEFAULT "vacation"').run(); } catch(e) {}
   try { db.prepare('ALTER TABLE leave_requests ADD COLUMN hours REAL DEFAULT 0').run(); } catch(e) {}
@@ -112,7 +130,155 @@ try {
     reviewed_at  DATETIME,
     created_at   DATETIME DEFAULT (datetime('now','localtime'))
   )`).run();
+
+  // ── One-time migration: drop the legacy CHECK(type IN ...) constraint.
+  // The original table limited `type` to 4 hard-coded strings, but the app
+  // now stores admin-defined labels from the leave_types table (e.g. "Hourly
+  // Leave", "Injury Leave"). SQLite can't ALTER a constraint, so we rebuild.
+  try {
+    const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='leave_requests'").get();
+    if (sql && sql.sql && sql.sql.indexOf("type IN ('vacation','sick','emergency','unpaid')") !== -1) {
+      console.log('[hr init] Migrating leave_requests to drop legacy CHECK constraint...');
+      db.exec('BEGIN');
+      try {
+        // 1. Get column list of the old table so we copy only existing columns
+        const cols = db.prepare("PRAGMA table_info(leave_requests)").all().map(c => c.name);
+        const colList = cols.join(',');
+        // 2. Create new table with the same columns but NO check on type
+        db.prepare(`CREATE TABLE leave_requests_new (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          worker_id      INTEGER NOT NULL,
+          worker_name    TEXT NOT NULL,
+          date_from      TEXT NOT NULL,
+          date_to        TEXT NOT NULL,
+          days           INTEGER NOT NULL,
+          type           TEXT DEFAULT 'vacation',
+          reason         TEXT,
+          status         TEXT DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+          reviewed_by    TEXT,
+          reviewed_at    DATETIME,
+          attendance_id  INTEGER,
+          medical_report TEXT,
+          time_from      TEXT,
+          time_to        TEXT,
+          leave_kind     TEXT DEFAULT 'vacation',
+          hours          REAL DEFAULT 0,
+          notes          TEXT,
+          created_at     DATETIME DEFAULT (datetime('now','localtime'))
+        )`).run();
+        // 3. Copy rows (only columns that exist in both)
+        const newCols = db.prepare("PRAGMA table_info(leave_requests_new)").all().map(c => c.name);
+        const shared = cols.filter(c => newCols.includes(c)).join(',');
+        db.prepare(`INSERT INTO leave_requests_new (${shared}) SELECT ${shared} FROM leave_requests`).run();
+        // 4. Swap
+        db.prepare('DROP TABLE leave_requests').run();
+        db.prepare('ALTER TABLE leave_requests_new RENAME TO leave_requests').run();
+        db.exec('COMMIT');
+        console.log('[hr init] Migration complete — leave_requests.type no longer restricted.');
+      } catch(e) { db.exec('ROLLBACK'); throw e; }
+    }
+  } catch(e) { console.warn('[hr migrate leave_requests]', e.message); }
+
+  // ── Payroll adjustments (admin-added manual line items) ──────────────────
+  // Each adjustment has a date; it applies to the month containing that date.
+  db.prepare(`CREATE TABLE IF NOT EXISTS payroll_adjustments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    worker_id       INTEGER NOT NULL,
+    worker_name     TEXT NOT NULL,
+    adjustment_date TEXT NOT NULL,
+    type            TEXT NOT NULL,
+    amount          REAL NOT NULL,
+    note            TEXT,
+    created_by      TEXT,
+    created_at      DATETIME DEFAULT (datetime('now','localtime'))
+  )`).run();
+
+  // ── Payroll runs (immutable history of closed months) ────────────────────
+  db.prepare(`CREATE TABLE IF NOT EXISTS payroll_runs (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    worker_id               INTEGER NOT NULL,
+    worker_name             TEXT NOT NULL,
+    month                   TEXT NOT NULL,
+    base_salary             REAL DEFAULT 0,
+    ot_pay                  REAL DEFAULT 0,
+    weekend_pay             REAL DEFAULT 0,
+    holiday_pay             REAL DEFAULT 0,
+    absence_deduction       REAL DEFAULT 0,
+    lateness_deduction      REAL DEFAULT 0,
+    balance_deduction       REAL DEFAULT 0,
+    unpaid_leave_deduction  REAL DEFAULT 0,
+    total_adjustments       REAL DEFAULT 0,
+    gross_pay               REAL DEFAULT 0,
+    ss_deduction            REAL DEFAULT 0,
+    net_pay                 REAL DEFAULT 0,
+    balance_before_close    REAL DEFAULT 0,
+    closed_at               DATETIME,
+    closed_by               TEXT,
+    is_reopened             INTEGER DEFAULT 0,
+    reopened_at             DATETIME,
+    reopened_by             TEXT
+  )`).run();
+  // One active run per (worker, month) — reopened rows stay as history
+  try { db.prepare('CREATE INDEX IF NOT EXISTS idx_payroll_runs_month ON payroll_runs(month, worker_id)').run(); } catch(e){}
 } catch(e) { console.warn('[hr init]', e.message); }
+
+// ──────────────────────────────────────────────────────────────────────────
+// AUTO-ACCRUAL — adds monthly vacation accrual to each worker's balance.
+// Runs on server startup and on month-close. Idempotent: uses last_accrued
+// column to detect how many months have been missed and adds them all at
+// once. If a worker has never had an accrual row (new hire), creates one
+// with balance=0 and last_accrued=current month so they start accruing
+// from NEXT month (opening balance is admin's responsibility to set).
+// ──────────────────────────────────────────────────────────────────────────
+function autoAccrueVacation() {
+  try {
+    const sched = db.prepare('SELECT annual_vacation_days, vacation_accrual FROM work_schedule ORDER BY id LIMIT 1').get();
+    const annual = +sched?.annual_vacation_days || 14;
+    // Monthly accrual = annual / 12. Fallback to legacy vacation_accrual for DBs not yet migrated.
+    const accrual = annual > 0 ? (annual / 12) : (+sched?.vacation_accrual || 1.1667);
+    const workers = db.prepare('SELECT id, name FROM workers WHERE is_active=1').all();
+    const now = new Date();
+    const thisMonth = now.toISOString().slice(0,7); // YYYY-MM
+    let added = 0;
+    for (const w of workers) {
+      const vb = db.prepare('SELECT balance_days, last_accrued FROM vacation_balance WHERE worker_id=?').get(w.id);
+      if (!vb) {
+        // First time — create row at 0 balance, mark accrued-this-month so
+        // first accrual hits NEXT month.
+        db.prepare(`INSERT INTO vacation_balance (worker_id, worker_name, balance_days, accrual_rate, last_accrued, updated_at)
+          VALUES (?, ?, 0, ?, ?, datetime('now','localtime'))`)
+          .run(w.id, w.name, accrual, thisMonth);
+        continue;
+      }
+      const lastAccruedMonth = vb.last_accrued ? vb.last_accrued.slice(0,7) : null;
+      if (!lastAccruedMonth) {
+        // Has a row but no last_accrued — mark this month so it starts cleanly next month
+        db.prepare("UPDATE vacation_balance SET last_accrued=? WHERE worker_id=?")
+          .run(thisMonth, w.id);
+        continue;
+      }
+      // How many months between last_accrued and thisMonth?
+      const [ly, lm] = lastAccruedMonth.split('-').map(Number);
+      const [cy, cm] = thisMonth.split('-').map(Number);
+      const monthsDiff = (cy - ly) * 12 + (cm - lm);
+      if (monthsDiff > 0) {
+        const addDays = monthsDiff * accrual;
+        db.prepare(`UPDATE vacation_balance
+          SET balance_days = COALESCE(balance_days,0) + ?,
+              last_accrued = ?,
+              updated_at = datetime('now','localtime')
+          WHERE worker_id=?`)
+          .run(addDays, thisMonth, w.id);
+        added++;
+        console.log(`[autoAccrue] ${w.name}: +${addDays.toFixed(3)} days (${monthsDiff} month(s) missed)`);
+      }
+    }
+    if (added > 0) console.log(`[autoAccrue] Accrued ${added} worker(s) up to ${thisMonth}`);
+  } catch(e) { console.warn('[autoAccrueVacation]', e.message); }
+}
+
+// Run on startup (once per process)
+setTimeout(autoAccrueVacation, 500); // defer to let DB init fully
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function getSchedule() {
@@ -143,11 +309,26 @@ router.get('/leave-types', (req, res) => {
 
 router.post('/leave-types', requireAdmin, (req, res) => {
   try {
-    const { label, requires_file } = req.body;
+    const { label, requires_file, is_paid } = req.body;
     if (!label) return res.status(400).json({ error: 'label required' });
-    const r = db.prepare('INSERT INTO leave_types (label,requires_file,is_system,active) VALUES (?,?,0,1)')
-      .run(label.trim(), requires_file ? 1 : 0);
+    const paid = is_paid === false || is_paid === 0 ? 0 : 1;
+    const r = db.prepare('INSERT INTO leave_types (label,requires_file,is_system,active,is_paid) VALUES (?,?,0,1,?)')
+      .run(label.trim(), requires_file ? 1 : 0, paid);
     res.status(201).json(db.prepare('SELECT * FROM leave_types WHERE id=?').get(r.lastInsertRowid));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/leave-types/:id', requireAdmin, (req, res) => {
+  try {
+    const lt = db.prepare('SELECT * FROM leave_types WHERE id=?').get(+req.params.id);
+    if (!lt) return res.status(404).json({ error: 'Not found' });
+    const { label, requires_file, is_paid } = req.body;
+    const newLabel = label != null ? String(label).trim() : lt.label;
+    const newReq   = requires_file != null ? (requires_file ? 1 : 0) : lt.requires_file;
+    const newPaid  = is_paid != null ? ((is_paid === false || is_paid === 0) ? 0 : 1) : lt.is_paid;
+    db.prepare('UPDATE leave_types SET label=?, requires_file=?, is_paid=? WHERE id=?')
+      .run(newLabel, newReq, newPaid, +req.params.id);
+    res.json(db.prepare('SELECT * FROM leave_types WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -168,9 +349,12 @@ router.get('/schedule', (req, res) => {
 
 router.put('/schedule', requireAdmin, (req, res) => {
   try {
-    const { start_time, end_time, thursday_end_time, break_mins, work_days, weekend_day, vacation_accrual, punch_in_tolerance_mins, punch_out_grace_mins } = req.body;
-    db.prepare(`UPDATE work_schedule SET start_time=?,end_time=?,thursday_end_time=?,break_mins=?,work_days=?,weekend_day=?,vacation_accrual=?,punch_in_tolerance_mins=?,punch_out_grace_mins=?,updated_at=datetime('now','localtime') WHERE id=1`)
-      .run(start_time||'08:00', end_time||'16:30', thursday_end_time||'15:00', +break_mins||30, JSON.stringify(work_days||[]), weekend_day||'fri', +vacation_accrual||1.167, +punch_in_tolerance_mins||10, +punch_out_grace_mins||5);
+    const { start_time, end_time, thursday_end_time, break_mins, work_days, weekend_day, vacation_accrual, annual_vacation_days, punch_in_tolerance_mins, punch_out_grace_mins } = req.body;
+    // annual_vacation_days is the new primary field; derive monthly rate for back-compat
+    const annual = annual_vacation_days != null ? +annual_vacation_days : (+vacation_accrual * 12) || 14;
+    const monthlyAccrual = annual / 12;
+    db.prepare(`UPDATE work_schedule SET start_time=?,end_time=?,thursday_end_time=?,break_mins=?,work_days=?,weekend_day=?,vacation_accrual=?,annual_vacation_days=?,punch_in_tolerance_mins=?,punch_out_grace_mins=?,updated_at=datetime('now','localtime') WHERE id=1`)
+      .run(start_time||'08:00', end_time||'16:30', thursday_end_time||'15:00', +break_mins||30, JSON.stringify(work_days||[]), weekend_day||'fri', monthlyAccrual, annual, +punch_in_tolerance_mins||10, +punch_out_grace_mins||15);
     res.json(getSchedule());
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -328,69 +512,486 @@ router.delete('/leave/:id', requireAdmin, (req, res) => {
 });
 
 // ══ PAYROLL (full calculation) ═════════════════════════════════════════════
+// ──────────────────────────────────────────────────────────────────────────
+// PAYROLL v2 — monthly-fixed salary model
+// ──────────────────────────────────────────────────────────────────────────
+// Core principle: every worker has a fixed monthly base salary. Feb/Mar/Apr
+// all pay the same base. Hourly rate is derived for OT and deductions only.
+//
+// Formula:
+//   Gross = base + ot_pay + weekend_pay + holiday_pay + adjustments
+//         − absence_deduction − lateness_deduction − balance_deduction
+//         − unpaid_leave_deduction
+//   Net   = Gross − ss_deduction
+//
+// Balance deduction = negative portion of (vacation_balance − paid_leave_used
+//                     − lateness_in_days − absence_in_days) × hourly_rate
+//
+// Lateness: late_mins ÷ 480 = fractional days
+// Absences: weekday with no punch-in AND no approved leave = 1 day
+// Weekends and holidays are NEVER absences.
+//
+// Returns per-worker snapshot. If the month is closed (payroll_runs row with
+// is_reopened=0 exists), returns the stored snapshot instead of recomputing.
 router.get('/payroll', requireAdmin, (req, res) => {
   try {
-    const { month } = req.query; // YYYY-MM
+    const { month } = req.query;
     const m = month || new Date().toISOString().slice(0,7);
     const sched = getSchedule();
-    const stdMins = timeDiffMins(sched.start_time, sched.end_time) - (+sched.break_mins||30);
-    const workers = db.prepare('SELECT * FROM workers WHERE is_active=1').all();
+    const STD_MINS = 8 * 60;
+    const MONTHLY_DIVISOR_HOURS = 240; // 30 days × 8h fixed
+    const accrual = +sched.annual_vacation_days > 0 ? (+sched.annual_vacation_days / 12) : (+sched.vacation_accrual || 1.1667);
+    const weekendDay = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}[sched.weekend_day||'fri'] ?? 5;
+
+    // Check if month is closed
+    const closedRuns = db.prepare(
+      "SELECT * FROM payroll_runs WHERE month=? AND is_reopened=0"
+    ).all(m);
+    const isClosed = closedRuns.length > 0;
+
+    if (isClosed) {
+      // Return the stored snapshot
+      return res.json({
+        month: m,
+        schedule: sched,
+        is_closed: true,
+        closed_at: closedRuns[0].closed_at,
+        closed_by: closedRuns[0].closed_by,
+        workers: closedRuns.map(r => ({
+          worker_id: r.worker_id,
+          worker_name: r.worker_name,
+          is_closed: true,
+          // Snapshot fields
+          base_salary:        +r.base_salary,
+          overtime_pay:       +r.ot_pay,
+          weekend_pay:        +r.weekend_pay,
+          holiday_pay:        +r.holiday_pay,
+          absence_deduction:  +r.absence_deduction,
+          lateness_deduction: +r.lateness_deduction,
+          balance_deduction:  +r.balance_deduction,
+          unpaid_leave_deduction: +r.unpaid_leave_deduction,
+          total_adjustments:  +r.total_adjustments,
+          gross_pay:          +r.gross_pay,
+          ss_deduction:       +r.ss_deduction,
+          net_pay:            +r.net_pay,
+          total_pay:          +r.net_pay,
+          balance_before_close: +r.balance_before_close
+        }))
+      });
+    }
+
+    // OPEN month — compute live
+    const workers = db.prepare('SELECT * FROM workers WHERE is_active=1 AND monthly_salary IS NOT NULL AND monthly_salary > 0').all();
+
     const results = workers.map(w => {
-      const att = db.prepare("SELECT * FROM attendance WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL")
-        .all(w.id, m+'%');
-      const ot = db.prepare("SELECT * FROM overtime WHERE worker_id=? AND date LIKE ? AND status='approved'")
-        .all(w.id, m+'%');
-      const lv = db.prepare("SELECT * FROM leave_requests WHERE worker_id=? AND date_from LIKE ? AND status='approved'")
-        .all(w.id, m+'%');
-      const hourlyRate = +w.hourly_rate || 0;
-      let regularMins = 0, fridayMins = 0, lateMins = 0;
+      const att = db.prepare(
+        "SELECT * FROM attendance WHERE worker_id=? AND date LIKE ?"
+      ).all(w.id, m+'%');
+
+      const monthlyBase = +w.monthly_salary || 0;
+      const hourlyRate  = monthlyBase > 0 ? (monthlyBase / MONTHLY_DIVISOR_HOURS) : (+w.hourly_rate || 0);
+
+      // ── Attendance analysis ────────────────────────────────────────────
+      let overtimeMins = 0, weekendMins = 0, holidayMins = 0;
+      let unapprovedOtMins = 0, lateMins = 0;
+      let daysWorked = 0;
+      const workedDates = new Set();
+
+      // Grace period mirrors attendance sweep — don't count minor punch-out drift as OT
+      const graceMins = +sched.punch_out_grace_mins || 15;
+      const shiftEndMain = sched.end_time || '16:30';
+      const shiftEndThu  = sched.thursday_end_time || '15:00';
+
       att.forEach(a => {
-        const worked = a.total_mins || 0;
-        // Check if this date is a Friday (day 5)
-        const dayOfWeek = new Date(a.date).getDay(); // 0=Sun,5=Fri
-        if (dayOfWeek === 5) {
-          fridayMins += worked; // Friday = +50%
-        } else {
-          regularMins += Math.min(worked, stdMins);
-        }
-        // Lateness: punch-in after schedule start (weekdays only)
-        if (a.punch_in && dayOfWeek !== 5) {
-          const punchInTime = a.punch_in.slice(11,16);
-          const late = timeDiffMins(sched.start_time, punchInTime);
-          if (late > 0) lateMins += late;
+        const worked = +a.total_mins || 0;
+        const dt = (a.day_type || 'normal').toLowerCase();
+        const otStatus = a.overtime_status || 'none';
+        const otApproved = otStatus === 'approved';
+        const otRejected = otStatus === 'rejected';
+        const approvedOT = +a.overtime_mins || 0;
+        if (a.punch_in) { daysWorked++; workedDates.add(a.date); lateMins += +a.late_mins || 0; }
+
+        if (worked > 0) {
+          if (dt === 'weekend') {
+            if (otApproved)       weekendMins += approvedOT;
+            else if (!otRejected) unapprovedOtMins += worked;
+          } else if (dt === 'holiday') {
+            if (otApproved)       holidayMins += approvedOT;
+            else if (!otRejected) unapprovedOtMins += worked;
+          } else {
+            // Normal day — OT is determined by punch-out time vs shift end,
+            // NOT by total_mins vs 8h (since total_mins is raw duration
+            // including the unpaid break).
+            if (a.punch_out && a.punch_in) {
+              const dow = new Date(a.date).getDay();
+              const shiftEnd = (dow === 4) ? shiftEndThu : shiftEndMain;
+              const [eh, em] = shiftEnd.split(':').map(Number);
+              const pout = String(a.punch_out);
+              const poutTime = (pout.length >= 16 && (pout.charAt(10)===' '||pout.charAt(10)==='T')) ? pout.slice(11,16) : '';
+              if (poutTime) {
+                const [ph, pm] = poutTime.split(':').map(Number);
+                const overMins = (ph*60+pm) - (eh*60+em);
+                if (overMins > graceMins) {
+                  if (otApproved)       overtimeMins += approvedOT;
+                  else if (!otRejected) unapprovedOtMins += overMins;
+                }
+              }
+            }
+          }
         }
       });
-      const otMins = ot.reduce((a,o) => a+(o.mins||0), 0);
-      const lvDays = lv.reduce((a,l) => a+(l.days||0), 0);
-      const lvMins = lvDays * stdMins;
-      const regularPay  = (regularMins/60) * hourlyRate;
-      const fridayPay   = (fridayMins/60) * hourlyRate * 1.50;  // Friday +50%
-      const otPay       = (otMins/60) * hourlyRate * 1.25;       // Overtime +25%
-      const vacationPay = (lvMins/60) * hourlyRate * 1.50;       // Vacation +50%
-      const grossPay    = regularPay + fridayPay + otPay + vacationPay;
-      const ssPct       = +w.social_security_pct || 0;
-      const ssDeduction = grossPay * (ssPct/100);
-      const totalPay    = grossPay - ssDeduction;
+
+      // ── Detect weekday absences in month ───────────────────────────────
+      const [yy, mm] = m.split('-').map(Number);
+      const daysInMonth = new Date(yy, mm, 0).getDate();
+      const today = new Date();
+      const endDay = (today.getFullYear() === yy && (today.getMonth()+1) === mm)
+        ? today.getDate() : daysInMonth;
+      let absenceDays = 0;
+      for (let d = 1; d <= endDay; d++) {
+        const dateStr = `${yy}-${String(mm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dow = new Date(dateStr).getDay();
+        if (dow === weekendDay) continue; // weekends never absent
+        if (workedDates.has(dateStr)) continue; // they showed up
+        // Check if date is covered by approved leave (any type)
+        const covered = db.prepare(`
+          SELECT 1 FROM leave_requests
+          WHERE worker_id=? AND status='approved'
+            AND (
+              (leave_kind='hourly' AND date_from=?)
+              OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?)
+            )
+          LIMIT 1
+        `).get(w.id, dateStr, dateStr, dateStr);
+        if (covered) continue;
+        // Check if it's a holiday (we don't have a holidays table yet — treat 'holiday' attendance entries as holidays)
+        // Skip dates with day_type='holiday' in any attendance row (even for other workers)
+        const isHoliday = db.prepare(
+          "SELECT 1 FROM attendance WHERE date=? AND day_type='holiday' LIMIT 1"
+        ).get(dateStr);
+        if (isHoliday) continue;
+        absenceDays++;
+      }
+
+      // ── Paid / unpaid leave usage (approved, in month) ─────────────────
+      const leaveRows = db.prepare(`
+        SELECT lr.days, lr.hours, lr.leave_kind, COALESCE(lt.is_paid, 1) AS is_paid
+        FROM leave_requests lr
+        LEFT JOIN leave_types lt ON lower(trim(lt.label)) = lower(trim(lr.type))
+        WHERE lr.worker_id = ?
+          AND lr.status = 'approved'
+          AND (
+            (lr.leave_kind = 'hourly' AND lr.date_from LIKE ?) OR
+            (lr.leave_kind != 'hourly' AND (lr.date_from LIKE ? OR lr.date_to LIKE ?))
+          )
+      `).all(w.id, m+'%', m+'%', m+'%');
+      let paidLeaveDays = 0, unpaidLeaveMins = 0, paidLeaveMins = 0;
+      leaveRows.forEach(lr => {
+        const d = lr.leave_kind === 'hourly' ? (+lr.hours || 0) / 8 : (+lr.days || 0);
+        if (lr.is_paid) { paidLeaveDays += d; paidLeaveMins += Math.round(d * STD_MINS); }
+        else            unpaidLeaveMins += Math.round(d * STD_MINS);
+      });
+      const totalLeaveMins = paidLeaveMins + unpaidLeaveMins;
+
+      // ── Balance math ────────────────────────────────────────────────────
+      // Current balance before this month's deductions:
+      const vb = db.prepare('SELECT balance_days FROM vacation_balance WHERE worker_id=?').get(w.id);
+      const currentBalance = vb ? (+vb.balance_days || 0) : 0;
+      const lateDays = lateMins / 480;
+      // Effective balance after applying this month's deductions:
+      const balanceAfter = currentBalance - paidLeaveDays - lateDays - absenceDays;
+      const negativeDays = balanceAfter < 0 ? -balanceAfter : 0;
+      const balanceDeduction = negativeDays * 8 * hourlyRate; // convert days to hours to cash
+
+      // ── Pay computations ───────────────────────────────────────────────
+      const overtimePay  = (overtimeMins / 60) * hourlyRate * 1.25;
+      const weekendPay   = (weekendMins  / 60) * hourlyRate * 1.50;
+      const holidayPay   = (holidayMins  / 60) * hourlyRate * 1.50;
+      const absenceDeduction = absenceDays * 8 * hourlyRate; // legacy — the "balance_deduction" above already covers this
+      const latenessDeduction = 0;                           // same — handled in balance
+      const unpaidLeavePay     = (unpaidLeaveMins / 60) * hourlyRate; // cash out at 1.0× then deducted
+      // Note: absences and lateness hit the vacation balance; the cash hit is only
+      // when balance goes negative (covered by balanceDeduction).
+      // So we do NOT double-deduct absences/lateness from cash.
+
+      // ── Adjustments for this month ─────────────────────────────────────
+      const adjRows = db.prepare(
+        "SELECT id, type, amount, note, adjustment_date FROM payroll_adjustments WHERE worker_id=? AND adjustment_date LIKE ? ORDER BY adjustment_date"
+      ).all(w.id, m+'%');
+      const totalAdjustments = adjRows.reduce((s, a) => s + (+a.amount || 0), 0);
+
+      // ── Gross / Net ────────────────────────────────────────────────────
+      const gross = monthlyBase
+                  + overtimePay + weekendPay + holidayPay
+                  - balanceDeduction
+                  - unpaidLeavePay
+                  + totalAdjustments;
+      const ssPct = +w.social_security_pct || 0;
+      const ssDeduction = gross * (ssPct / 100);
+      const net = gross - ssDeduction;
+
       return {
         worker_id: w.id, worker_name: w.name,
-        employment_type: w.employment_type||'hourly',
-        hourly_rate: hourlyRate, monthly_salary: +w.monthly_salary||0,
-        days_worked: att.length, late_mins: lateMins,
-        regular_hours: +(regularMins/60).toFixed(2),
-        friday_hours: +(fridayMins/60).toFixed(2),
-        overtime_hours: +(otMins/60).toFixed(2),
-        vacation_days: lvDays,
-        regular_pay: +regularPay.toFixed(2),
-        friday_pay: +fridayPay.toFixed(2),
-        overtime_pay: +otPay.toFixed(2),
-        vacation_pay: +vacationPay.toFixed(2),
-        ss_pct: ssPct,
-        ss_deduction: +ssDeduction.toFixed(2),
-        gross_pay: +grossPay.toFixed(2),
-        total_pay: w.employment_type==='monthly' ? +w.monthly_salary : +totalPay.toFixed(2)
+        employment_type: w.employment_type || 'hourly',
+        hourly_rate: +hourlyRate.toFixed(4),
+        monthly_salary: monthlyBase,
+        is_closed: false,
+        // Attendance analytics
+        days_worked: daysWorked,
+        absence_days: absenceDays,
+        late_mins: lateMins,
+        late_days: +lateDays.toFixed(3),
+        // Balance
+        balance_before: +currentBalance.toFixed(3),
+        balance_after:  +balanceAfter.toFixed(3),
+        paid_leave_days: +paidLeaveDays.toFixed(3),
+        leave_hours:     +(totalLeaveMins / 60).toFixed(2),
+        // Hour breakdown (OT only — base is not hours-based)
+        overtime_hours: +(overtimeMins / 60).toFixed(2),
+        weekend_hours:  +(weekendMins  / 60).toFixed(2),
+        holiday_hours:  +(holidayMins  / 60).toFixed(2),
+        unapproved_ot_hours: +(unapprovedOtMins / 60).toFixed(2),
+        // Pay lines
+        base_salary:        +monthlyBase.toFixed(2),
+        overtime_pay:       +overtimePay.toFixed(2),
+        weekend_pay:        +weekendPay.toFixed(2),
+        holiday_pay:        +holidayPay.toFixed(2),
+        balance_deduction:  +balanceDeduction.toFixed(2),
+        unpaid_leave_deduction: +unpaidLeavePay.toFixed(2),
+        total_adjustments:  +totalAdjustments.toFixed(2),
+        adjustments:        adjRows,
+        ss_pct:             ssPct,
+        ss_deduction:       +ssDeduction.toFixed(2),
+        gross_pay:          +gross.toFixed(2),
+        net_pay:            +net.toFixed(2),
+        total_pay:          +net.toFixed(2)
       };
     });
-    res.json({ month: m, schedule: sched, workers: results });
+    res.json({ month: m, schedule: sched, is_closed: false, workers: results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// PAYROLL ADJUSTMENTS CRUD
+// ──────────────────────────────────────────────────────────────────────────
+router.get('/payroll/adjustments', requireAdmin, (req, res) => {
+  try {
+    const { worker_id, month, from, to } = req.query;
+    let sql = 'SELECT * FROM payroll_adjustments WHERE 1=1';
+    const p = [];
+    if (worker_id) { sql += ' AND worker_id=?'; p.push(+worker_id); }
+    if (month)     { sql += ' AND adjustment_date LIKE ?'; p.push(month+'%'); }
+    if (from)      { sql += ' AND adjustment_date>=?'; p.push(from); }
+    if (to)        { sql += ' AND adjustment_date<=?'; p.push(to); }
+    sql += ' ORDER BY adjustment_date DESC, id DESC';
+    res.json(db.prepare(sql).all(...p));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/payroll/adjustments', requireAdmin, (req, res) => {
+  try {
+    const { worker_id, adjustment_date, type, amount, note } = req.body;
+    if (!worker_id || !adjustment_date || !type || amount === undefined)
+      return res.status(400).json({ error: 'worker_id, adjustment_date, type, amount required' });
+    const w = db.prepare('SELECT name FROM workers WHERE id=?').get(+worker_id);
+    if (!w) return res.status(404).json({ error: 'Worker not found' });
+    const allowedTypes = ['bonus','penalty','forgiveness','correction','other'];
+    if (!allowedTypes.includes(type)) return res.status(400).json({ error: 'Invalid type' });
+    // Prevent edits to a closed month
+    const month = adjustment_date.slice(0,7);
+    const locked = db.prepare("SELECT 1 FROM payroll_runs WHERE worker_id=? AND month=? AND is_reopened=0 LIMIT 1").get(+worker_id, month);
+    if (locked) return res.status(400).json({ error: `${month} is closed. Reopen before editing.` });
+    const r = db.prepare(`
+      INSERT INTO payroll_adjustments (worker_id, worker_name, adjustment_date, type, amount, note, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(+worker_id, w.name, adjustment_date, type, +amount, note||null, req.user?.name || 'system');
+    res.status(201).json(db.prepare('SELECT * FROM payroll_adjustments WHERE id=?').get(r.lastInsertRowid));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/payroll/adjustments/:id', requireAdmin, (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM payroll_adjustments WHERE id=?').get(+req.params.id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    const { adjustment_date, type, amount, note } = req.body;
+    const newDate = adjustment_date || row.adjustment_date;
+    // Prevent edits if locked
+    const month = newDate.slice(0,7);
+    const locked = db.prepare("SELECT 1 FROM payroll_runs WHERE worker_id=? AND month=? AND is_reopened=0 LIMIT 1").get(row.worker_id, month);
+    if (locked) return res.status(400).json({ error: `${month} is closed. Reopen before editing.` });
+    db.prepare(`
+      UPDATE payroll_adjustments
+      SET adjustment_date=?, type=?, amount=?, note=?
+      WHERE id=?
+    `).run(newDate, type||row.type, amount!==undefined?+amount:row.amount, note!==undefined?note:row.note, +req.params.id);
+    res.json(db.prepare('SELECT * FROM payroll_adjustments WHERE id=?').get(+req.params.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/payroll/adjustments/:id', requireAdmin, (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM payroll_adjustments WHERE id=?').get(+req.params.id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    const month = row.adjustment_date.slice(0,7);
+    const locked = db.prepare("SELECT 1 FROM payroll_runs WHERE worker_id=? AND month=? AND is_reopened=0 LIMIT 1").get(row.worker_id, month);
+    if (locked) return res.status(400).json({ error: `${month} is closed. Reopen before deleting.` });
+    db.prepare('DELETE FROM payroll_adjustments WHERE id=?').run(+req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// MONTH CLOSE / REOPEN
+// ──────────────────────────────────────────────────────────────────────────
+router.post('/payroll/close-month', requireAdmin, (req, res) => {
+  try {
+    const { month } = req.body;
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'month YYYY-MM required' });
+    // Prevent double-close
+    const existing = db.prepare("SELECT COUNT(*) AS c FROM payroll_runs WHERE month=? AND is_reopened=0").get(month).c;
+    if (existing > 0) return res.status(400).json({ error: `${month} is already closed. Reopen first if you need to recompute.` });
+
+    // Re-fetch payroll by calling the GET handler logic inline.
+    // To avoid an HTTP self-call, duplicate minimal logic here.
+    const sched = getSchedule();
+    const STD_MINS = 8 * 60;
+    const MONTHLY_DIVISOR_HOURS = 240;
+    const accrual = +sched.annual_vacation_days > 0 ? (+sched.annual_vacation_days / 12) : (+sched.vacation_accrual || 1.1667);
+    const weekendDay = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}[sched.weekend_day||'fri'] ?? 5;
+    const workers = db.prepare('SELECT * FROM workers WHERE is_active=1 AND monthly_salary IS NOT NULL AND monthly_salary > 0').all();
+
+    const now = new Date().toISOString().replace('T',' ').slice(0,19);
+    const by  = req.user?.name || 'system';
+    const insertRun = db.prepare(`
+      INSERT INTO payroll_runs (
+        worker_id, worker_name, month,
+        base_salary, ot_pay, weekend_pay, holiday_pay,
+        absence_deduction, lateness_deduction, balance_deduction, unpaid_leave_deduction,
+        total_adjustments, gross_pay, ss_deduction, net_pay,
+        balance_before_close, closed_at, closed_by, is_reopened
+      ) VALUES (?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, 0)
+    `);
+
+    const tx = db.transaction(() => {
+      workers.forEach(w => {
+        // Compute per-worker payroll — same logic as GET /payroll
+        const att = db.prepare("SELECT * FROM attendance WHERE worker_id=? AND date LIKE ?").all(w.id, month+'%');
+        const monthlyBase = +w.monthly_salary || 0;
+        const hourlyRate = monthlyBase > 0 ? (monthlyBase / MONTHLY_DIVISOR_HOURS) : (+w.hourly_rate || 0);
+        let overtimeMins = 0, weekendMins = 0, holidayMins = 0, lateMins = 0;
+        const workedDates = new Set();
+        const graceMins = +sched.punch_out_grace_mins || 15;
+        const shiftEndMain = sched.end_time || '16:30';
+        const shiftEndThu  = sched.thursday_end_time || '15:00';
+        att.forEach(a => {
+          const worked = +a.total_mins || 0;
+          const dt = (a.day_type || 'normal').toLowerCase();
+          const otApproved = a.overtime_status === 'approved';
+          const approvedOT = +a.overtime_mins || 0;
+          if (a.punch_in) { workedDates.add(a.date); lateMins += +a.late_mins || 0; }
+          if (worked > 0) {
+            if (dt === 'weekend') { if (otApproved) weekendMins += approvedOT; }
+            else if (dt === 'holiday') { if (otApproved) holidayMins += approvedOT; }
+            else if (otApproved && a.punch_out && a.punch_in) {
+              // Only count as normal-day OT if punch-out > shift end + grace
+              const dow = new Date(a.date).getDay();
+              const shiftEnd = (dow === 4) ? shiftEndThu : shiftEndMain;
+              const [eh, em] = shiftEnd.split(':').map(Number);
+              const pout = String(a.punch_out);
+              const poutTime = (pout.length >= 16 && (pout.charAt(10)===' '||pout.charAt(10)==='T')) ? pout.slice(11,16) : '';
+              if (poutTime) {
+                const [ph, pm] = poutTime.split(':').map(Number);
+                if ((ph*60+pm) - (eh*60+em) > graceMins) overtimeMins += approvedOT;
+              }
+            }
+          }
+        });
+        // Absences
+        const [yy, mm] = month.split('-').map(Number);
+        const daysInMonth = new Date(yy, mm, 0).getDate();
+        let absenceDays = 0;
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dateStr = `${yy}-${String(mm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          const dow = new Date(dateStr).getDay();
+          if (dow === weekendDay) continue;
+          if (workedDates.has(dateStr)) continue;
+          const covered = db.prepare(`SELECT 1 FROM leave_requests WHERE worker_id=? AND status='approved' AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?)) LIMIT 1`).get(w.id, dateStr, dateStr, dateStr);
+          if (covered) continue;
+          const isHoliday = db.prepare("SELECT 1 FROM attendance WHERE date=? AND day_type='holiday' LIMIT 1").get(dateStr);
+          if (isHoliday) continue;
+          absenceDays++;
+        }
+        // Leaves
+        const leaveRows = db.prepare(`
+          SELECT lr.days, lr.hours, lr.leave_kind, COALESCE(lt.is_paid, 1) AS is_paid
+          FROM leave_requests lr
+          LEFT JOIN leave_types lt ON lower(trim(lt.label)) = lower(trim(lr.type))
+          WHERE lr.worker_id = ? AND lr.status = 'approved'
+            AND ((lr.leave_kind='hourly' AND lr.date_from LIKE ?) OR (lr.leave_kind!='hourly' AND (lr.date_from LIKE ? OR lr.date_to LIKE ?)))
+        `).all(w.id, month+'%', month+'%', month+'%');
+        let paidLeaveDays = 0, unpaidLeaveMins = 0;
+        leaveRows.forEach(lr => {
+          const d = lr.leave_kind === 'hourly' ? (+lr.hours || 0) / 8 : (+lr.days || 0);
+          if (lr.is_paid) paidLeaveDays += d;
+          else            unpaidLeaveMins += Math.round(d * STD_MINS);
+        });
+        // Balance
+        const vb = db.prepare('SELECT balance_days FROM vacation_balance WHERE worker_id=?').get(w.id);
+        const currentBalance = vb ? (+vb.balance_days || 0) : 0;
+        const lateDays = lateMins / 480;
+        const balanceAfter = currentBalance - paidLeaveDays - lateDays - absenceDays;
+        const negativeDays = balanceAfter < 0 ? -balanceAfter : 0;
+        const balanceDeduction = negativeDays * 8 * hourlyRate;
+        // Pay
+        const overtimePay = (overtimeMins / 60) * hourlyRate * 1.25;
+        const weekendPay  = (weekendMins  / 60) * hourlyRate * 1.50;
+        const holidayPay  = (holidayMins  / 60) * hourlyRate * 1.50;
+        const unpaidLeavePay = (unpaidLeaveMins / 60) * hourlyRate;
+        const adjSum = db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM payroll_adjustments WHERE worker_id=? AND adjustment_date LIKE ?").get(w.id, month+'%').s || 0;
+        const gross = monthlyBase + overtimePay + weekendPay + holidayPay - balanceDeduction - unpaidLeavePay + adjSum;
+        const ssPct = +w.social_security_pct || 0;
+        const ssDeduction = gross * (ssPct / 100);
+        const net = gross - ssDeduction;
+        // Write run row
+        insertRun.run(
+          w.id, w.name, month,
+          monthlyBase, overtimePay, weekendPay, holidayPay,
+          0, 0, balanceDeduction, unpaidLeavePay,
+          adjSum, gross, ssDeduction, net,
+          currentBalance, now, by
+        );
+        // Reset balance to 0 + accrual
+        db.prepare(`INSERT INTO vacation_balance (worker_id, worker_name, balance_days, accrual_rate, last_accrued, updated_at)
+          VALUES (?, ?, ?, ?, ?, datetime('now','localtime'))
+          ON CONFLICT(worker_id) DO UPDATE SET balance_days=excluded.balance_days, last_accrued=excluded.last_accrued, updated_at=excluded.updated_at`)
+          .run(w.id, w.name, accrual, accrual, month+'-close');
+      });
+    });
+    tx();
+    res.json({ ok: true, month, closed_at: now, closed_by: by, worker_count: workers.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/payroll/reopen-month', requireAdmin, (req, res) => {
+  try {
+    const { month } = req.body;
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'month YYYY-MM required' });
+    const runs = db.prepare("SELECT * FROM payroll_runs WHERE month=? AND is_reopened=0").all(month);
+    if (!runs.length) return res.status(404).json({ error: `${month} is not closed.` });
+    const now = new Date().toISOString().replace('T',' ').slice(0,19);
+    const by  = req.user?.name || 'system';
+    const tx = db.transaction(() => {
+      runs.forEach(r => {
+        // Restore each worker's balance
+        db.prepare(`UPDATE vacation_balance SET balance_days=?, updated_at=datetime('now','localtime') WHERE worker_id=?`)
+          .run(+r.balance_before_close, r.worker_id);
+        // Mark run as reopened (keep as audit)
+        db.prepare("UPDATE payroll_runs SET is_reopened=1, reopened_at=?, reopened_by=? WHERE id=?")
+          .run(now, by, r.id);
+      });
+    });
+    tx();
+    res.json({ ok: true, month, reopened_at: now, reopened_by: by, worker_count: runs.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -406,9 +1007,37 @@ router.get('/vacation', requireAdmin, (req, res) => {
     const rows = db.prepare(sql).all(...p);
     // Also include workers with no balance record
     const allWorkers = db.prepare("SELECT id,name,hire_date FROM workers WHERE is_active=1").all();
+    // For each worker, compute days used from approved paid leaves
+    // Vacation-kind: sum of (days) from approved paid-type leaves
+    // Hourly-kind:   sum of (hours/8) from approved paid-type leaves
+    const usedRows = db.prepare(`
+      SELECT lr.worker_id,
+        SUM(CASE
+          WHEN lr.leave_kind='hourly' THEN COALESCE(lr.hours,0) / 8.0
+          ELSE COALESCE(lr.days,0)
+        END) AS used_days
+      FROM leave_requests lr
+      LEFT JOIN leave_types lt ON lower(trim(lt.label)) = lower(trim(lr.type))
+      WHERE lr.status='approved'
+        AND COALESCE(lt.is_paid, 1) = 1
+      GROUP BY lr.worker_id
+    `).all();
+    const usedMap = Object.fromEntries(usedRows.map(r => [r.worker_id, +r.used_days || 0]));
     const result = allWorkers.map(w => {
       const b = rows.find(r => r.worker_id === w.id);
-      return b || { worker_id: w.id, worker_name: w.name, balance_days: 0, accrual_rate: 1.167, hire_date: w.hire_date };
+      const base = b ? (+b.balance_days || 0) : 0;
+      const used = +usedMap[w.id] || 0;
+      return {
+        worker_id:    w.id,
+        worker_name:  w.name,
+        hire_date:    w.hire_date,
+        entitlement_days: +base.toFixed(2),      // accrued total
+        used_days:        +used.toFixed(2),       // deducted by approved paid leaves
+        balance_days:     +(base - used).toFixed(2),  // effective remaining
+        accrual_rate:     b ? (+b.accrual_rate || 1.167) : 1.167,
+        last_accrued:     b ? b.last_accrued : null,
+        updated_at:       b ? b.updated_at : null
+      };
     });
     res.json(result);
   } catch(e) { res.status(500).json({ error: e.message }); }

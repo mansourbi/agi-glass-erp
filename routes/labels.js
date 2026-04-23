@@ -5,6 +5,10 @@ const { requireAuth } = require('../middleware/auth');
 
 router.use(requireAuth);
 
+// ── Schema migrations (idempotent) ─────────────────────────────────────────
+try { db.prepare('ALTER TABLE label_items ADD COLUMN drill_count INTEGER DEFAULT 0').run(); } catch(e){}
+try { db.prepare('ALTER TABLE label_items ADD COLUMN cutout_count INTEGER DEFAULT 0').run(); } catch(e){}
+
 // GET /api/labels?orderId=&optFileId=
 router.get('/', (req, res) => {
   try {
@@ -23,6 +27,8 @@ router.get('/', (req, res) => {
       orderNum: r.order_num,
       glassType: r.glass_type,
       bevelMM: r.bevel_mm,
+      drillCount: r.drill_count || 0,
+      cutoutCount: r.cutout_count || 0,
       cutType: r.cut_type
     })));
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -33,13 +39,14 @@ router.post('/', (req, res) => {
   try {
     const items = Array.isArray(req.body) ? req.body : [req.body];
     const upsert = db.prepare(`
-      INSERT INTO label_items (uid,code,w,h,thickness,glass_type,color,processes,bevel_mm,
+      INSERT INTO label_items (uid,code,w,h,thickness,glass_type,color,processes,bevel_mm,drill_count,cutout_count,
         order_id,order_num,opt_file_id,sheet_idx,cut_type,date)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(uid) DO UPDATE SET
         code=excluded.code, w=excluded.w, h=excluded.h,
         thickness=excluded.thickness, glass_type=excluded.glass_type, color=excluded.color,
         processes=excluded.processes, bevel_mm=excluded.bevel_mm,
+        drill_count=excluded.drill_count, cutout_count=excluded.cutout_count,
         order_id=excluded.order_id, order_num=excluded.order_num,
         opt_file_id=excluded.opt_file_id, sheet_idx=excluded.sheet_idx,
         cut_type=excluded.cut_type, date=excluded.date
@@ -50,6 +57,7 @@ router.post('/', (req, res) => {
           l.uid, l.code||'', +l.w||0, +l.h||0, +l.thickness||6,
           l.glassType||l.glass_type||'glass', l.color||'clear',
           JSON.stringify(l.processes||[]), +l.bevelMM||+l.bevel_mm||0,
+          +l.drillCount||+l.drill_count||0, +l.cutoutCount||+l.cutout_count||0,
           l.orderId||l.order_id||null, l.orderNum||l.order_num||null,
           l.optFileId||l.opt_file_id||null, l.sheetIdx||l.sheet_idx||null,
           l.cutType||l.cut_type||'machine',
@@ -65,7 +73,7 @@ router.post('/', (req, res) => {
 // POST /api/labels/scan — worker marks a process done  ← MUST be before /:uid
 router.post('/scan', (req, res) => {
   try {
-    const { pieceUid, process, action, ts } = req.body;
+    const { pieceUid, process, action } = req.body;
     if (!pieceUid || !process || !['start','done'].includes(action))
       return res.status(400).json({ error: 'pieceUid and process required' });
 
@@ -77,9 +85,9 @@ router.post('/scan', (req, res) => {
     try{ db.prepare('ALTER TABLE scan_log ADD COLUMN order_id INTEGER').run(); }catch(e){}
 
     const r = db.prepare(`
-      INSERT INTO scan_log (worker_id,worker_name,piece_uid,item_code,process,action,order_num,order_id,ts)
-      VALUES (?,?,?,?,?,?,?,?,?)
-    `).run(req.user.id, req.user.name, pieceUid, piece.code||null, process, action, piece.order_num||null, piece.order_id||null, req.body.ts||new Date().toISOString());
+      INSERT INTO scan_log (worker_id,worker_name,piece_uid,item_code,process,action,order_num,order_id)
+      VALUES (?,?,?,?,?,?,?,?)
+    `).run(req.user.id, req.user.name, pieceUid, piece.code||null, process, action, piece.order_num||null, piece.order_id||null);
 
     // Auto-complete order when last piece's last process is marked done
     if (action === 'done' && piece.order_id) {
@@ -180,6 +188,8 @@ router.get('/pending', (req, res) => {
         orderNum: item.order_num,
         glassType: item.glass_type,
         bevelMM: item.bevel_mm,
+        drillCount: item.drill_count || 0,
+        cutoutCount: item.cutout_count || 0,
         cutType: item.cut_type
       }))
       .filter(item => {
@@ -219,6 +229,8 @@ router.get('/:uid', (req, res) => {
       orderNum: label.order_num,
       glassType: label.glass_type,
       bevelMM: label.bevel_mm,
+      drillCount: label.drill_count || 0,
+      cutoutCount: label.cutout_count || 0,
       cutType: label.cut_type,
       scanLog: logs.map(s=>({
         ...s,
@@ -245,6 +257,3 @@ router.delete('/:uid/process/:pid', (req, res) => {
 });
 
 module.exports = router;
-
-
-

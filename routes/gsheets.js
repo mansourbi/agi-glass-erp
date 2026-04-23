@@ -4,7 +4,12 @@ const db      = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { google } = require('googleapis');
 
-router.use(requireAuth);
+// Auth: admin for normal requests; bypass entirely for the internal cron
+// (which stays inside the loopback interface via 127.0.0.1).
+router.use(function(req, res, next){
+  if (req.headers['x-internal-cron'] === '1') return next();
+  return requireAuth(req, res, next);
+});
 
 const CREDENTIALS = {
   type: "service_account",

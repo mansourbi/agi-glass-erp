@@ -12,6 +12,8 @@ try { db.prepare(`ALTER TABLE orders ADD COLUMN type_reason_id INTEGER`).run(); 
 try { db.prepare(`ALTER TABLE orders ADD COLUMN responsible_worker_id INTEGER`).run(); } catch(e){}
 try { db.prepare(`ALTER TABLE orders ADD COLUMN remake_notes TEXT`).run(); } catch(e){}
 try { db.prepare(`ALTER TABLE order_items ADD COLUMN original_piece_uid TEXT`).run(); } catch(e){}
+try { db.prepare(`ALTER TABLE order_items ADD COLUMN drill_count INTEGER DEFAULT 0`).run(); } catch(e){}
+try { db.prepare(`ALTER TABLE order_items ADD COLUMN cutout_count INTEGER DEFAULT 0`).run(); } catch(e){}
 
 // ── Order Type Reasons table + seed ───────────────────────────────────────
 try {
@@ -156,6 +158,7 @@ router.get('/:id', (req, res) => {
       pieceUIDs: JSON.parse(i.piece_uids||'[]'),
       piece_uids:JSON.parse(i.piece_uids||'[]'),
       glassType: i.glass_type, bevelMM:i.bevel_mm, startSerial:i.start_serial,
+      drillCount: i.drill_count||0, cutoutCount: i.cutout_count||0,
       originalPieceUid: i.original_piece_uid||null,
       attachments:[]
     }));
@@ -232,11 +235,12 @@ router.post('/', (req, res) => {
         const it=items[i]; const qty=Math.max(1,+it.qty||1);
         const uids=[]; for(let q=0;q<qty;q++){uids.push(`${orderNum}-${gs}`);gs++;}
         db.prepare(`INSERT INTO order_items
-          (order_id,code,w,h,thickness,glass_type,color,qty,processes,bevel_mm,sort_order,piece_uids,start_serial,original_piece_uid)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-          oid,(it.code||'PC').toUpperCase(),+it.w,+it.h,
+          (order_id,code,w,h,thickness,glass_type,color,qty,processes,bevel_mm,drill_count,cutout_count,sort_order,piece_uids,start_serial,original_piece_uid)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+          oid,(it.code||'').toUpperCase(),+it.w,+it.h,
           +it.thickness||6,it.glassType||it.glass_type||'glass',it.color||'clear',qty,
-          JSON.stringify(it.processes||[]),+it.bevelMM||+it.bevel_mm||0,i,
+          JSON.stringify(it.processes||[]),+it.bevelMM||+it.bevel_mm||0,
+          +it.drillCount||+it.drill_count||0,+it.cutoutCount||+it.cutout_count||0,i,
           JSON.stringify(uids),uids[0]?+uids[0].split('-').pop():gs-qty,
           it.originalPieceUid||it.original_piece_uid||null);
       }
@@ -278,11 +282,12 @@ router.put('/:id', (req, res) => {
         const it=items[i]; const qty=Math.max(1,+it.qty||1);
         const uids=[]; for(let q=0;q<qty;q++){uids.push(`${order.num}-${gs}`);gs++;}
         db.prepare(`INSERT INTO order_items
-          (order_id,code,w,h,thickness,glass_type,color,qty,processes,bevel_mm,sort_order,piece_uids,start_serial,original_piece_uid)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-          +req.params.id,(it.code||'PC').toUpperCase(),+it.w,+it.h,
+          (order_id,code,w,h,thickness,glass_type,color,qty,processes,bevel_mm,drill_count,cutout_count,sort_order,piece_uids,start_serial,original_piece_uid)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+          +req.params.id,(it.code||'').toUpperCase(),+it.w,+it.h,
           +it.thickness||6,it.glassType||it.glass_type||'glass',it.color||'clear',qty,
-          JSON.stringify(it.processes||[]),+it.bevelMM||+it.bevel_mm||0,i,
+          JSON.stringify(it.processes||[]),+it.bevelMM||+it.bevel_mm||0,
+          +it.drillCount||+it.drill_count||0,+it.cutoutCount||+it.cutout_count||0,i,
           JSON.stringify(uids),uids[0]?+uids[0].split('-').pop():gs-qty,
           it.originalPieceUid||it.original_piece_uid||null);
       }
