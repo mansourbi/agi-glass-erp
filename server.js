@@ -42,6 +42,7 @@ app.use('/api/remnants', require('./routes/remnants'));
 app.use('/api/deliveries', require('./routes/deliveries'));
 app.use('/api/slots',      require('./routes/slots'));
 app.use('/api/gsheets',    require('./routes/gsheets'));
+app.use('/api/layout',     require('./routes/layout'));
 
 // ── Config ────────────────────────────────────────────────
 const { requireAuth, requireAdmin } = require('./middleware/auth');

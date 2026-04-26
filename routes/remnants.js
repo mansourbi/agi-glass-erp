@@ -215,7 +215,58 @@ router.get('/stats', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /:id/log
+// GET /log — factory-wide remnant activity log, joined with remnants for UID
+// and dimensions. Supports filters: from, to (YYYY-MM-DD inclusive), action,
+// worker, q (free-text). Returns up to 1000 rows newest-first by default.
+//
+// IMPORTANT: this route MUST be declared before '/:id/log' otherwise Express
+// will match '/log' against ':id' (treating "log" as a remnant id).
+router.get('/log', (req, res) => {
+  try {
+    const { from, to, action, worker, q, limit } = req.query;
+    let sql = `
+      SELECT
+        rl.id, rl.remnant_id, rl.action, rl.note, rl.worker_name,
+        rl.order_id, rl.order_num, rl.piece_uid, rl.ts,
+        r.uid, r.w, r.h, r.thickness, r.glass_type, r.color, r.brand,
+        r.slot_code, r.status
+      FROM remnant_log rl
+      LEFT JOIN remnants r ON r.id = rl.remnant_id
+      WHERE 1=1
+    `;
+    const p = [];
+    if (from)   { sql += ' AND rl.ts >= ?';       p.push(from); }
+    if (to)     { sql += ' AND rl.ts <  date(?, "+1 day")'; p.push(to); } // inclusive
+    if (action) { sql += ' AND rl.action = ?';    p.push(action); }
+    if (worker) { sql += ' AND rl.worker_name = ?'; p.push(worker); }
+    if (q && q.trim()) {
+      sql += ` AND (
+        COALESCE(r.uid,'')          LIKE ? OR
+        COALESCE(rl.order_num,'')   LIKE ? OR
+        COALESCE(rl.piece_uid,'')   LIKE ? OR
+        COALESCE(rl.note,'')        LIKE ? OR
+        COALESCE(rl.worker_name,'') LIKE ?
+      )`;
+      const lk = '%' + q.trim() + '%';
+      p.push(lk, lk, lk, lk, lk);
+    }
+    sql += ' ORDER BY rl.ts DESC, rl.id DESC LIMIT ?';
+    p.push(Math.min(+limit || 1000, 5000));
+    res.json(db.prepare(sql).all(...p));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /log/workers — distinct worker names in remnant_log, for filter dropdown
+router.get('/log/workers', (req, res) => {
+  try {
+    const rows = db.prepare(
+      "SELECT DISTINCT worker_name FROM remnant_log WHERE worker_name IS NOT NULL AND worker_name <> '' ORDER BY worker_name"
+    ).all();
+    res.json(rows.map(r => r.worker_name));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /:id/log — single remnant's history (used by the per-row History modal)
 router.get('/:id/log', (req, res) => {
   try {
     res.json(db.prepare('SELECT * FROM remnant_log WHERE remnant_id=? ORDER BY ts').all(+req.params.id));
