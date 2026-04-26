@@ -297,13 +297,57 @@ router.put('/:id', (req, res) => {
 });
 
 // ── PATCH /api/orders/:id/status ───────────────────────────────────────────
+// Allowed statuses: 'pending' | 'cutting' | 'done' | 'cancelled'
+// When status === 'cancelled', persists optional cancel_reason + cancelled_by
+// and stamps cancelled_at. When status === 'done', stamps completed_at and
+// optionally records completed_by.
 router.patch('/:id/status', (req, res) => {
   try {
-    const { status } = req.body;
-    if (!['pending','cutting','done'].includes(status))
+    const { status, cancel_reason, cancelled_by, completed_by } = req.body;
+    const ALLOWED = ['pending','cutting','done','cancelled'];
+    if (!ALLOWED.includes(status))
       return res.status(400).json({ error: 'Invalid status' });
-    db.prepare(`UPDATE orders SET status=?,updated_at=datetime('now') WHERE id=?`).run(status,+req.params.id);
-    res.json({ ok:true, status });
+
+    const id = +req.params.id;
+    const order = db.prepare('SELECT * FROM orders WHERE id=?').get(id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    // Inspect available audit columns once so we only set ones that exist
+    const cols = db.prepare('PRAGMA table_info(orders)').all().map(c => c.name);
+
+    if (status === 'cancelled') {
+      const sets = ['status = ?', "updated_at = datetime('now')"];
+      const args = ['cancelled'];
+      if (cols.includes('cancelled_at')) { sets.push("cancelled_at = datetime('now')"); }
+      if (cols.includes('cancel_reason')) { sets.push('cancel_reason = ?'); args.push(cancel_reason || null); }
+      if (cols.includes('cancelled_by'))  { sets.push('cancelled_by = ?');  args.push(cancelled_by || null); }
+      args.push(id);
+      db.prepare(`UPDATE orders SET ${sets.join(', ')} WHERE id = ?`).run(...args);
+      return res.json({ ok: true, status: 'cancelled' });
+    }
+
+    if (status === 'done') {
+      const sets = ['status = ?', "updated_at = datetime('now')"];
+      const args = ['done'];
+      if (cols.includes('completed_at')) { sets.push("completed_at = datetime('now')"); }
+      if (cols.includes('completed_by'))  { sets.push('completed_by = ?');  args.push(completed_by || null); }
+      args.push(id);
+      db.prepare(`UPDATE orders SET ${sets.join(', ')} WHERE id = ?`).run(...args);
+      return res.json({ ok: true, status: 'done' });
+    }
+
+    // 'pending' or 'cutting' — simple update. Also clear cancellation/completion
+    // timestamps if they exist, since this is a "reopen".
+    const sets = ['status = ?', "updated_at = datetime('now')"];
+    const args = [status];
+    if (cols.includes('cancelled_at') && order.cancelled_at) sets.push('cancelled_at = NULL');
+    if (cols.includes('cancel_reason') && order.cancel_reason) sets.push('cancel_reason = NULL');
+    if (cols.includes('cancelled_by')  && order.cancelled_by)  sets.push('cancelled_by = NULL');
+    if (cols.includes('completed_at')  && order.completed_at)  sets.push('completed_at = NULL');
+    if (cols.includes('completed_by')  && order.completed_by)  sets.push('completed_by = NULL');
+    args.push(id);
+    db.prepare(`UPDATE orders SET ${sets.join(', ')} WHERE id = ?`).run(...args);
+    res.json({ ok: true, status });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

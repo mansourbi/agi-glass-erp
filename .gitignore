@@ -6,3 +6,11 @@ uploads/
 *.log
 .env
 agi-glass.db.backup-*
+
+# One-time seed scripts (incremental development, not needed in repo)
+scripts/seed-translations.js
+scripts/seed-translations-aframe.js
+scripts/seed-translations-tracking.js
+scripts/seed-translations-editor.js
+scripts/seed-translations-v2.js
+scripts/seed-translations-v3.js

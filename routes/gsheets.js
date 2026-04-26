@@ -36,8 +36,12 @@ const PROC_LABELS = {
 };
 
 function buildCustomerData(customerId) {
+  // Exclude cancelled orders from the customer-facing tracking sheet — they
+  // don't represent live work and just create noise in the sheet.
   const orders = db.prepare(`
-    SELECT o.* FROM orders o WHERE o.customer_id=?
+    SELECT o.* FROM orders o
+    WHERE o.customer_id = ?
+      AND COALESCE(o.status,'pending') != 'cancelled'
     ORDER BY
       CASE WHEN o.status='done' THEN 0 ELSE 1 END ASC,
       o.date DESC, o.id DESC
