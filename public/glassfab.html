@@ -794,6 +794,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="nt"    onclick="SP('deliveries')" id="nt-deliveries">&#128666; <span data-i18n="Deliveries">Deliveries</span></button>
     <button class="nt"    onclick="SP('aframes')" id="nt-aframes">&#128230; <span data-i18n="A-Frames">A-Frames</span></button>
     <button class="nt"    onclick="SP('layout')" id="nt-layout">&#128507; <span data-i18n="Layout">Layout</span></button>
+    <button class="nt"    onclick="SP('purchasing')" id="nt-purchasing">&#128722; <span data-i18n="Purchasing">Purchasing</span></button>
     <button class="nt"    onclick="SP('settings')"id="nt-settings">&#9881; <span data-i18n="Settings">Settings</span></button>
   </div>
   <!-- Language toggle (EN / AR) — appears in nav after login -->
@@ -1593,9 +1594,9 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   <!-- Sub-tabs -->
   <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
     <button class="rtab on" id="aft-slots"   onclick="showAFTab('slots')">&#9632; <span data-i18n="Slot Management">Slot Management</span></button>
-    <button class="rtab"    id="aft-log"     onclick="showAFTab('log')">&#128203; Assignments &amp; Transfers</button>
+    <button class="rtab"    id="aft-log"     onclick="showAFTab('log')">&#128203; <span data-i18n="Assignments & Transfers">Assignments &amp; Transfers</span></button>
     <button class="rtab"    id="aft-deduct"  onclick="showAFTab('deduct')">&#9906; <span data-i18n="Opt Deductions">Opt Deductions</span></button>
-    <button class="rtab"    id="aft-sheets"  onclick="showAFTab('sheets')">&#9635; Sheets &amp; Slots</button>
+    <button class="rtab"    id="aft-sheets"  onclick="showAFTab('sheets')">&#9635; <span data-i18n="Sheets & Slots">Sheets &amp; Slots</span></button>
   </div>
 
   <!-- Tab: Slot Management -->
@@ -1752,12 +1753,280 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PURCHASING — list view + detail view in one page, toggled by JS
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div class="pg" id="pg-purchasing">
+
+  <!-- ── List view ── -->
+  <div id="purtab-list">
+    <div class="ph">
+      <div>
+        <div class="pt">&#128722; <span data-i18n="Purchasing">Purchasing</span></div>
+        <div class="ps" data-i18n="Purchase orders, costs, and inventory valuation">Purchase orders, costs, and inventory valuation</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn bg bsm" onclick="purOpenInventoryReport()">&#9684; <span data-i18n="Inventory Value">Inventory Value</span></button>
+        <button class="btn bg bsm" onclick="purOpenSpendReport()">&#128202; <span data-i18n="Supplier Spend">Supplier Spend</span></button>
+        <button class="btn ba" onclick="purNewPO()">+ <span data-i18n="New PO">New PO</span></button>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;align-items:center">
+        <input type="text" id="pur-search" class="inp" placeholder="Search PO# or supplier..." data-i18n-placeholder="Search PO# or supplier..." style="width:220px;padding:5px 10px;font-size:.75rem" oninput="purRenderList()">
+        <select id="pur-filter-status" class="inp" style="width:140px;padding:5px 8px;font-size:.75rem" onchange="purRenderList()">
+          <option value="" data-i18n="All Status">All Status</option>
+          <option value="draft" data-i18n="Draft">Draft</option>
+          <option value="ordered" data-i18n="Ordered">Ordered</option>
+          <option value="in_transit" data-i18n="In Transit">In Transit</option>
+          <option value="received" data-i18n="Received">Received</option>
+          <option value="cancelled" data-i18n="Cancelled">Cancelled</option>
+        </select>
+        <label style="font-size:.65rem;color:var(--mu)">
+          <span data-i18n="From">From</span>
+          <input type="date" id="pur-filter-from" onchange="purRenderList()" style="margin-left:4px;font-size:.7rem;padding:5px 8px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);color:var(--tx)">
+        </label>
+        <label style="font-size:.65rem;color:var(--mu)">
+          <span data-i18n="To">To</span>
+          <input type="date" id="pur-filter-to" onchange="purRenderList()" style="margin-left:4px;font-size:.7rem;padding:5px 8px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);color:var(--tx)">
+        </label>
+        <button class="btn bg bsm" onclick="purClearFilters()" style="font-size:.6rem">&#10005; <span data-i18n="Clear">Clear</span></button>
+        <span id="pur-list-count" style="font-size:.68rem;color:var(--mu);margin-left:auto"></span>
+      </div>
+    </div>
+
+    <!-- PO table -->
+    <div class="card">
+      <div class="tw"><table id="pur-table">
+        <thead><tr>
+          <th data-i18n="PO #">PO #</th>
+          <th data-i18n="Type">Type</th>
+          <th data-i18n="Supplier">Supplier</th>
+          <th data-i18n="Order Date">Order Date</th>
+          <th data-i18n="Arrived">Arrived</th>
+          <th data-i18n="Status">Status</th>
+          <th data-i18n="Goods (JOD)">Goods (JOD)</th>
+          <th data-i18n="Extras (JOD)">Extras (JOD)</th>
+          <th data-i18n="Landed (JOD)">Landed (JOD)</th>
+          <th data-i18n="Recoverable VAT">Rec. VAT</th>
+        </tr></thead>
+        <tbody id="pur-tbody"><tr><td colspan="10" style="padding:18px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- ── Detail view ── -->
+  <div id="purtab-detail" style="display:none">
+    <div class="ph">
+      <div>
+        <button class="btn bg bsm" onclick="purBackToList()" style="margin-bottom:6px;font-size:.65rem">&#8592; <span data-i18n="Back to list">Back to list</span></button>
+        <div class="pt"><span id="pd-title">PO</span> <span id="pd-status-badge"></span></div>
+        <div class="ps" id="pd-subtitle"></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center" id="pd-actions">
+        <!-- Actions populated by JS based on PO state -->
+      </div>
+    </div>
+
+    <!-- Header form -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="ch"><span class="ct">&#9642; <span data-i18n="Order Information">Order Information</span></span></div>
+      <div style="padding:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div class="fg"><label class="lbl"><span data-i18n="Type">Type</span> *</label>
+          <select id="pd-purchase-type" class="inp" onchange="purHeaderChanged()">
+            <option value="local" data-i18n="Local">Local</option>
+            <option value="international" data-i18n="International">International</option>
+          </select></div>
+        <div class="fg" style="grid-column:span 2"><label class="lbl"><span data-i18n="Supplier">Supplier</span> *</label>
+          <select id="pd-supplier-id" class="inp" onchange="purSupplierPicked(this.value)">
+            <option value="" data-i18n="— Pick supplier or add new —">— Pick supplier or add new —</option>
+          </select></div>
+        <div class="fg"><label class="lbl" data-i18n="Country">Country</label>
+          <input type="text" id="pd-supplier-country" class="inp" oninput="purHeaderChanged()" placeholder="e.g. Belgium" readonly style="opacity:0.7" title="Auto-filled from supplier"></div>
+        <div class="fg"><label class="lbl" data-i18n="Order Date">Order Date</label>
+          <input type="date" id="pd-order-date" class="inp" oninput="purHeaderChanged()"></div>
+        <div class="fg"><label class="lbl" data-i18n="Expected">Expected</label>
+          <input type="date" id="pd-expected" class="inp" oninput="purHeaderChanged()"></div>
+        <div class="fg"><label class="lbl" data-i18n="Currency">Currency</label>
+          <input type="text" id="pd-currency" class="inp" oninput="purHeaderChanged()" placeholder="EUR / USD / JOD" maxlength="3" style="text-transform:uppercase"></div>
+        <div class="fg"><label class="lbl" data-i18n="Rate to JOD">Rate to JOD</label>
+          <input type="number" id="pd-fx-rate" class="inp" step="0.0001" oninput="purHeaderChanged()" placeholder="0.78"></div>
+        <div class="fg" style="grid-column:1/-1"><label class="lbl" data-i18n="Notes">Notes</label>
+          <input type="text" id="pd-notes" class="inp" oninput="purHeaderChanged()"></div>
+      </div>
+    </div>
+
+    <!-- Items section -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="ch">
+        <span class="ct">&#9632; <span data-i18n="Line Items">Line Items</span></span>
+        <button id="pd-add-item-btn" class="btn ba bsm" onclick="purAddItemRow()">+ <span data-i18n="Add Item">Add Item</span></button>
+      </div>
+      <div class="tw"><table id="pd-items-table" style="font-size:.7rem">
+        <thead><tr>
+          <th style="width:9%" data-i18n="Category">Category</th>
+          <th style="width:18%" data-i18n="Raw Sheet">Raw Sheet</th>
+          <th style="width:7%" data-i18n="Qty">Qty</th>
+          <th style="width:8%" data-i18n="W (mm)">W (mm)</th>
+          <th style="width:8%" data-i18n="H (mm)">H (mm)</th>
+          <th style="width:8%" data-i18n="Unit Size">Unit Size</th>
+          <th style="width:8%" data-i18n="Total">Total</th>
+          <th style="width:9%" data-i18n="Price/Unit">Price/Unit</th>
+          <th style="width:7%" data-i18n="VAT %">VAT %</th>
+          <th style="width:9%" data-i18n="Subtotal">Subtotal</th>
+          <th style="width:9%" data-i18n="Customs Value Override">Customs Override</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="pd-items-tbody"></tbody>
+      </table></div>
+    </div>
+
+    <!-- Costs section -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="ch">
+        <span class="ct">&#128181; <span data-i18n="Extra Costs (Shipping, Clearance, etc.)">Extra Costs (Shipping, Clearance, etc.)</span></span>
+        <button id="pd-add-cost-btn" class="btn ba bsm" onclick="purAddCostRow()">+ <span data-i18n="Add Cost">Add Cost</span></button>
+      </div>
+      <div class="tw"><table id="pd-costs-table" style="font-size:.7rem">
+        <thead><tr>
+          <th style="width:11%" data-i18n="Type">Type</th>
+          <th style="width:18%" data-i18n="Description">Description</th>
+          <th style="width:11%" data-i18n="Paid To">Paid To</th>
+          <th style="width:9%" data-i18n="Amount">Amount</th>
+          <th style="width:7%" data-i18n="Currency">Currency</th>
+          <th style="width:9%" data-i18n="Rate to JOD">Rate to JOD</th>
+          <th style="width:9%" data-i18n="JOD">JOD</th>
+          <th style="width:7%" data-i18n="VAT %">VAT %</th>
+          <th style="width:11%" data-i18n="Allocate By">Allocate By</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="pd-costs-tbody"></tbody>
+      </table></div>
+    </div>
+
+    <!-- Preview / Totals -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="ch">
+        <span class="ct">&#9684; <span data-i18n="Preview: Landed Cost">Preview: Landed Cost</span></span>
+        <button class="btn bg bsm" onclick="purRefreshPreview()" style="font-size:.6rem">&#8635; <span data-i18n="Recompute">Recompute</span></button>
+      </div>
+      <div id="pd-preview-body" style="padding:14px"></div>
+    </div>
+
+    <!-- Batches (only shown for received POs) -->
+    <div id="pd-batches-card" class="card" style="margin-bottom:14px;display:none">
+      <div class="ch"><span class="ct">&#128230; <span data-i18n="Batches Created on Receipt">Batches Created on Receipt</span></span></div>
+      <div class="tw"><table id="pd-batches-table" style="font-size:.7rem">
+        <thead><tr>
+          <th data-i18n="Batch Code">Batch Code</th>
+          <th data-i18n="Raw Sheet">Raw Sheet</th>
+          <th data-i18n="Qty">Qty</th>
+          <th data-i18n="Total Size">Total Size</th>
+          <th data-i18n="Cost/Unit (JOD)">Cost/Unit (JOD)</th>
+          <th data-i18n="Total Landed (JOD)">Total Landed (JOD)</th>
+          <th data-i18n="Received At">Received At</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="pd-batches-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Adjustment modal — for post-receipt corrections ── -->
+<div class="mbg" id="m-pur-adjust" style="display:none">
+  <div class="mdl" style="max-width:480px">
+    <div class="mh"><span data-i18n="Adjust Batch">Adjust Batch</span><button class="mc" onclick="CM('m-pur-adjust')">&#10005;</button></div>
+    <div class="mb">
+      <div style="font-size:.65rem;color:var(--mu);margin-bottom:10px" data-i18n="Adjusts inventory quantity and/or cost basis. Records an entry in cost history. Use for damaged stock, miscounts, or post-receipt corrections.">Adjusts inventory quantity and/or cost basis. Records an entry in cost history. Use for damaged stock, miscounts, or post-receipt corrections.</div>
+      <div class="fg" style="margin-bottom:10px">
+        <label class="lbl"><span data-i18n="Batch">Batch</span></label>
+        <input type="text" id="adj-batch-code" class="inp" readonly style="opacity:0.6">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="lbl"><span data-i18n="Qty Delta (units)">Qty Delta (units)</span></label>
+          <input type="number" id="adj-qty-delta" class="inp" step="0.0001" placeholder="-2.5"></div>
+        <div class="fg"><label class="lbl"><span data-i18n="Cost Delta (JOD)">Cost Delta (JOD)</span></label>
+          <input type="number" id="adj-cost-delta" class="inp" step="0.01" placeholder="-150.00"></div>
+      </div>
+      <div class="fg"><label class="lbl"><span data-i18n="Reason">Reason</span> *</label>
+        <input type="text" id="adj-note" class="inp" placeholder="e.g. 2 sheets damaged in storage"></div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="CM('m-pur-adjust')" data-i18n="Cancel">Cancel</button>
+      <button class="btn ba" onclick="purSubmitAdjust()" data-i18n="Apply Adjustment">Apply Adjustment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Opening WAC modal — seed initial cost for legacy SKU ── -->
+<div class="mbg" id="m-pur-opening" style="display:none">
+  <div class="mdl" style="max-width:480px">
+    <div class="mh"><span data-i18n="Set Opening Cost">Set Opening Cost</span><button class="mc" onclick="CM('m-pur-opening')">&#10005;</button></div>
+    <div class="mb">
+      <div style="font-size:.65rem;color:var(--mu);margin-bottom:10px" data-i18n="For raw sheets that already have stock from before purchasing was tracked. Sets a starting weighted-average cost so future receipts blend correctly.">For raw sheets that already have stock from before purchasing was tracked. Sets a starting weighted-average cost so future receipts blend correctly.</div>
+      <div class="fg" style="margin-bottom:10px"><label class="lbl"><span data-i18n="Raw Sheet">Raw Sheet</span> *</label>
+        <select id="op-sheet-id" class="inp"></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="lbl"><span data-i18n="Stock (primary units)">Stock (primary units)</span> *</label>
+          <input type="number" id="op-qty" class="inp" step="0.0001" placeholder="220.5"></div>
+        <div class="fg"><label class="lbl"><span data-i18n="Avg Cost (JOD/unit)">Avg Cost (JOD/unit)</span> *</label>
+          <input type="number" id="op-cost" class="inp" step="0.01" placeholder="38.50"></div>
+      </div>
+      <div class="fg"><label class="lbl"><span data-i18n="Note">Note</span></label>
+        <input type="text" id="op-note" class="inp" placeholder="Opening balance from physical count"></div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="CM('m-pur-opening')" data-i18n="Cancel">Cancel</button>
+      <button class="btn ba" onclick="purSubmitOpening()" data-i18n="Set Opening Cost">Set Opening Cost</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Supplier add/edit modal ── -->
+<div class="mbg" id="m-supplier" style="display:none">
+  <div class="mdl" style="max-width:560px">
+    <div class="mh"><span id="sup-mt" data-i18n="Add Supplier">Add Supplier</span><button class="mc" onclick="CM('m-supplier')">&#10005;</button></div>
+    <div class="mb">
+      <input type="hidden" id="sup-id">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="lbl"><span data-i18n="Name">Name</span> *</label>
+          <input type="text" id="sup-name" class="inp" placeholder="e.g. AGC Belgium"></div>
+        <div class="fg"><label class="lbl" data-i18n="Country">Country</label>
+          <input type="text" id="sup-country" class="inp" placeholder="e.g. Belgium"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 2fr 2fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="lbl" data-i18n="Default Currency">Default Currency</label>
+          <input type="text" id="sup-currency" class="inp" maxlength="3" style="text-transform:uppercase" placeholder="EUR"></div>
+        <div class="fg"><label class="lbl" data-i18n="Email">Email</label>
+          <input type="email" id="sup-email" class="inp" placeholder="sales@supplier.com"></div>
+        <div class="fg"><label class="lbl" data-i18n="Phone">Phone</label>
+          <input type="text" id="sup-phone" class="inp" placeholder="+962 ..."></div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="lbl" data-i18n="Payment Terms">Payment Terms</label>
+          <input type="text" id="sup-terms" class="inp" placeholder="e.g. Net 30, 50% advance"></div>
+        <div class="fg"><label class="lbl" data-i18n="Lead Time (days)">Lead Time (days)</label>
+          <input type="number" id="sup-lead" class="inp" placeholder="45"></div>
+      </div>
+      <div class="fg"><label class="lbl" data-i18n="Notes">Notes</label>
+        <textarea id="sup-notes" class="inp" rows="2" style="resize:vertical"></textarea></div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="CM('m-supplier')" data-i18n="Cancel">Cancel</button>
+      <button class="btn ba" onclick="purSupplierSave()" data-i18n="Save">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="pg" id="pg-settings">
   <div class="ph"><div><div class="pt" data-i18n="Settings">Settings</div><div class="ps" data-i18n="Raw Materials, Workers and System">Raw Materials, Workers &amp; System</div></div></div>
   <!-- Settings tabs -->
   <div class="rtabs" style="margin-bottom:16px">
     <button class="rtab on" onclick="showSettingsTab('rawmat')">&#9642; <span data-i18n="Raw Materials">Raw Materials</span></button>
-    <button class="rtab" onclick="showSettingsTab('hr')">&#9786; HR / Payroll</button>
+    <button class="rtab" onclick="showSettingsTab('hr')">&#9786; <span data-i18n="HR / Payroll">HR / Payroll</span></button>
     <button class="rtab" onclick="showSettingsTab('workers')">&#9786; <span data-i18n="Workers">Workers</span></button>
     <button class="rtab" onclick="showSettingsTab('glassfam')">&#9633; <span data-i18n="Glass Families">Glass Families</span></button>
     <button class="rtab" onclick="showSettingsTab('remslots')">&#9632; <span data-i18n="Remnant Slots">Remnant Slots</span></button>
@@ -1841,6 +2110,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <button class="rtab"    id="rsmt-stock"  onclick="showRSTab('ledger')" style="display:none">&#128230; Stock &amp; Purchases</button>
       <button class="rtab"    id="rsmt-usage"  onclick="showRSTab('usage')">&#9906; <span data-i18n="Usage by Optimization">Usage by Optimization</span></button>
       <button class="rtab"    id="rsmt-ledger" onclick="showRSTab('ledger')">&#128200; <span data-i18n="Stock Ledger">Stock Ledger</span></button>
+      <button class="rtab"    id="rsmt-suppliers" onclick="showRSTab('suppliers')">&#128105; <span data-i18n="Suppliers">Suppliers</span></button>
     </div>
 
     <!-- Sub-tab: Catalog -->
@@ -2019,6 +2289,40 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <th data-i18n="Purchased">Purchased</th><th data-i18n="Used (Opts)">Used (Opts)</th><th data-i18n="Remaining">Remaining</th><th data-i18n="History">History</th>
           </tr></thead>
           <tbody id="balance-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- Sub-tab: Suppliers -->
+    <div id="rstab-suppliers" style="display:none">
+      <div class="card">
+        <div class="ch">
+          <span class="ct">&#128105; <span data-i18n="Suppliers">Suppliers</span></span>
+          <button class="btn ba bsm" onclick="purSupplierEdit()">+ <span data-i18n="Add Supplier">Add Supplier</span></button>
+        </div>
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">
+          <input type="text" id="sup-search" class="inp" placeholder="Search suppliers..." data-i18n-placeholder="Search suppliers..." style="width:220px;padding:5px 10px;font-size:.75rem" oninput="renderSuppliers()">
+          <label style="font-size:.65rem;color:var(--mu);display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="sup-active-only" onchange="renderSuppliers()" style="cursor:pointer">
+            <span data-i18n="Active only">Active only</span>
+          </label>
+          <span id="sup-count" style="font-size:.68rem;color:var(--mu);margin-left:auto"></span>
+        </div>
+        <div class="tw"><table>
+          <thead><tr>
+            <th data-i18n="Name">Name</th>
+            <th data-i18n="Country">Country</th>
+            <th data-i18n="Default Currency">Currency</th>
+            <th data-i18n="Email">Email</th>
+            <th data-i18n="Phone">Phone</th>
+            <th data-i18n="Payment Terms">Terms</th>
+            <th data-i18n="Lead Time (days)">Lead Time</th>
+            <th data-i18n="POs">POs</th>
+            <th data-i18n="Total Spend (JOD)">Spend (JOD)</th>
+            <th data-i18n="Status">Status</th>
+            <th data-i18n="Actions">Actions</th>
+          </tr></thead>
+          <tbody id="suppliers-tbody"><tr><td colspan="11" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -3179,6 +3483,57 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       const key = el.getAttribute('data-i18n-title');
       if (key) el.title = window.t(key);
     });
+
+    // ── Fallback: auto-translate buttons / tabs without data-i18n by looking
+    // up their visible text content against the translation table.
+    //
+    // Why this exists: a lot of buttons were added across sessions without
+    // data-i18n tags. Rather than hunt them all down, we do an opportunistic
+    // pass — if a button's text (with leading symbol/emoji stripped) exactly
+    // matches a translation key, we substitute. If no match, leave it alone.
+    //
+    // Stash the ORIGINAL English on the element the first time we see it so
+    // toggling back to English restores the original (and matching keeps
+    // working — the `data-i18n-fallback` attribute is the "key").
+    if (window.AGI_TRANSLATIONS && (window.AGI_TRANSLATIONS.en || window.AGI_TRANSLATIONS.ar)) {
+      const dict = window.AGI_TRANSLATIONS[lang] || {};
+      // Match known keys via exact-text lookup. Strip a leading non-letter
+      // prefix (emoji, +, &, space) so "📌 Add Slot" matches key "Add Slot".
+      const STRIP = /^([^A-Za-z\u0600-\u06FF]+)/;
+      document.querySelectorAll('button:not([data-i18n]), .rtab:not([data-i18n])').forEach(el => {
+        // Skip buttons that already contain a [data-i18n] descendant — those
+        // are handled correctly above.
+        if (el.querySelector('[data-i18n]')) return;
+        if (el.querySelector('img, svg, canvas')) return; // skip rich-content buttons
+
+        // First time we touch this element: snapshot its English label.
+        if (!el.dataset.i18nFallback) {
+          const txt = (el.textContent || '').trim();
+          if (!txt || txt.length > 60) return;  // too long to be a label
+          const m = txt.match(STRIP);
+          const prefix = m ? m[1] : '';
+          const label = txt.slice(prefix.length).trim();
+          if (!label || !/^[A-Za-z]/.test(label)) return; // must start with English letter
+          el.dataset.i18nFallback = label;
+          el.dataset.i18nFallbackPrefix = prefix;
+        }
+        const key = el.dataset.i18nFallback;
+        const prefix = el.dataset.i18nFallbackPrefix || '';
+        // Look up. If no Arabic translation exists, restore English original.
+        const translated = dict[key] || (window.AGI_TRANSLATIONS.en && window.AGI_TRANSLATIONS.en[key]) || key;
+        // Find the first text node and replace just the label portion. Leave
+        // child <span>/<i>/<svg> alone.
+        let firstText = null;
+        for (const node of el.childNodes) {
+          if (node.nodeType === 3 && node.nodeValue.trim()) { firstText = node; break; }
+        }
+        if (firstText) {
+          firstText.nodeValue = prefix + translated + ' ';
+        } else {
+          // No text node found — element is all child elements. Skip.
+        }
+      });
+    }
   };
 
   window.setLang = function(lang) {
@@ -3477,7 +3832,7 @@ async function SP(id){
   document.getElementById('nt-'+id).classList.add('on');
   const r={dash:renderDash,crm:renderCust,orders:renderOrders,cutting:renderCutUI,
            track:renderTrack,labels:renderLabels,reports:renderReports,settings:renderSettings,aframes:renderAFrames,
-           layout:renderFactoryLayout};
+           layout:renderFactoryLayout,purchasing:renderPurchasing};
   if(r[id]) r[id]();
   if(id==='remnants'){ remnantSlots=await AGI.Remnants.slots.list().catch(()=>[]); await renderRemnants(); }
   if(id==='deliveries') await renderDeliveriesPage();
@@ -5313,17 +5668,19 @@ async function renderSettingsRSCatalog(){
 
 // ── RAW SHEET SUB-TABS ─────────────────────────────────────────
 async function showRSTab(id){
-  ['catalog','stock','usage','ledger'].forEach(t=>{
+  ['catalog','stock','usage','ledger','suppliers'].forEach(t=>{
     const el=document.getElementById('rstab-'+t); if(el) el.style.display=t===id?'':'none';
   });
   document.getElementById('rsmt-cat').classList.toggle('on',id==='catalog');
   document.getElementById('rsmt-stock').classList.toggle('on',id==='stock');
   document.getElementById('rsmt-usage').classList.toggle('on',id==='usage');
   const ledgerBtn=document.getElementById('rsmt-ledger'); if(ledgerBtn) ledgerBtn.classList.toggle('on',id==='ledger');
+  const supBtn=document.getElementById('rsmt-suppliers'); if(supBtn) supBtn.classList.toggle('on',id==='suppliers');
   if(id==='catalog') await renderSettingsRSCatalog();
   if(id==='stock') await renderStockTab();
   if(id==='usage') await renderUsageTab();
   if(id==='ledger') await renderLedgerTab();
+  if(id==='suppliers') await renderSuppliers();
 }
 
 // ── PURCHASES / STOCK ─────────────────────────────────────────
@@ -11984,6 +12341,881 @@ async function layoutExport(format){
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PURCHASING MODULE
+//
+// Manages purchase orders, items, costs, and the receive workflow.
+// Backend lives at /api/purchasing/*.
+//
+// State:
+//   window._pur = {
+//     list: [...POs from /api/purchasing],
+//     categories: [...],
+//     currentPO: { ...full PO with items + costs + batches },  // null when on list view
+//     dirty: false,                                              // unsaved header changes
+//     view: 'list' | 'detail',
+//   }
+//
+// Lifecycle of a PO in the UI:
+//   1. User clicks "+ New PO" → purNewPO() creates a blank draft → switches to detail
+//   2. User edits header / adds items / adds costs → debounced auto-save per change
+//   3. User clicks "Receive" → confirms qty per line → API receive → batches created → page goes read-only
+// ═══════════════════════════════════════════════════════════════════════════
+
+window._pur = {
+  list: [],
+  categories: [],
+  currentPO: null,
+  dirty: false,
+  view: 'list',
+  saveTimer: null,
+};
+
+async function renderPurchasing(){
+  // Fresh load: reset state, fetch list + categories
+  window._pur.view = 'list';
+  document.getElementById('purtab-list').style.display = '';
+  document.getElementById('purtab-detail').style.display = 'none';
+  await purLoadCategories();
+  await purRenderList();
+}
+
+async function purLoadCategories(){
+  if (window._pur.categories.length) return;
+  try {
+    const cats = await _purApi('GET', '/categories');
+    window._pur.categories = cats || [];
+  } catch (e) { console.warn('[purchasing] load categories', e.message); }
+}
+
+// Thin auth wrapper around fetch — every endpoint needs the bearer token.
+async function _purApi(method, path, body){
+  const opts = {
+    method,
+    headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('agi_token') || '') }
+  };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch('/api/purchasing' + path, opts);
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.error || ('HTTP ' + r.status));
+  }
+  return r.json();
+}
+
+// ── List view ──────────────────────────────────────────────────────────────
+async function purRenderList(){
+  const body = document.getElementById('pur-tbody');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="10" style="padding:18px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr>';
+
+  // Build query string from filters
+  const params = new URLSearchParams();
+  const status = document.getElementById('pur-filter-status').value;
+  const search = document.getElementById('pur-search').value.trim();
+  const from = document.getElementById('pur-filter-from').value;
+  const to = document.getElementById('pur-filter-to').value;
+  if (status) params.append('status', status);
+  if (search) params.append('supplier', search);
+  if (from) params.append('from', from);
+  if (to) params.append('to', to);
+
+  let rows = [];
+  try { rows = await _purApi('GET', '/?' + params.toString()); }
+  catch (e) {
+    body.innerHTML = `<tr><td colspan="10" style="padding:18px;text-align:center;color:var(--a2)">Error: ${e.message}</td></tr>`;
+    return;
+  }
+  // Apply free-text search across PO number too (the server only matches supplier)
+  if (search) {
+    const q = search.toLowerCase();
+    rows = rows.filter(r => (r.po_number || '').toLowerCase().includes(q) || (r.supplier_name || '').toLowerCase().includes(q));
+  }
+  window._pur.list = rows;
+  document.getElementById('pur-list-count').textContent = rows.length + ' POs';
+
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No purchase orders. Click + New PO to create one.">No purchase orders. Click + New PO to create one.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => `<tr style="cursor:pointer" onclick="purOpenPO(${r.id})">
+    <td class="mn" style="font-weight:700;color:var(--a)">${r.po_number}</td>
+    <td style="font-size:.65rem">${r.purchase_type === 'international' ? '&#9992; Intl' : '&#127968; Local'}</td>
+    <td>${r.supplier_name}${r.supplier_country ? ' <span style="color:var(--mu);font-size:.6rem">('+r.supplier_country+')</span>' : ''}</td>
+    <td class="mn" style="font-size:.68rem">${r.order_date || '—'}</td>
+    <td class="mn" style="font-size:.68rem">${r.actual_arrival || '—'}</td>
+    <td>${_purStatusBadge(r.status, r.locked)}</td>
+    <td class="mn" style="text-align:right;font-size:.68rem">${_purFmtJod(r.total_goods_ex_vat_jod)}</td>
+    <td class="mn" style="text-align:right;font-size:.68rem">${_purFmtJod(r.total_extra_costs_jod)}</td>
+    <td class="mn" style="text-align:right;font-weight:700;font-size:.7rem">${_purFmtJod(r.total_landed_jod)}</td>
+    <td class="mn" style="text-align:right;font-size:.65rem;color:var(--a3)">${_purFmtJod(r.total_vat_jod)}</td>
+  </tr>`).join('');
+}
+
+function purClearFilters(){
+  ['pur-search','pur-filter-status','pur-filter-from','pur-filter-to'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  purRenderList();
+}
+
+function _purStatusBadge(status, locked){
+  const colors = {
+    draft:      { bg: 'rgba(120,140,165,.15)', fg: '#788ca5' },
+    ordered:    { bg: 'rgba(255,210,63,.18)',  fg: '#ffd23f' },
+    in_transit: { bg: 'rgba(0,204,255,.15)',   fg: '#00ccff' },
+    received:   { bg: 'rgba(54,255,138,.15)',  fg: '#36ff8a' },
+    cancelled:  { bg: 'rgba(255,105,53,.15)',  fg: '#ff6935' },
+  };
+  const c = colors[status] || colors.draft;
+  return `<span style="background:${c.bg};color:${c.fg};padding:2px 7px;border-radius:3px;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px">${status}${locked ? ' &#128274;' : ''}</span>`;
+}
+
+function _purFmtJod(v){
+  if (v == null || isNaN(v)) return '—';
+  return (+v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ── Detail view ────────────────────────────────────────────────────────────
+async function purNewPO(){
+  // Create a draft PO immediately on the server (so we have an id for items/costs).
+  // Supplier defaults to a placeholder; user will pick from the dropdown next.
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const po = await _purApi('POST', '/', {
+      purchase_type: 'local',
+      supplier_name: '(Pick supplier)',
+      order_date: today,
+      goods_currency: 'JOD',
+      goods_to_jod_rate: 1,
+      status: 'draft',
+    });
+    purOpenPO(po.id);
+  } catch (e) { alert('Failed to create PO: ' + e.message); }
+}
+
+async function purOpenPO(poId){
+  try {
+    const po = await _purApi('GET', '/' + poId);
+    window._pur.currentPO = po;
+    window._pur.view = 'detail';
+    document.getElementById('purtab-list').style.display = 'none';
+    document.getElementById('purtab-detail').style.display = '';
+    _purRenderDetail();
+  } catch (e) { alert('Failed to load PO: ' + e.message); }
+}
+
+function purBackToList(){
+  window._pur.currentPO = null;
+  window._pur.view = 'list';
+  document.getElementById('purtab-list').style.display = '';
+  document.getElementById('purtab-detail').style.display = 'none';
+  purRenderList();
+}
+
+// Render the entire detail view (header inputs, items table, costs table,
+// preview, batches, action buttons). Called after every load and after
+// destructive operations like add/delete row.
+function _purRenderDetail(){
+  const po = window._pur.currentPO;
+  if (!po) return;
+  const locked = !!po.locked;
+
+  // Title + subtitle + status badge
+  document.getElementById('pd-title').textContent = po.po_number;
+  document.getElementById('pd-status-badge').innerHTML = ' ' + _purStatusBadge(po.status, po.locked);
+  document.getElementById('pd-subtitle').textContent = `${po.supplier_name} · ${po.purchase_type} · ${po.order_date || ''}`;
+
+  // Header form values
+  document.getElementById('pd-purchase-type').value = po.purchase_type;
+  document.getElementById('pd-supplier-country').value = po.supplier_country || '';
+  document.getElementById('pd-order-date').value = po.order_date || '';
+  document.getElementById('pd-expected').value = po.expected_arrival || '';
+  document.getElementById('pd-currency').value = po.goods_currency || 'JOD';
+  document.getElementById('pd-fx-rate').value = po.goods_to_jod_rate || 1;
+  document.getElementById('pd-notes').value = po.notes || '';
+  // Supplier picker — async; populates the dropdown and sets the current value
+  _purRenderSupplierPicker(po);
+
+  // Lock all header inputs when PO is locked
+  ['pd-purchase-type','pd-supplier-id','pd-supplier-country','pd-order-date',
+   'pd-expected','pd-currency','pd-fx-rate','pd-notes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = locked; el.style.opacity = locked ? '0.6' : '1'; }
+  });
+  // Hide add buttons when locked
+  document.getElementById('pd-add-item-btn').style.display = locked ? 'none' : '';
+  document.getElementById('pd-add-cost-btn').style.display = locked ? 'none' : '';
+
+  _purRenderItems();
+  _purRenderCosts();
+  _purRenderActions();
+
+  // Batches only visible after receipt
+  const batchesCard = document.getElementById('pd-batches-card');
+  if (po.batches && po.batches.length) {
+    batchesCard.style.display = '';
+    _purRenderBatches();
+  } else {
+    batchesCard.style.display = 'none';
+  }
+
+  purRefreshPreview();
+}
+
+// Render items table — each row has inline-editable inputs that auto-save.
+function _purRenderItems(){
+  const po = window._pur.currentPO;
+  const tbody = document.getElementById('pd-items-tbody');
+  const locked = !!po.locked;
+  if (!po.items.length) {
+    tbody.innerHTML = `<tr><td colspan="12" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No items yet. Click + Add Item.">No items yet. Click + Add Item.</td></tr>`;
+    return;
+  }
+  // Build raw_sheet picker options once (used in every row)
+  const sheetOpts = '<option value="">—</option>' +
+    rawSheetCatalog.map(s => `<option value="${s.id}">${s.code} · ${s.thickness}mm ${s.color} ${s.type || s.glass_type || ''}</option>`).join('');
+  const catOpts = window._pur.categories.map(c => `<option value="${c.id}">${c.name} (${c.primary_unit})</option>`).join('');
+
+  const dis = locked ? 'disabled style="opacity:0.6"' : '';
+  tbody.innerHTML = po.items.map(it => `<tr data-item-id="${it.id}">
+    <td><select ${dis} onchange="purUpdateItem(${it.id},'category_id',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px">${catOpts.replace('value="' + (it.category_id || '') + '"', 'value="' + (it.category_id || '') + '" selected')}</select></td>
+    <td><select ${dis} onchange="purItemSheetChanged(${it.id},this.value)" class="inp" style="font-size:.65rem;padding:3px 4px">${_purInjectSelected(sheetOpts, it.raw_sheet_id)}</select></td>
+    <td><input ${dis} type="number" step="1" value="${it.qty_ordered ?? ''}" onchange="purUpdateItem(${it.id},'qty_ordered',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+    <td><input ${dis} type="number" step="1" value="${it.dimensions_w_mm ?? ''}" onchange="purItemDimChanged(${it.id},'w',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+    <td><input ${dis} type="number" step="1" value="${it.dimensions_h_mm ?? ''}" onchange="purItemDimChanged(${it.id},'h',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+    <td><input ${dis} type="number" step="0.0001" value="${(+it.unit_size||0).toFixed(4)}" onchange="purUpdateItem(${it.id},'unit_size',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right" title="Computed from dimensions for sheets, or enter manually"></td>
+    <td class="mn" style="text-align:right;color:var(--mu);font-size:.65rem">${_purFmtNum(it.total_size, 2)}</td>
+    <td><input ${dis} type="number" step="0.001" value="${it.price_per_unit ?? ''}" onchange="purUpdateItem(${it.id},'price_per_unit',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+    <td><input ${dis} type="number" step="0.01" value="${((+it.vat_rate||0)*100).toFixed(2)}" onchange="purUpdateItem(${it.id},'vat_rate',+this.value/100)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+    <td class="mn" style="text-align:right;color:var(--mu);font-size:.65rem">${_purFmtNum(it.line_subtotal_goods, 2)}</td>
+    <td><input ${dis} type="number" step="0.01" value="${it.customs_value_override_goods ?? ''}" onchange="purUpdateItem(${it.id},'customs_value_override_goods',this.value===''?null:+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right" placeholder="auto"></td>
+    <td>${locked ? '' : `<button class="btn br bsm" onclick="purDeleteItem(${it.id})" style="font-size:.55rem;padding:2px 6px">&#10005;</button>`}</td>
+  </tr>`).join('');
+}
+
+function _purRenderCosts(){
+  const po = window._pur.currentPO;
+  const tbody = document.getElementById('pd-costs-tbody');
+  const locked = !!po.locked;
+  if (!po.costs.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No extra costs. Click + Add Cost for shipping, customs, etc.">No extra costs. Click + Add Cost for shipping, customs, etc.</td></tr>`;
+    return;
+  }
+  const COST_TYPES = ['shipping','clearance','transport','insurance','duty','customs_vat','handling','other'];
+  const ALLOC_METHODS = [
+    { v: 'by_value',         l: 'By value (default)' },
+    { v: 'by_customs_value', l: 'By customs value' },
+    { v: 'by_qty',           l: 'By quantity' },
+    { v: 'by_size',          l: 'By size (sqm/m)' },
+    { v: 'manual',           l: 'Manual override' },
+  ];
+  const dis = locked ? 'disabled style="opacity:0.6"' : '';
+  tbody.innerHTML = po.costs.map(c => {
+    const typeOpts = COST_TYPES.map(t => `<option value="${t}"${t===c.cost_type?' selected':''}>${t}</option>`).join('');
+    const allocOpts = ALLOC_METHODS.map(a => `<option value="${a.v}"${a.v===c.allocation_method?' selected':''}>${a.l}</option>`).join('');
+    return `<tr data-cost-id="${c.id}">
+      <td><select ${dis} onchange="purUpdateCost(${c.id},'cost_type',this.value)" class="inp" style="font-size:.65rem;padding:3px 4px">${typeOpts}</select></td>
+      <td><input ${dis} type="text" value="${(c.description||'').replace(/"/g,'&quot;')}" onchange="purUpdateCost(${c.id},'description',this.value)" class="inp" style="font-size:.65rem;padding:3px 4px"></td>
+      <td><input ${dis} type="text" value="${(c.paid_to||'').replace(/"/g,'&quot;')}" onchange="purUpdateCost(${c.id},'paid_to',this.value)" class="inp" style="font-size:.65rem;padding:3px 4px"></td>
+      <td><input ${dis} type="number" step="0.01" value="${c.amount ?? ''}" onchange="purUpdateCost(${c.id},'amount',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+      <td><input ${dis} type="text" value="${c.currency || 'JOD'}" onchange="purUpdateCost(${c.id},'currency',this.value.toUpperCase())" class="inp" style="font-size:.65rem;padding:3px 4px;text-transform:uppercase" maxlength="3"></td>
+      <td><input ${dis} type="number" step="0.0001" value="${c.exchange_rate_to_jod ?? 1}" onchange="purUpdateCost(${c.id},'exchange_rate_to_jod',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+      <td class="mn" style="text-align:right;color:var(--mu);font-size:.65rem">${_purFmtNum(c.amount_jod, 2)}</td>
+      <td><input ${dis} type="number" step="0.01" value="${((+c.vat_rate||0)*100).toFixed(2)}" onchange="purUpdateCost(${c.id},'vat_rate',+this.value/100)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+      <td><select ${dis} onchange="purUpdateCost(${c.id},'allocation_method',this.value)" class="inp" style="font-size:.65rem;padding:3px 4px">${allocOpts}</select></td>
+      <td>${locked ? '' : `<button class="btn br bsm" onclick="purDeleteCost(${c.id})" style="font-size:.55rem;padding:2px 6px">&#10005;</button>`}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _purRenderBatches(){
+  const po = window._pur.currentPO;
+  const tbody = document.getElementById('pd-batches-tbody');
+  tbody.innerHTML = po.batches.map(b => {
+    const sheet = rawSheetCatalog.find(s => s.id === b.raw_sheet_id);
+    const sheetLbl = sheet ? `${sheet.code} (${sheet.thickness}mm)` : '#' + b.raw_sheet_id;
+    return `<tr>
+      <td class="mn">${b.batch_code}</td>
+      <td>${sheetLbl}</td>
+      <td class="mn" style="text-align:right">${b.qty_received}</td>
+      <td class="mn" style="text-align:right">${_purFmtNum(b.total_size_received, 4)}</td>
+      <td class="mn" style="text-align:right">${_purFmtNum(b.landed_cost_per_unit_jod_at_receipt, 4)}</td>
+      <td class="mn" style="text-align:right;font-weight:700">${_purFmtNum(b.total_landed_cost_jod, 2)}</td>
+      <td class="mn" style="font-size:.65rem;color:var(--mu)">${(b.received_at || '').slice(0, 16).replace('T', ' ')}</td>
+      <td><button class="btn bg bsm" onclick="purOpenAdjust(${b.id},'${b.batch_code}')" style="font-size:.55rem;padding:2px 6px"><span data-i18n="Adjust">Adjust</span></button></td>
+    </tr>`;
+  }).join('');
+}
+
+function _purRenderActions(){
+  const po = window._pur.currentPO;
+  const el = document.getElementById('pd-actions');
+  const buttons = [];
+  if (po.locked) {
+    // Read-only PO — only allow back navigation (already at top)
+    buttons.push(`<span style="font-size:.6rem;color:var(--mu)" data-i18n="Locked after receipt">Locked after receipt</span>`);
+  } else {
+    if (po.status === 'draft' || po.status === 'ordered' || po.status === 'in_transit') {
+      buttons.push(`<select onchange="purUpdateStatus(this.value)" class="inp" style="font-size:.7rem;padding:5px 8px">
+        <option value="draft"${po.status==='draft'?' selected':''}>Draft</option>
+        <option value="ordered"${po.status==='ordered'?' selected':''}>Ordered</option>
+        <option value="in_transit"${po.status==='in_transit'?' selected':''}>In Transit</option>
+      </select>`);
+      // Receive button — always available for non-locked POs (the validation happens server-side)
+      if (po.items.length > 0) {
+        buttons.push(`<button class="btn ba bsm" onclick="purReceive()">&#10004; <span data-i18n="Receive">Receive</span></button>`);
+      }
+      buttons.push(`<button class="btn br bsm" onclick="purDeletePO()">&#10005; <span data-i18n="Delete">Delete</span></button>`);
+    }
+  }
+  el.innerHTML = buttons.join(' ');
+}
+
+// ── Auto-save / debounced header save ──────────────────────────────────────
+function purHeaderChanged(){
+  const po = window._pur.currentPO;
+  if (!po || po.locked) return;
+  // Read fresh values into the in-memory PO so render is consistent on next refresh
+  po.purchase_type = document.getElementById('pd-purchase-type').value;
+  // supplier_id is set by purSupplierPicked; we still read country here in case
+  // the supplier didn't have one and the user typed it in (currently readonly,
+  // but kept for future flexibility)
+  po.supplier_country = document.getElementById('pd-supplier-country').value;
+  po.order_date = document.getElementById('pd-order-date').value;
+  po.expected_arrival = document.getElementById('pd-expected').value;
+  po.goods_currency = document.getElementById('pd-currency').value.toUpperCase();
+  po.goods_to_jod_rate = +document.getElementById('pd-fx-rate').value || 1;
+  po.notes = document.getElementById('pd-notes').value;
+  // Debounce — save after 600ms of inactivity
+  clearTimeout(window._pur.saveTimer);
+  window._pur.saveTimer = setTimeout(() => _purSaveHeader(), 600);
+}
+
+async function _purSaveHeader(){
+  const po = window._pur.currentPO;
+  if (!po || po.locked) return;
+  try {
+    await _purApi('PUT', '/' + po.id, {
+      purchase_type: po.purchase_type,
+      supplier_id: po.supplier_id || null,
+      supplier_country: po.supplier_country,
+      order_date: po.order_date,
+      expected_arrival: po.expected_arrival,
+      goods_currency: po.goods_currency,
+      goods_to_jod_rate: po.goods_to_jod_rate,
+      notes: po.notes,
+      status: po.status,
+    });
+    // Refresh the in-memory copy so totals stay in sync (server recomputes them)
+    const fresh = await _purApi('GET', '/' + po.id);
+    window._pur.currentPO = fresh;
+    purRefreshPreview();
+    document.getElementById('pd-status-badge').innerHTML = ' ' + _purStatusBadge(fresh.status, fresh.locked);
+  } catch (e) { console.warn('[purchasing] save header', e.message); }
+}
+
+async function purUpdateStatus(newStatus){
+  const po = window._pur.currentPO;
+  if (!po || po.locked) return;
+  po.status = newStatus;
+  await _purSaveHeader();
+  _purRenderActions();
+}
+
+// ── Item editing ───────────────────────────────────────────────────────────
+async function purAddItemRow(){
+  const po = window._pur.currentPO;
+  if (!po || po.locked) return;
+  // Default category = first one (GLASS by seed); user can change inline
+  const catId = window._pur.categories[0] && window._pur.categories[0].id;
+  try {
+    await _purApi('POST', '/' + po.id + '/items', {
+      category_id: catId,
+      description: 'New item',
+      qty_ordered: 1,
+      unit_size: 1,
+      price_per_unit: 0,
+      vat_rate: 0,
+    });
+    const fresh = await _purApi('GET', '/' + po.id);
+    window._pur.currentPO = fresh;
+    _purRenderItems();
+    purRefreshPreview();
+  } catch (e) { alert('Failed to add item: ' + e.message); }
+}
+
+// Update one field on one item. Server recomputes derived fields (subtotal/VAT)
+// and returns the updated item; we re-render.
+async function purUpdateItem(itemId, field, value){
+  try {
+    await _purApi('PUT', '/items/' + itemId, { [field]: value });
+    // Refresh full PO so all totals + dependent rows are consistent
+    const fresh = await _purApi('GET', '/' + window._pur.currentPO.id);
+    window._pur.currentPO = fresh;
+    _purRenderItems();
+    purRefreshPreview();
+  } catch (e) { alert('Failed to update item: ' + e.message); }
+}
+
+// Special handler for picking a raw sheet — auto-fills dimensions/unit_size
+// from the catalog entry, in addition to setting raw_sheet_id.
+async function purItemSheetChanged(itemId, sheetIdStr){
+  const sheetId = sheetIdStr ? +sheetIdStr : null;
+  const updates = { raw_sheet_id: sheetId };
+  if (sheetId) {
+    const s = rawSheetCatalog.find(x => x.id === sheetId);
+    if (s) {
+      updates.description = `${s.thickness}mm ${s.color} ${s.type || s.glass_type || 'glass'} ${s.code}`;
+      if (s.w && s.h) {
+        updates.dimensions_w_mm = s.w;
+        updates.dimensions_h_mm = s.h;
+        updates.unit_size = round4SQM(s.w * s.h);
+      }
+    }
+  }
+  try {
+    await _purApi('PUT', '/items/' + itemId, updates);
+    const fresh = await _purApi('GET', '/' + window._pur.currentPO.id);
+    window._pur.currentPO = fresh;
+    _purRenderItems();
+    purRefreshPreview();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function round4SQM(wh_mm2){ return Math.round(wh_mm2 / 100) / 10000; } // mm² → sqm, 4dp
+
+// Recompute unit_size from W×H whenever dimensions change. The server will
+// also recompute total_size from qty × unit_size.
+async function purItemDimChanged(itemId, axis, value){
+  const item = window._pur.currentPO.items.find(i => i.id === itemId);
+  if (!item) return;
+  const updates = { [axis === 'w' ? 'dimensions_w_mm' : 'dimensions_h_mm']: value };
+  const w = axis === 'w' ? value : (item.dimensions_w_mm || 0);
+  const h = axis === 'h' ? value : (item.dimensions_h_mm || 0);
+  if (w && h) updates.unit_size = round4SQM(w * h);
+  try {
+    await _purApi('PUT', '/items/' + itemId, updates);
+    const fresh = await _purApi('GET', '/' + window._pur.currentPO.id);
+    window._pur.currentPO = fresh;
+    _purRenderItems();
+    purRefreshPreview();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function purDeleteItem(itemId){
+  if (!_confirm('Delete this line item?')) return;
+  try {
+    await _purApi('DELETE', '/items/' + itemId);
+    const fresh = await _purApi('GET', '/' + window._pur.currentPO.id);
+    window._pur.currentPO = fresh;
+    _purRenderItems();
+    purRefreshPreview();
+  } catch (e) { alert('Failed to delete: ' + e.message); }
+}
+
+// ── Cost editing ───────────────────────────────────────────────────────────
+async function purAddCostRow(){
+  const po = window._pur.currentPO;
+  if (!po || po.locked) return;
+  try {
+    await _purApi('POST', '/' + po.id + '/costs', {
+      cost_type: 'shipping',
+      amount: 0,
+      currency: 'JOD',
+      exchange_rate_to_jod: 1,
+      vat_rate: 0,
+      allocation_method: 'by_value',
+    });
+    const fresh = await _purApi('GET', '/' + po.id);
+    window._pur.currentPO = fresh;
+    _purRenderCosts();
+    purRefreshPreview();
+  } catch (e) { alert('Failed to add cost: ' + e.message); }
+}
+
+async function purUpdateCost(costId, field, value){
+  try {
+    await _purApi('PUT', '/costs/' + costId, { [field]: value });
+    const fresh = await _purApi('GET', '/' + window._pur.currentPO.id);
+    window._pur.currentPO = fresh;
+    _purRenderCosts();
+    purRefreshPreview();
+  } catch (e) { alert('Failed to update cost: ' + e.message); }
+}
+
+async function purDeleteCost(costId){
+  if (!_confirm('Delete this cost line?')) return;
+  try {
+    await _purApi('DELETE', '/costs/' + costId);
+    const fresh = await _purApi('GET', '/' + window._pur.currentPO.id);
+    window._pur.currentPO = fresh;
+    _purRenderCosts();
+    purRefreshPreview();
+  } catch (e) { alert('Failed to delete: ' + e.message); }
+}
+
+// ── Preview / Receive / Adjust ─────────────────────────────────────────────
+async function purRefreshPreview(){
+  const po = window._pur.currentPO;
+  if (!po) return;
+  const body = document.getElementById('pd-preview-body');
+  if (!po.items.length) {
+    body.innerHTML = '<div style="color:var(--mu);text-align:center;padding:14px;font-size:.7rem" data-i18n="Add at least one item to see the landed-cost preview.">Add at least one item to see the landed-cost preview.</div>';
+    return;
+  }
+  let preview;
+  try { preview = await _purApi('GET', '/' + po.id + '/preview'); }
+  catch (e) {
+    body.innerHTML = `<div style="color:var(--a2);padding:14px">Preview failed: ${e.message}</div>`;
+    return;
+  }
+  const t = preview.totals;
+  const itemRows = preview.items.map(it => {
+    const sheet = it.raw_sheet_id && rawSheetCatalog.find(s => s.id === it.raw_sheet_id);
+    const lbl = sheet ? sheet.code : (it.description || '#' + it.id);
+    return `<tr>
+      <td>${lbl}</td>
+      <td class="mn" style="text-align:right">${it.qty_ordered}</td>
+      <td class="mn" style="text-align:right">${_purFmtNum(it.total_size, 4)}</td>
+      <td class="mn" style="text-align:right">${_purFmtNum(it.allocated_extras_jod, 2)}</td>
+      <td class="mn" style="text-align:right;font-weight:700;color:var(--a)">${_purFmtNum(it.landed_cost_per_unit_jod, 4)}</td>
+      <td class="mn" style="text-align:right;font-weight:700">${_purFmtNum(it.total_landed_jod, 2)}</td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = `
+    <table style="width:100%;font-size:.7rem;margin-bottom:14px">
+      <thead style="background:var(--surf)"><tr>
+        <th style="text-align:left;padding:6px 8px" data-i18n="Item">Item</th>
+        <th style="text-align:right;padding:6px 8px" data-i18n="Qty">Qty</th>
+        <th style="text-align:right;padding:6px 8px" data-i18n="Total Size">Total Size</th>
+        <th style="text-align:right;padding:6px 8px" data-i18n="Allocated Extras (JOD)">Allocated Extras (JOD)</th>
+        <th style="text-align:right;padding:6px 8px" data-i18n="Cost/Unit (JOD)">Cost/Unit (JOD)</th>
+        <th style="text-align:right;padding:6px 8px" data-i18n="Total Landed (JOD)">Total Landed (JOD)</th>
+      </tr></thead>
+      <tbody>${itemRows}</tbody>
+    </table>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:.7rem">
+      <div style="background:var(--surf);padding:10px 12px;border-radius:var(--r)">
+        <div style="color:var(--mu);font-size:.6rem;text-transform:uppercase;letter-spacing:.4px" data-i18n="Goods (ex-VAT)">Goods (ex-VAT)</div>
+        <div style="font-weight:700;font-size:.95rem;margin-top:3px">${_purFmtJod(t.goods_ex_vat_jod)} <span style="color:var(--mu);font-size:.6rem">JOD</span></div>
+      </div>
+      <div style="background:var(--surf);padding:10px 12px;border-radius:var(--r)">
+        <div style="color:var(--mu);font-size:.6rem;text-transform:uppercase;letter-spacing:.4px" data-i18n="Extra Costs (ex-VAT)">Extra Costs (ex-VAT)</div>
+        <div style="font-weight:700;font-size:.95rem;margin-top:3px">${_purFmtJod(t.extra_costs_jod)} <span style="color:var(--mu);font-size:.6rem">JOD</span></div>
+      </div>
+      <div style="background:rgba(0,204,255,.08);border:1px solid var(--a);padding:10px 12px;border-radius:var(--r)">
+        <div style="color:var(--a);font-size:.6rem;text-transform:uppercase;letter-spacing:.4px" data-i18n="Total Landed Cost">Total Landed Cost</div>
+        <div style="font-weight:700;font-size:1.1rem;margin-top:3px;color:var(--a)">${_purFmtJod(t.landed_jod)} <span style="font-size:.6rem">JOD</span></div>
+      </div>
+      <div style="background:rgba(54,255,138,.08);border:1px solid var(--a3);padding:10px 12px;border-radius:var(--r)">
+        <div style="color:var(--a3);font-size:.6rem;text-transform:uppercase;letter-spacing:.4px" data-i18n="Recoverable VAT">Recoverable VAT</div>
+        <div style="font-weight:700;font-size:.95rem;margin-top:3px;color:var(--a3)">${_purFmtJod(t.total_recoverable_vat_jod)} <span style="font-size:.6rem">JOD</span></div>
+      </div>
+    </div>`;
+}
+
+async function purReceive(){
+  const po = window._pur.currentPO;
+  if (!po) return;
+  if (!_confirm(`Receive PO ${po.po_number}?\n\nThis will:\n• Create batches in inventory\n• Update weighted-average cost per SKU\n• Lock this PO (corrections will require adjustments)\n\nMake sure all items + costs are entered correctly before receiving.`)) return;
+  try {
+    const r = await _purApi('POST', '/' + po.id + '/receive', {});
+    showToast(r.message || 'Received');
+    const fresh = await _purApi('GET', '/' + po.id);
+    window._pur.currentPO = fresh;
+    _purRenderDetail();
+  } catch (e) { alert('Receive failed: ' + e.message); }
+}
+
+async function purDeletePO(){
+  const po = window._pur.currentPO;
+  if (!po) return;
+  if (!_confirm(`Delete PO ${po.po_number}?`)) return;
+  try {
+    await _purApi('DELETE', '/' + po.id);
+    purBackToList();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── Adjustment modal ───────────────────────────────────────────────────────
+let _purAdjustBatchId = null;
+function purOpenAdjust(batchId, batchCode){
+  _purAdjustBatchId = batchId;
+  document.getElementById('adj-batch-code').value = batchCode;
+  document.getElementById('adj-qty-delta').value = '';
+  document.getElementById('adj-cost-delta').value = '';
+  document.getElementById('adj-note').value = '';
+  OM('m-pur-adjust');
+}
+
+async function purSubmitAdjust(){
+  const qty = +document.getElementById('adj-qty-delta').value;
+  const cost = +document.getElementById('adj-cost-delta').value;
+  const note = document.getElementById('adj-note').value.trim();
+  if (!qty && !cost) { alert('Enter a qty delta and/or cost delta.'); return; }
+  if (!note) { alert('Reason required.'); return; }
+  try {
+    await _purApi('POST', '/batches/' + _purAdjustBatchId + '/adjust', {
+      qty_delta: qty, cost_delta_jod: cost, note,
+    });
+    showToast('Adjustment applied');
+    CM('m-pur-adjust');
+    // Refresh batches view
+    const fresh = await _purApi('GET', '/' + window._pur.currentPO.id);
+    window._pur.currentPO = fresh;
+    _purRenderBatches();
+  } catch (e) { alert('Adjustment failed: ' + e.message); }
+}
+
+// ── Opening WAC modal ──────────────────────────────────────────────────────
+async function purOpenInventoryReport(){
+  // Just open opening-WAC for now if no inventory tracked. Future: real report.
+  // Populate dropdown with raw sheets that have stock but no WAC
+  const sel = document.getElementById('op-sheet-id');
+  sel.innerHTML = '<option value="">— Pick raw sheet —</option>' +
+    rawSheetCatalog.map(s => `<option value="${s.id}">${s.code} · ${s.thickness}mm ${s.color}${s.current_avg_cost_jod_per_unit ? ' (WAC ' + (+s.current_avg_cost_jod_per_unit).toFixed(2) + ')' : ' (no WAC)'}</option>`).join('');
+  document.getElementById('op-qty').value = '';
+  document.getElementById('op-cost').value = '';
+  document.getElementById('op-note').value = 'Opening balance from physical count';
+  OM('m-pur-opening');
+}
+
+async function purSubmitOpening(){
+  const id = +document.getElementById('op-sheet-id').value;
+  const qty = +document.getElementById('op-qty').value;
+  const cost = +document.getElementById('op-cost').value;
+  const note = document.getElementById('op-note').value.trim();
+  if (!id || qty <= 0 || cost <= 0) { alert('Pick a sheet and enter positive qty + cost.'); return; }
+  try {
+    await _purApi('POST', '/opening-wac', {
+      raw_sheet_id: id, qty_in_stock_units: qty, avg_cost_jod_per_unit: cost, note,
+    });
+    showToast('Opening WAC set');
+    CM('m-pur-opening');
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// Supplier spend report — quick alert for now, full UI later
+async function purOpenSpendReport(){
+  try {
+    const rows = await _purApi('GET', '/reports/supplier-spend');
+    if (!rows.length) { alert('No received POs yet.'); return; }
+    const summary = rows.map(r => `${r.supplier_name}: ${_purFmtJod(r.spend_jod)} JOD (${r.po_count} POs)`).join('\n');
+    alert('Supplier Spend (all time):\n\n' + summary);
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function _purInjectSelected(optsHtml, val){
+  if (val == null) return optsHtml;
+  return optsHtml.replace(`value="${val}"`, `value="${val}" selected`);
+}
+
+function _purFmtNum(v, dp){
+  if (v == null || isNaN(v)) return '—';
+  return (+v).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUPPLIERS — list + add/edit modal (lives in Settings → Raw Materials → Suppliers)
+// Data is fetched on-demand and cached in window._pur.suppliers so the PO
+// picker can use it without a second fetch.
+// ═══════════════════════════════════════════════════════════════════════════
+
+window._pur.suppliers = [];
+
+async function renderSuppliers(){
+  const tbody = document.getElementById('suppliers-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr>';
+
+  const params = new URLSearchParams();
+  if (document.getElementById('sup-active-only').checked) params.append('active_only', '1');
+  const q = document.getElementById('sup-search').value.trim();
+  if (q) params.append('q', q);
+
+  let rows = [];
+  try { rows = await _purApi('GET', '/suppliers?' + params.toString()); }
+  catch (e) {
+    tbody.innerHTML = `<tr><td colspan="11" style="padding:18px;text-align:center;color:var(--a2)">Error: ${e.message}</td></tr>`;
+    return;
+  }
+  window._pur.suppliers = rows;
+  document.getElementById('sup-count').textContent = rows.length + ' suppliers';
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No suppliers yet. Click + Add Supplier.">No suppliers yet. Click + Add Supplier.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(s => `<tr>
+    <td style="font-weight:600">${s.name}</td>
+    <td style="font-size:.68rem;color:var(--tx2)">${s.country || '—'}</td>
+    <td class="mn" style="font-size:.65rem">${s.default_currency || '—'}</td>
+    <td style="font-size:.65rem;color:var(--tx2)">${s.contact_email || '—'}</td>
+    <td class="mn" style="font-size:.65rem;color:var(--tx2)">${s.contact_phone || '—'}</td>
+    <td style="font-size:.65rem;color:var(--tx2)">${s.payment_terms || '—'}</td>
+    <td class="mn" style="text-align:right;font-size:.65rem;color:var(--tx2)">${s.default_lead_time_days || '—'}</td>
+    <td class="mn" style="text-align:right;font-size:.65rem">${s.po_count || 0}</td>
+    <td class="mn" style="text-align:right;font-size:.65rem">${_purFmtJod(s.total_spend_jod)}</td>
+    <td>${s.active ? '<span style="color:var(--a3);font-size:.6rem">&#9679; Active</span>' : '<span style="color:var(--mu);font-size:.6rem">&#9675; Inactive</span>'}</td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bsm" onclick="purSupplierEdit(${s.id})" style="font-size:.6rem">Edit</button>
+      <button class="btn br bsm" onclick="purSupplierDelete(${s.id})" style="font-size:.6rem">&#10005;</button>
+    </td>
+  </tr>`).join('');
+}
+
+// Open the supplier modal in either Add or Edit mode. Pass id to edit, omit
+// (or null) to add. Returns nothing — a successful save calls renderSuppliers.
+async function purSupplierEdit(id){
+  document.getElementById('sup-mt').textContent = id ? 'Edit Supplier' : 'Add Supplier';
+  ['sup-id','sup-name','sup-country','sup-currency','sup-email','sup-phone','sup-terms','sup-lead','sup-notes']
+    .forEach(k => { const el = document.getElementById(k); if (el) el.value = ''; });
+  document.getElementById('sup-currency').value = 'JOD';
+  if (id) {
+    try {
+      const s = await _purApi('GET', '/suppliers/' + id);
+      document.getElementById('sup-id').value      = s.id;
+      document.getElementById('sup-name').value    = s.name || '';
+      document.getElementById('sup-country').value = s.country || '';
+      document.getElementById('sup-currency').value= s.default_currency || 'JOD';
+      document.getElementById('sup-email').value   = s.contact_email || '';
+      document.getElementById('sup-phone').value   = s.contact_phone || '';
+      document.getElementById('sup-terms').value   = s.payment_terms || '';
+      document.getElementById('sup-lead').value    = s.default_lead_time_days || '';
+      document.getElementById('sup-notes').value   = s.notes || '';
+    } catch (e) { alert('Failed to load supplier: ' + e.message); return; }
+  }
+  OM('m-supplier');
+}
+
+async function purSupplierSave(){
+  const name = document.getElementById('sup-name').value.trim();
+  if (!name) { alert('Name is required.'); return; }
+  const id = +document.getElementById('sup-id').value;
+  const body = {
+    name,
+    country: document.getElementById('sup-country').value.trim(),
+    default_currency: document.getElementById('sup-currency').value.trim().toUpperCase() || 'JOD',
+    contact_email: document.getElementById('sup-email').value.trim(),
+    contact_phone: document.getElementById('sup-phone').value.trim(),
+    payment_terms: document.getElementById('sup-terms').value.trim(),
+    default_lead_time_days: +document.getElementById('sup-lead').value || null,
+    notes: document.getElementById('sup-notes').value.trim(),
+  };
+  try {
+    const saved = id
+      ? await _purApi('PUT', '/suppliers/' + id, body)
+      : await _purApi('POST', '/suppliers', body);
+    showToast(id ? 'Supplier updated' : 'Supplier added');
+    CM('m-supplier');
+    // If we're on the suppliers tab, refresh the list. Otherwise refresh the
+    // cached list so the PO picker sees the new entry.
+    if (document.getElementById('rstab-suppliers') && document.getElementById('rstab-suppliers').style.display !== 'none') {
+      await renderSuppliers();
+    } else {
+      window._pur.suppliers = await _purApi('GET', '/suppliers').catch(() => []);
+    }
+    return saved;
+  } catch (e) { alert('Failed to save: ' + e.message); }
+}
+
+async function purSupplierDelete(id){
+  const sup = window._pur.suppliers.find(s => s.id === id);
+  if (!sup) return;
+  const usedCount = sup.po_count || 0;
+  const msg = usedCount > 0
+    ? `Supplier "${sup.name}" has ${usedCount} PO(s). It will be deactivated (not deleted) so historical POs stay intact. Continue?`
+    : `Delete supplier "${sup.name}"?`;
+  if (!_confirm(msg)) return;
+  try {
+    const r = await _purApi('DELETE', '/suppliers/' + id);
+    showToast(r.message || (r.deleted ? 'Deleted' : 'Deactivated'));
+    await renderSuppliers();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── Supplier picker for the PO header ──────────────────────────────────────
+// Renders a select with all active suppliers + an "Add new..." option that
+// opens the supplier modal. After save, the new supplier is auto-selected.
+//
+// Used in _purRenderDetail() — replaces the old free-text supplier_name input.
+async function _purRenderSupplierPicker(po){
+  // Lazy-load suppliers on first call
+  if (!window._pur.suppliers || !window._pur.suppliers.length) {
+    try { window._pur.suppliers = await _purApi('GET', '/suppliers'); }
+    catch (_) { window._pur.suppliers = []; }
+  }
+  const sel = document.getElementById('pd-supplier-id');
+  if (!sel) return;
+  const opts = ['<option value="">— Pick supplier or add new —</option>'];
+  // Active first, then inactive (greyed out)
+  const active = window._pur.suppliers.filter(s => s.active);
+  const inactive = window._pur.suppliers.filter(s => !s.active);
+  active.forEach(s => opts.push(`<option value="${s.id}"${s.id===po.supplier_id?' selected':''}>${s.name}${s.country?' ('+s.country+')':''}</option>`));
+  if (inactive.length) {
+    opts.push('<option disabled>— Inactive —</option>');
+    inactive.forEach(s => opts.push(`<option value="${s.id}"${s.id===po.supplier_id?' selected':''} style="color:var(--mu)">${s.name}${s.country?' ('+s.country+')':''}</option>`));
+  }
+  opts.push('<option value="__new__">＋ Add new supplier…</option>');
+  sel.innerHTML = opts.join('');
+}
+
+// Called when user picks a supplier from the dropdown. Auto-fills country +
+// default currency from the supplier record. If user picks "Add new", opens
+// the supplier modal and re-renders on save.
+async function purSupplierPicked(value){
+  if (value === '__new__') {
+    purSupplierEdit(null);
+    // Use a one-off observer to detect modal close and refresh the picker:
+    // the user hits Save → we re-render with the latest suppliers, the new
+    // one will be at the bottom alphabetically. Simpler approach: poll.
+    const oldCount = window._pur.suppliers.length;
+    const checkInterval = setInterval(async () => {
+      const modal = document.getElementById('m-supplier');
+      if (!modal || modal.style.display === 'none') {
+        clearInterval(checkInterval);
+        // Refresh cached suppliers and the picker
+        try {
+          window._pur.suppliers = await _purApi('GET', '/suppliers');
+          await _purRenderSupplierPicker(window._pur.currentPO);
+          // If a new supplier was added, auto-select it (it'll be the highest ID)
+          if (window._pur.suppliers.length > oldCount) {
+            const newest = window._pur.suppliers.reduce((a, b) => a.id > b.id ? a : b);
+            document.getElementById('pd-supplier-id').value = newest.id;
+            await purSupplierPicked(String(newest.id));
+          }
+        } catch (_) {}
+      }
+    }, 500);
+    return;
+  }
+  const supId = value ? +value : null;
+  const po = window._pur.currentPO;
+  if (!po || po.locked) return;
+  po.supplier_id = supId;
+  if (supId) {
+    const s = window._pur.suppliers.find(x => x.id === supId);
+    if (s) {
+      // Auto-fill the snapshot fields + currency from the picked supplier
+      po.supplier_name = s.name;
+      po.supplier_country = s.country || '';
+      document.getElementById('pd-supplier-country').value = s.country || '';
+      if (s.default_currency && s.default_currency !== po.goods_currency) {
+        po.goods_currency = s.default_currency;
+        document.getElementById('pd-currency').value = s.default_currency;
+      }
+    }
+  }
+  // Save header (debounced via the existing handler)
+  purHeaderChanged();
+}
+
 async function renderAFrames(){
   try{ afSlots = await AF.slots(); }catch(e){ afSlots=[]; }
   await renderAFSlots();
@@ -15313,21 +16545,54 @@ function renderTranslationsList(){
     const arEsc = (r.ar||'').replace(/"/g, '&quot;');
     return `<tr>
       <td style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--tx)">${r.key}</td>
-      <td><input type="text" value="${arEsc}" onblur="saveTranslation('${keyEsc}', this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:3px;color:var(--tx);font-family:'Cairo','DM Sans',sans-serif;font-size:.8rem;padding:5px 8px;direction:rtl;text-align:right"></td>
+      <td><input type="text" value="${arEsc}" onblur="saveTranslation('${keyEsc}', this.value, this)" onkeydown="if(event.key==='Enter')this.blur()" style="width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:3px;color:var(--tx);font-family:'Cairo','DM Sans',sans-serif;font-size:.8rem;padding:5px 8px;direction:rtl;text-align:right"></td>
       <td style="font-size:.65rem;color:var(--mu)">${r.section||'—'}</td>
       <td style="text-align:center"><button class="btn bd bsm" onclick="deleteTranslation('${keyEsc}')">×</button></td>
     </tr>`;
   }).join('');
 }
-async function saveTranslation(key, arValue){
+async function saveTranslation(key, arValue, inputEl){
   const token = AGI.getToken();
+  // Visual feedback — flash the input border for 1.2s, then restore.
+  // We capture the input's REAL original color the first time we touch it
+  // and stash it on the element itself, so back-to-back flashes (yellow →
+  // green) don't end up restoring to "yellow" (the previous flash's color).
+  const flash = (color) => {
+    if (!inputEl) return;
+    if (inputEl._origBorder == null) {
+      inputEl._origBorder = inputEl.style.borderColor || '';
+    }
+    inputEl.style.transition = 'border-color 0.4s';
+    inputEl.style.borderColor = color;
+    clearTimeout(inputEl._flashTimer);
+    inputEl._flashTimer = setTimeout(() => {
+      inputEl.style.borderColor = inputEl._origBorder;
+    }, 1200);
+  };
+  flash('#ffd23f'); // saving — yellow
+
   try {
     const res = await fetch('/api/translations/' + encodeURIComponent(key), {
       method: 'PUT',
       headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+token},
       body: JSON.stringify({ar: arValue})
     });
-    if(!res.ok){ showToast && showToast('Save failed', 'error'); return; }
+    if(!res.ok){
+      flash('#ff6935'); // red on failure
+      const err = await res.json().catch(() => ({}));
+      if (window.showToast) showToast('Save failed: ' + (err.error || res.status), 'error');
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    // Verify the server actually stored what we sent
+    const stored = data.row && (data.row.ar ?? '');
+    if (stored !== (arValue ?? '')) {
+      flash('#ff6935');
+      if (window.showToast) showToast('Save mismatch — server stored "' + stored + '"', 'error');
+      console.warn('[translation save mismatch] sent:', JSON.stringify(arValue), 'got:', JSON.stringify(stored));
+      return;
+    }
+    flash('#36ff8a'); // green on success
     // Update cache
     const row = _tlCache.find(r => r.key === key);
     if(row) row.ar = arValue;
@@ -15337,7 +16602,11 @@ async function saveTranslation(key, arValue){
     }
     // If currently in Arabic, apply immediately
     if(window.AGI_LANG === 'ar' && window.applyLang) window.applyLang();
-  } catch(e){ console.warn('[save translation]', e.message); }
+  } catch(e){
+    flash('#ff6935');
+    if (window.showToast) showToast('Save error: ' + e.message, 'error');
+    console.warn('[save translation]', e.message);
+  }
 }
 async function deleteTranslation(key){
   if(!confirm('Delete translation for "' + key + '"?')) return;
