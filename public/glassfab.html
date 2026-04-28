@@ -389,8 +389,9 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 /* REPORTS */
 .rtabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
 .rtab{padding:6px 14px;border-radius:var(--r);font-family:'Cairo','DM Mono',monospace;font-size:.65rem;
-  letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:1px solid var(--border2);
-  color:var(--mu);background:transparent;transition:all .18s}
+  letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:1px solid var(--border);
+  color:var(--tx2);background:rgba(255,255,255,.025);transition:all .18s;font-weight:600}
+.rtab:hover{color:var(--tx);border-color:var(--a);background:rgba(0,204,255,.04)}
 .rtab.on{border-color:var(--a);color:var(--a);background:rgba(0,204,255,.07)}
 .hrb{padding:5px 12px;border-radius:var(--r);font-family:'Cairo','DM Mono',monospace;font-size:.62rem;
   letter-spacing:1px;text-transform:uppercase;cursor:pointer;
@@ -992,17 +993,14 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         </div>
         <div style="display:flex;flex-direction:column;gap:2px">
           <label style="font-size:.58rem;color:var(--mu);letter-spacing:.5px">THICKNESS</label>
-          <select id="opt-f-thick" onchange="renderOptFiles()"
+          <input type="number" id="opt-f-thick" oninput="renderOptFiles()" placeholder="e.g. 6"
+            min="0" step="0.1"
             style="padding:4px 8px;font-size:.72rem;background:var(--surf);border:1px solid var(--border);color:var(--tx);border-radius:var(--r);width:110px">
-            <option value="" data-i18n="All">All</option>
-          </select>
         </div>
         <div style="display:flex;flex-direction:column;gap:2px">
           <label style="font-size:.58rem;color:var(--mu);letter-spacing:.5px">RAW SHEET</label>
-          <select id="opt-f-sheet" onchange="renderOptFiles()"
+          <input type="text" id="opt-f-sheet" oninput="renderOptFiles()" placeholder="QIN, Clear, 3660..."
             style="padding:4px 8px;font-size:.72rem;background:var(--surf);border:1px solid var(--border);color:var(--tx);border-radius:var(--r);width:180px">
-            <option value="" data-i18n="All Sheets">All Sheets</option>
-          </select>
         </div>
         <div style="display:flex;flex-direction:column;gap:2px">
           <label style="font-size:.58rem;color:var(--mu);letter-spacing:.5px">TYPE</label>
@@ -1803,7 +1801,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <thead><tr>
           <th data-i18n="PO #">PO #</th>
           <th data-i18n="Type">Type</th>
-          <th data-i18n="Supplier">Supplier</th>
+          <th data-i18n="Vendor">Vendor</th>
           <th data-i18n="Order Date">Order Date</th>
           <th data-i18n="Arrived">Arrived</th>
           <th data-i18n="Status">Status</th>
@@ -1839,12 +1837,12 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <option value="local" data-i18n="Local">Local</option>
             <option value="international" data-i18n="International">International</option>
           </select></div>
-        <div class="fg" style="grid-column:span 2"><label class="lbl"><span data-i18n="Supplier">Supplier</span> *</label>
+        <div class="fg" style="grid-column:span 2"><label class="lbl"><span data-i18n="Vendor">Vendor</span> *</label>
           <select id="pd-supplier-id" class="inp" onchange="purSupplierPicked(this.value)">
-            <option value="" data-i18n="— Pick supplier or add new —">— Pick supplier or add new —</option>
+            <option value="" data-i18n="— Pick vendor or add new —">— Pick vendor or add new —</option>
           </select></div>
         <div class="fg"><label class="lbl" data-i18n="Country">Country</label>
-          <input type="text" id="pd-supplier-country" class="inp" oninput="purHeaderChanged()" placeholder="e.g. Belgium" readonly style="opacity:0.7" title="Auto-filled from supplier"></div>
+          <input type="text" id="pd-supplier-country" class="inp" oninput="purHeaderChanged()" placeholder="e.g. Belgium" readonly style="opacity:0.7" title="Auto-filled from vendor"></div>
         <div class="fg"><label class="lbl" data-i18n="Order Date">Order Date</label>
           <input type="date" id="pd-order-date" class="inp" oninput="purHeaderChanged()"></div>
         <div class="fg"><label class="lbl" data-i18n="Expected">Expected</label>
@@ -1866,17 +1864,18 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       </div>
       <div class="tw"><table id="pd-items-table" style="font-size:.7rem">
         <thead><tr>
-          <th style="width:9%" data-i18n="Category">Category</th>
-          <th style="width:18%" data-i18n="Raw Sheet">Raw Sheet</th>
-          <th style="width:7%" data-i18n="Qty">Qty</th>
-          <th style="width:8%" data-i18n="W (mm)">W (mm)</th>
-          <th style="width:8%" data-i18n="H (mm)">H (mm)</th>
-          <th style="width:8%" data-i18n="Unit Size">Unit Size</th>
-          <th style="width:8%" data-i18n="Total">Total</th>
-          <th style="width:9%" data-i18n="Price/Unit">Price/Unit</th>
-          <th style="width:7%" data-i18n="VAT %">VAT %</th>
-          <th style="width:9%" data-i18n="Subtotal">Subtotal</th>
-          <th style="width:9%" data-i18n="Customs Value Override">Customs Override</th>
+          <th style="width:8%" data-i18n="Category">Category</th>
+          <th style="width:16%" data-i18n="Raw Sheet">Raw Sheet</th>
+          <th style="width:10%" data-i18n="Manufacturer">Manufacturer</th>
+          <th style="width:6%" data-i18n="Qty">Qty</th>
+          <th style="width:7%" data-i18n="W (mm)">W (mm)</th>
+          <th style="width:7%" data-i18n="H (mm)">H (mm)</th>
+          <th style="width:7%" data-i18n="Unit Size">Unit Size</th>
+          <th style="width:7%" data-i18n="Total">Total</th>
+          <th style="width:8%" data-i18n="Price/Unit">Price/Unit</th>
+          <th style="width:6%" data-i18n="VAT %">VAT %</th>
+          <th style="width:8%" data-i18n="Subtotal">Subtotal</th>
+          <th style="width:8%" data-i18n="Customs Value Override">Customs Override</th>
           <th></th>
         </tr></thead>
         <tbody id="pd-items-tbody"></tbody>
@@ -1988,7 +1987,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 <!-- ── Supplier add/edit modal ── -->
 <div class="mbg" id="m-supplier" style="display:none">
   <div class="mdl" style="max-width:560px">
-    <div class="mh"><span id="sup-mt" data-i18n="Add Supplier">Add Supplier</span><button class="mc" onclick="CM('m-supplier')">&#10005;</button></div>
+    <div class="mh"><span id="sup-mt" data-i18n="Add Vendor">Add Vendor</span><button class="mc" onclick="CM('m-supplier')">&#10005;</button></div>
     <div class="mb">
       <input type="hidden" id="sup-id">
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px">
@@ -2017,6 +2016,28 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <div class="mf">
       <button class="btn" onclick="CM('m-supplier')" data-i18n="Cancel">Cancel</button>
       <button class="btn ba" onclick="purSupplierSave()" data-i18n="Save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Manufacturer add/edit modal ── -->
+<div class="mbg" id="m-manufacturer" style="display:none">
+  <div class="mdl" style="max-width:520px">
+    <div class="mh"><span id="mfg-mt" data-i18n="Add Manufacturer">Add Manufacturer</span><button class="mc" onclick="CM('m-manufacturer')">&#10005;</button></div>
+    <div class="mb">
+      <input type="hidden" id="mfg-id">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="fg"><label class="lbl"><span data-i18n="Name">Name</span> *</label>
+          <input type="text" id="mfg-name" class="inp" placeholder="e.g. XYG, Guardian, QIN"></div>
+        <div class="fg"><label class="lbl" data-i18n="Country">Country</label>
+          <input type="text" id="mfg-country" class="inp" placeholder="e.g. China"></div>
+      </div>
+      <div class="fg"><label class="lbl" data-i18n="Notes">Notes</label>
+        <textarea id="mfg-notes" class="inp" rows="3" style="resize:vertical" placeholder="Quality notes, contact info, etc."></textarea></div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="CM('m-manufacturer')" data-i18n="Cancel">Cancel</button>
+      <button class="btn ba" onclick="purManufacturerSave()" data-i18n="Save">Save</button>
     </div>
   </div>
 </div>
@@ -2110,7 +2131,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <button class="rtab"    id="rsmt-stock"  onclick="showRSTab('ledger')" style="display:none">&#128230; Stock &amp; Purchases</button>
       <button class="rtab"    id="rsmt-usage"  onclick="showRSTab('usage')">&#9906; <span data-i18n="Usage by Optimization">Usage by Optimization</span></button>
       <button class="rtab"    id="rsmt-ledger" onclick="showRSTab('ledger')">&#128200; <span data-i18n="Stock Ledger">Stock Ledger</span></button>
-      <button class="rtab"    id="rsmt-suppliers" onclick="showRSTab('suppliers')">&#128105; <span data-i18n="Suppliers">Suppliers</span></button>
+      <button class="rtab"    id="rsmt-suppliers" onclick="showRSTab('suppliers')">&#128105; <span data-i18n="Vendors">Vendors</span></button>
+      <button class="rtab"    id="rsmt-manufacturers" onclick="showRSTab('manufacturers')">&#127981; <span data-i18n="Manufacturers">Manufacturers</span></button>
     </div>
 
     <!-- Sub-tab: Catalog -->
@@ -2138,7 +2160,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <option value="" data-i18n="All Thicknesses">All Thicknesses</option>
             </select>
             <select id="rs-f-company" onchange="renderSettingsRSCatalog()" style="font-size:.7rem;padding:5px 8px;width:auto">
-              <option value="" data-i18n="All Suppliers">All Suppliers</option>
+              <option value="" data-i18n="All Manufacturers">All Manufacturers</option>
             </select>
             <button class="btn bg bsm" onclick="clearRSFilters()" style="font-size:.62rem">&#10005;</button>
             <button class="btn bg bsm" onclick="exportTableCSV('rawsheets')" style="font-size:.65rem">&#11015; <span data-i18n="Export">Export</span></button>
@@ -2156,7 +2178,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
                 <th class="ord-th" onclick="sortRS('thickness')">Thick <span class="sort-arrow" id="rssa-thickness"></span></th>
                 <th class="ord-th" onclick="sortRS('w')">W x H <span class="sort-arrow" id="rssa-w"></span></th>
                 <th class="ord-th" onclick="sortRS('sqm')">Sheet SQM <span class="sort-arrow" id="rssa-sqm"></span></th>
-                <th class="ord-th" onclick="sortRS('company')">Supplier <span class="sort-arrow" id="rssa-company"></span></th>
+                <th class="ord-th" onclick="sortRS('company')"><span data-i18n="Manufacturer">Manufacturer</span> <span class="sort-arrow" id="rssa-company"></span></th>
                 <th class="ord-th" onclick="sortRS('origin')">Origin <span class="sort-arrow" id="rssa-origin"></span></th>
                 <th class="ord-th" onclick="sortRS('stock')">Stock <span class="sort-arrow" id="rssa-stock"></span></th>
                 <th></th>
@@ -2293,15 +2315,15 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       </div>
     </div>
 
-    <!-- Sub-tab: Suppliers -->
+    <!-- Sub-tab: Vendors (table name in DB stays `suppliers` for compatibility) -->
     <div id="rstab-suppliers" style="display:none">
       <div class="card">
         <div class="ch">
-          <span class="ct">&#128105; <span data-i18n="Suppliers">Suppliers</span></span>
-          <button class="btn ba bsm" onclick="purSupplierEdit()">+ <span data-i18n="Add Supplier">Add Supplier</span></button>
+          <span class="ct">&#128105; <span data-i18n="Vendors">Vendors</span></span>
+          <button class="btn ba bsm" onclick="purSupplierEdit()">+ <span data-i18n="Add Vendor">Add Vendor</span></button>
         </div>
         <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">
-          <input type="text" id="sup-search" class="inp" placeholder="Search suppliers..." data-i18n-placeholder="Search suppliers..." style="width:220px;padding:5px 10px;font-size:.75rem" oninput="renderSuppliers()">
+          <input type="text" id="sup-search" class="inp" placeholder="Search vendors..." data-i18n-placeholder="Search vendors..." style="width:220px;padding:5px 10px;font-size:.75rem" oninput="renderSuppliers()">
           <label style="font-size:.65rem;color:var(--mu);display:flex;align-items:center;gap:4px;cursor:pointer">
             <input type="checkbox" id="sup-active-only" onchange="renderSuppliers()" style="cursor:pointer">
             <span data-i18n="Active only">Active only</span>
@@ -2323,6 +2345,35 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <th data-i18n="Actions">Actions</th>
           </tr></thead>
           <tbody id="suppliers-tbody"><tr><td colspan="11" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- Sub-tab: Manufacturers -->
+    <div id="rstab-manufacturers" style="display:none">
+      <div class="card">
+        <div class="ch">
+          <span class="ct">&#127981; <span data-i18n="Manufacturers">Manufacturers</span></span>
+          <button class="btn ba bsm" onclick="purManufacturerEdit()">+ <span data-i18n="Add Manufacturer">Add Manufacturer</span></button>
+        </div>
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">
+          <input type="text" id="mfg-search" class="inp" placeholder="Search manufacturers..." data-i18n-placeholder="Search manufacturers..." style="width:220px;padding:5px 10px;font-size:.75rem" oninput="renderManufacturers()">
+          <label style="font-size:.65rem;color:var(--mu);display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="mfg-active-only" onchange="renderManufacturers()" style="cursor:pointer">
+            <span data-i18n="Active only">Active only</span>
+          </label>
+          <span id="mfg-count" style="font-size:.68rem;color:var(--mu);margin-left:auto"></span>
+        </div>
+        <div class="tw"><table>
+          <thead><tr>
+            <th data-i18n="Name">Name</th>
+            <th data-i18n="Country">Country</th>
+            <th data-i18n="Notes">Notes</th>
+            <th data-i18n="Raw Sheets">Raw Sheets</th>
+            <th data-i18n="Status">Status</th>
+            <th data-i18n="Actions">Actions</th>
+          </tr></thead>
+          <tbody id="manufacturers-tbody"><tr><td colspan="6" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -3274,8 +3325,12 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <div class="fg"><label class="lbl" data-i18n="Notes / Description">Notes / Description</label><input type="text" id="rs-notes" placeholder="Crystal Clear 12mm QIN"></div>
       </div>
       <div class="frow" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
-        <div class="fg"><label class="lbl" data-i18n="Company / Supplier">Company / Supplier</label><input type="text" id="rs-company" placeholder="Saint-Gobain" data-i18n-placeholder="Saint-Gobain"></div>
-        <div class="fg"><label class="lbl" data-i18n="Origin Country">Origin Country</label><input type="text" id="rs-origin" placeholder="France"></div>
+        <div class="fg"><label class="lbl" data-i18n="Manufacturer">Manufacturer</label>
+          <select id="rs-manufacturer-id" onchange="rsManufacturerPicked(this.value)"><option value="" data-i18n="— Pick manufacturer or add new —">— Pick manufacturer or add new —</option></select>
+          <input type="hidden" id="rs-company">
+        </div>
+        <div class="fg"><label class="lbl" data-i18n="Origin Country">Origin Country</label>
+          <input type="text" id="rs-origin" placeholder="France" readonly style="opacity:0.7" title="Auto-filled from manufacturer"></div>
       </div>
       <div class="frow" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:10px">
         <div class="fg"><label class="lbl" data-i18n="Type">Type</label>
@@ -3850,9 +3905,42 @@ async function badges(){
 // ═══════════════════════════════════════════════════════
 function OM(id){const el=document.getElementById(id);if(!el)return;el.style.display='';el.classList.add('on');}
 function CM(id){document.getElementById(id).classList.remove('on')}
-document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',e=>{
-  if(e.target===m && m.id!=='m-order') m.classList.remove('on');
-}));
+// Global modal backdrop guard — applies to EVERY .mbg modal in the app.
+//
+// Why this exists: previously some modals closed when you clicked outside
+// the dialog (the backdrop area), some didn't, depending on how the modal
+// was wired. That inconsistency caused accidental data loss when users
+// clicked just outside a form they were filling. This handler intercepts
+// any click whose target is a .mbg backdrop itself (not inside the .mdl
+// content) and stops it dead — capturing phase, with stopPropagation,
+// preventDefault, AND stopImmediatePropagation — so no later handler
+// (existing or future) can close the modal on outside click.
+//
+// To explicitly close, the user uses the × button, the Cancel button, or
+// the Esc key (handled below).
+document.addEventListener('click', function(e){
+  // Find the .mbg ancestor (or the target itself)
+  const backdrop = e.target.classList && e.target.classList.contains('mbg') ? e.target : null;
+  if (!backdrop) return;
+  // Click is ON the backdrop itself, not inside .mdl content
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+  e.preventDefault();
+}, true);  // capture phase — runs BEFORE any inner handlers that might close
+
+// Esc key still closes the topmost open modal (intentional escape hatch).
+// This matches normal user expectation for keyboard users.
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape') return;
+  // Find the topmost visible modal (the one most recently opened — last in DOM order)
+  const modals = document.querySelectorAll('.mbg.on');
+  if (!modals.length) return;
+  const top = modals[modals.length - 1];
+  if (top && top.id) CM(top.id);
+});
+// Note: clicking the backdrop does NOT close modals — only the explicit
+// close (×) button or Cancel button. This prevents accidental data loss
+// from stray clicks outside the dialog box while a form is being filled.
 
 // ═══════════════════════════════════════════════════════
 // DASHBOARD
@@ -5493,10 +5581,11 @@ function renderOrdSummary(list){
 
 // ── RAW SHEET CATALOG ─────────────────────────────────────────
 let _editRsId=null;
-function openRawSheetModal(id=null){
+async function openRawSheetModal(id=null){
   _editRsId=id;
   const rs=id?rawSheetCatalog.find(x=>x.id===id):{};
   document.getElementById('rs-mt').textContent=id?'Edit Raw Sheet':'Add Raw Sheet';
+  // Hidden 'company' field is kept in sync with picker selection — see below
   ['company','origin','notes','code'].forEach(f=>{const el=document.getElementById('rs-'+f);if(el)el.value=rs[f]||'';});
   document.getElementById('rs-type').value=rs.type||'glass';
   document.getElementById('rs-color').value=rs.color||'clear';
@@ -5504,13 +5593,108 @@ function openRawSheetModal(id=null){
   document.getElementById('rs-h').value=rs.h||'';
   const ts=document.getElementById('rs-thick');
   ts.innerHTML=THICKNESSES.map(t=>'<option value="'+t+'"'+(rs.thickness==t?' selected':'')+'>'+t+'mm</option>').join('');
+  // Populate the manufacturer picker. Lazy-load the list if not cached.
+  await rsRenderManufacturerPicker(rs);
   OM('m-rawsheet');
 }
+
+// Renders the manufacturer dropdown for the raw-sheet form.
+// Pre-selects the existing manufacturer_id if editing, or attempts a name
+// match on the legacy `company` text field for older sheets that haven't
+// been migrated yet.
+async function rsRenderManufacturerPicker(rs){
+  // Ensure we have manufacturers loaded
+  if (!window._pur || !window._pur._mfgList) {
+    window._pur = window._pur || {};
+    try {
+      const r = await fetch('/api/purchasing/manufacturers', { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('agi_token') || '') } });
+      window._pur._mfgList = r.ok ? await r.json() : [];
+    } catch(_) { window._pur._mfgList = []; }
+    const idx = {};
+    for (const m of window._pur._mfgList) idx[m.id] = m;
+    window._pur._mfgIndex = idx;
+  }
+  const list = window._pur._mfgList || [];
+  const sel = document.getElementById('rs-manufacturer-id');
+  if (!sel) return;
+  // Preselect by existing manufacturer_id, or fall back to name match on `company`
+  let activeId = rs.manufacturer_id || null;
+  if (!activeId && rs.company) {
+    const match = list.find(m => m.name && m.name.trim().toLowerCase() === String(rs.company).trim().toLowerCase());
+    if (match) activeId = match.id;
+  }
+  const active = list.filter(m => m.active);
+  const inactive = list.filter(m => !m.active);
+  const opts = ['<option value="">— Pick manufacturer or add new —</option>'];
+  active.forEach(m => opts.push(`<option value="${m.id}"${m.id===activeId?' selected':''}>${m.name}${m.country?' ('+m.country+')':''}</option>`));
+  if (inactive.length) {
+    opts.push('<option disabled>— Inactive —</option>');
+    inactive.forEach(m => opts.push(`<option value="${m.id}"${m.id===activeId?' selected':''} style="color:var(--mu)">${m.name}${m.country?' ('+m.country+')':''}</option>`));
+  }
+  opts.push('<option value="__new__">＋ Add new manufacturer…</option>');
+  sel.innerHTML = opts.join('');
+  // Sync the hidden `company` field + readonly origin field to match selection
+  if (activeId) {
+    const m = list.find(x => x.id === activeId);
+    if (m) {
+      document.getElementById('rs-company').value = m.name || '';
+      document.getElementById('rs-origin').value = m.country || rs.origin || '';
+    }
+  } else {
+    // Untouched — keep existing values for backwards compat
+    document.getElementById('rs-company').value = rs.company || '';
+    document.getElementById('rs-origin').value = rs.origin || '';
+  }
+}
+
+// Called when the picker selection changes. Auto-fills name + country into
+// the hidden/readonly fields, or opens the manufacturer modal when "Add new"
+// is chosen and re-renders after save.
+async function rsManufacturerPicked(value){
+  if (value === '__new__') {
+    // Defer to the existing modal flow. Open it; on close, refresh + re-render.
+    purManufacturerEdit(null);
+    const oldCount = (window._pur._mfgList || []).length;
+    const checkInterval = setInterval(async () => {
+      const modal = document.getElementById('m-manufacturer');
+      if (!modal || modal.style.display === 'none') {
+        clearInterval(checkInterval);
+        if (typeof purLoadManufacturers === 'function') await purLoadManufacturers(true);
+        const list = window._pur._mfgList || [];
+        // If a new manufacturer was added (count grew), auto-select it
+        let preselect = null;
+        if (list.length > oldCount) {
+          preselect = list.reduce((a, b) => a.id > b.id ? a : b);
+        }
+        const editingRs = _editRsId ? rawSheetCatalog.find(x => x.id === _editRsId) : {};
+        const rsData = { ...(editingRs || {}) };
+        if (preselect) rsData.manufacturer_id = preselect.id;
+        await rsRenderManufacturerPicker(rsData);
+      }
+    }, 500);
+    return;
+  }
+  const id = value ? +value : null;
+  const list = window._pur._mfgList || [];
+  if (id) {
+    const m = list.find(x => x.id === id);
+    if (m) {
+      document.getElementById('rs-company').value = m.name || '';
+      document.getElementById('rs-origin').value = m.country || '';
+    }
+  } else {
+    document.getElementById('rs-company').value = '';
+    document.getElementById('rs-origin').value = '';
+  }
+}
+
 async function saveRawSheet(){
   const w=+document.getElementById('rs-w').value, h=+document.getElementById('rs-h').value;
   const code=(document.getElementById('rs-code').value||'').trim().toUpperCase();
   if(!code){alert('Enter a material code.');return}
   if(!w||!h){alert('Enter width and height.');return}
+  const mfgIdRaw = document.getElementById('rs-manufacturer-id').value;
+  const manufacturer_id = mfgIdRaw && mfgIdRaw !== '__new__' ? +mfgIdRaw : null;
   const data={
     code,
     company:document.getElementById('rs-company').value.trim(),
@@ -5521,10 +5705,13 @@ async function saveRawSheet(){
     w,h,
     notes:document.getElementById('rs-notes').value.trim()
   };
-  // Map field names to API format
+  // Map field names to API format. We send manufacturer_id alongside the
+  // legacy company/origin text fields — server can persist whichever it
+  // supports without breaking older deployments.
   const apiData={code:data.code,glass_type:data.type,color:data.color,
     thickness:data.thickness,w:data.w,h:data.h,
-    company:data.company,origin:data.origin,notes:data.notes,stock_qty:0};
+    company:data.company,origin:data.origin,notes:data.notes,stock_qty:0,
+    manufacturer_id};
   try{
     await apiSaveRawSheet(apiData, _editRsId||null);
     CM('m-rawsheet');
@@ -5596,13 +5783,31 @@ function populateRSFilters(){
   if(cEl){
     const cur=cEl.value;
     const vals=[...new Set(rawSheetCatalog.map(s=>s.company||'').filter(Boolean))].sort();
-    cEl.innerHTML='<option value="" data-i18n="All Suppliers">All Suppliers</option>'+vals.map(v=>'<option value="'+v+'"'+(cur===v?' selected':'')+'>'+v+'</option>').join('');
+    cEl.innerHTML='<option value="" data-i18n="All Manufacturers">All Manufacturers</option>'+vals.map(v=>'<option value="'+v+'"'+(cur===v?' selected':'')+'>'+v+'</option>').join('');
   }
+}
+
+// Helper functions for the Raw Sheet Catalog row display.
+// Prefers the linked manufacturer record (by manufacturer_id) when present;
+// falls back to the legacy `company`/`origin` text fields when not migrated.
+function _rsManufacturerLabel(s){
+  const idx = (window._pur && window._pur._mfgIndex) || {};
+  if (s.manufacturer_id && idx[s.manufacturer_id]) return idx[s.manufacturer_id].name;
+  return s.company || '\u2014';
+}
+function _rsManufacturerCountry(s){
+  const idx = (window._pur && window._pur._mfgIndex) || {};
+  if (s.manufacturer_id && idx[s.manufacturer_id]) return idx[s.manufacturer_id].country || '';
+  return s.origin || '';
 }
 
 async function renderSettingsRSCatalog(){
   try{ rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){ console.warn('[rawsheets]',e.message); }
   try{ purchases = await AGI.Purchases.list(); }catch(e){ console.warn('[purchases]',e.message); }
+  // Lazy-load manufacturers so the row helpers can resolve names. Cached in window._pur.
+  if (typeof purLoadManufacturers === 'function' && !(window._pur && window._pur._mfgList)) {
+    try { await purLoadManufacturers(); } catch(_) {}
+  }
   populateRSFilters();
   const tbody=document.getElementById('rs-catalog-tbody'); if(!tbody) return;
   const q=(document.getElementById('rs-search')?.value||'').toLowerCase();
@@ -5654,8 +5859,8 @@ async function renderSettingsRSCatalog(){
       '<td class="mn" style="color:var(--a4)">'+s.thickness+'mm</td>'+
       '<td class="mn" style="color:var(--tx2);white-space:nowrap">'+s.w+' x '+s.h+'</td>'+
       '<td class="mn" style="color:var(--mu)">'+sqm+' m\u00b2</td>'+
-      '<td style="font-size:.7rem">'+(s.company||'&#8212;')+'</td>'+
-      '<td style="font-size:.7rem;color:var(--mu)">'+(s.origin||'')+'</td>'+
+      '<td style="font-size:.7rem">'+_rsManufacturerLabel(s)+'</td>'+
+      '<td style="font-size:.7rem;color:var(--mu)">'+_rsManufacturerCountry(s)+'</td>'+
       '<td class="mn" style="color:'+stkColor+'">'+stkLabel+'</td>'+
       '<td><div style="display:flex;gap:4px">'+
         '<button class="btn bg bsm" onclick="openRawSheetModal('+s.id+')" data-i18n="Edit">Edit</button>'+
@@ -5668,7 +5873,7 @@ async function renderSettingsRSCatalog(){
 
 // ── RAW SHEET SUB-TABS ─────────────────────────────────────────
 async function showRSTab(id){
-  ['catalog','stock','usage','ledger','suppliers'].forEach(t=>{
+  ['catalog','stock','usage','ledger','suppliers','manufacturers'].forEach(t=>{
     const el=document.getElementById('rstab-'+t); if(el) el.style.display=t===id?'':'none';
   });
   document.getElementById('rsmt-cat').classList.toggle('on',id==='catalog');
@@ -5676,11 +5881,13 @@ async function showRSTab(id){
   document.getElementById('rsmt-usage').classList.toggle('on',id==='usage');
   const ledgerBtn=document.getElementById('rsmt-ledger'); if(ledgerBtn) ledgerBtn.classList.toggle('on',id==='ledger');
   const supBtn=document.getElementById('rsmt-suppliers'); if(supBtn) supBtn.classList.toggle('on',id==='suppliers');
+  const mfgBtn=document.getElementById('rsmt-manufacturers'); if(mfgBtn) mfgBtn.classList.toggle('on',id==='manufacturers');
   if(id==='catalog') await renderSettingsRSCatalog();
   if(id==='stock') await renderStockTab();
   if(id==='usage') await renderUsageTab();
   if(id==='ledger') await renderLedgerTab();
   if(id==='suppliers') await renderSuppliers();
+  if(id==='manufacturers') await renderManufacturers();
 }
 
 // ── PURCHASES / STOCK ─────────────────────────────────────────
@@ -6126,7 +6333,7 @@ function addOrderToCutQueue(o, filterThick, filterColor){
     });
   });
 }
-function sendToCutting(orderId){
+async function sendToCutting(orderId){
   const o=orders.find(x=>x.id===orderId); if(!o) return;
   // Get thicknesses and types from order to pre-filter raw sheets
   const items=o.items||[];
@@ -6141,6 +6348,23 @@ function sendToCutting(orderId){
     return true;
   });
   const allSheets=matching.length?matching:rawSheetCatalog; // fallback to all if no match
+
+  // Fetch live slot inventory for the suggested sheets so we can show
+  // balance + locations on each row. One round-trip; cached on the rows.
+  // If the call fails (network blip, missing endpoint), we just continue
+  // without the inventory info — the picker still works.
+  let invBySheet = {};
+  try {
+    const inv = await AF.allInventory();
+    if (Array.isArray(inv)) {
+      // Group rows by sheet_id → list of {slot_name, qty}
+      for (const r of inv) {
+        if (!invBySheet[r.sheet_id]) invBySheet[r.sheet_id] = [];
+        invBySheet[r.sheet_id].push({ slot_name: r.slot_name, qty: +r.qty || 0 });
+      }
+    }
+  } catch(e) { console.warn('[sheet picker inventory]', e.message); }
+
   // Show sheet picker modal
   let el=document.getElementById('m-cut-sheet-pick');
   if(!el){
@@ -6151,7 +6375,7 @@ function sendToCutting(orderId){
   }
   const orderLabel=o.num+(o.extref?' | '+o.extref:'');
   el.style.display='flex';
-  el.innerHTML=`<div class="mdl" style="max-width:500px">
+  el.innerHTML=`<div class="mdl" style="max-width:560px">
     <div class="mh"><span class="mt">&#9906; Cut — Select Raw Sheet</span><button class="mx" onclick="document.getElementById('m-cut-sheet-pick').style.display='none'">&times;</button></div>
     <div class="mb">
       <div style="font-size:.78rem;color:var(--mu);margin-bottom:12px">
@@ -6161,21 +6385,55 @@ function sendToCutting(orderId){
       ${matching.length<rawSheetCatalog.length?
         `<div style="font-size:.68rem;color:var(--a3);margin-bottom:10px">&#10003; Showing ${matching.length} matching sheet(s) for this order's specs</div>`:
         `<div style="font-size:.68rem;color:var(--mu);margin-bottom:10px">Showing all sheets (no exact match found)</div>`}
-      <div style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto" id="cut-sheet-pick-list">
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto" id="cut-sheet-pick-list">
         ${allSheets.map(s=>{
           const dot=COLOR_MAP[s.color]||'#888';
           const label=s.thickness+'mm '+s.color.charAt(0).toUpperCase()+s.color.slice(1)+
             ' '+s.type.charAt(0).toUpperCase()+s.type.slice(1)+
             ' | '+s.w+'x'+s.h+(s.code?' | '+s.code:'');
+          // Live balance: sum slot quantities first (source of truth for what's
+          // physically in the warehouse). Fall back to catalog stock_qty only if
+          // we have no slot data at all — slots may be unassigned but stock_qty
+          // can still hold a manually-entered count.
+          const slots = (invBySheet[s.id] || []).filter(x => x.qty > 0);
+          const slotSum = slots.reduce((sum, x) => sum + (x.qty || 0), 0);
+          const balance = slots.length ? slotSum
+                        : (s.stock_qty != null ? +s.stock_qty : 0);
+          // Color the balance badge by stock health: red if <=0, amber if 1-5, green otherwise
+          const balColor = balance <= 0 ? 'var(--a2)'
+                         : balance <= 5 ? '#ffd23f'
+                                        : 'var(--a3)';
+          const balBg    = balance <= 0 ? 'rgba(255,105,53,.15)'
+                         : balance <= 5 ? 'rgba(255,210,63,.15)'
+                                        : 'rgba(54,255,138,.15)';
+          const balLabel = balance <= 0 ? 'OUT' : balance + ' in stock';
+          // Locations: each slot gets its own pill with the slot name and a
+          // bolder, larger quantity so it's readable at a glance. If no slot
+          // data, show "no slot info" in muted italics.
+          const locLabel = slots.length
+            ? slots.map(x =>
+                `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);color:var(--tx);padding:2px 8px;border-radius:10px;font-size:.65rem;line-height:1">
+                   <span style="color:var(--a);font-weight:600">${x.slot_name}</span>
+                   <span style="color:var(--tx2)">·</span>
+                   <span style="font-weight:700;color:var(--tx)">${x.qty}</span>
+                 </span>`
+              ).join(' ')
+            : '<span style="color:var(--mu);font-style:italic">no slot info</span>';
+
           return `<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:.15s"
             onmouseover="this.style.borderColor='var(--a)'" onmouseout="this.style.borderColor='var(--border)'"
             onclick="confirmSendToCutting(${orderId},${s.id})">
             <span class="color-dot" style="background:${dot};width:14px;height:14px;flex-shrink:0;border-radius:50%;border:1px solid rgba(255,255,255,.2)"></span>
-            <div style="flex:1">
+            <div style="flex:1;min-width:0">
               <div style="font-size:.8rem;font-weight:600">${label}</div>
-              ${s.notes?`<div style="font-size:.68rem;color:var(--mu)">${s.notes}</div>`:''}
+              <div style="font-size:.65rem;margin-top:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="background:${balBg};color:${balColor};padding:2px 8px;border-radius:3px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;font-size:.6rem">${balLabel}</span>
+                <span style="color:var(--mu);font-size:.7rem">📍</span>
+                ${locLabel}
+              </div>
+              ${s.notes?`<div style="font-size:.65rem;color:var(--mu);margin-top:3px">${s.notes}</div>`:''}
             </div>
-            <span style="color:var(--a);font-size:.72rem">Select &#8594;</span>
+            <span style="color:var(--a);font-size:.72rem;flex-shrink:0">Select &#8594;</span>
           </div>`;
         }).join('')}
       </div>
@@ -7772,56 +8030,125 @@ function clearOptFilters(){
   renderOptFiles();
 }
 
+// Get an opt file's effective ISO date regardless of which casing the API or
+// snapshot uses. The backend serializes created_at (snake_case) but local
+// in-memory snapshots set createdAt (camelCase). Both may be missing on very
+// old records, in which case we fall back to the leading "YYYY-MM-DD" in the
+// file name. Used by both renderOptFiles (for filtering/sorting) and the
+// Created: tooltip in the cutting workspace header.
+function fileDate(f) {
+  const stamp = f.created_at || f.createdAt || f.date || '';
+  if (stamp) return String(stamp).slice(0, 10);
+  const m = (f.name || '').match(/^\d{4}-\d{2}-\d{2}/);
+  return m ? m[0] : '';
+}
+
 async function renderOptFiles(){
   try{ optFiles=await AGI.OptFiles.list(); }catch(e){ console.warn('[optfiles]',e.message); }
   const el=document.getElementById('opt-files-list'); if(!el) return;
 
   // Populate dynamic filter dropdowns
-  const thickSel=document.getElementById('opt-f-thick');
-  const sheetSel=document.getElementById('opt-f-sheet');
-  if(thickSel){
-    const curThick=thickSel.value;
-    const thicks=[...new Set(optFiles.map(f=>f.rawSheet&&f.rawSheet.thickness).filter(Boolean))].sort((a,b)=>a-b);
-    thickSel.innerHTML='<option value="" data-i18n="All">All</option>'+thicks.map(t=>`<option value="${t}"${t==curThick?' selected':''}>${t}mm</option>`).join('');
-  }
-  if(sheetSel){
-    const curSheet=sheetSel.value;
-    const sheets=[...new Map(optFiles.filter(f=>f.rawSheet).map(f=>[f.rawSheet.id,f.rawSheet])).values()];
-    sheetSel.innerHTML='<option value="" data-i18n="All Sheets">All Sheets</option>'+sheets.map(s=>{
-      const lbl=s.thickness+'mm '+(s.color||'')+(s.type?' '+s.type:'')+(s.company?' | '+s.company:'');
-      return `<option value="${s.id}"${s.id==curSheet?' selected':''}>${lbl}</option>`;
-    }).join('');
-  }
+  // Thickness and Raw Sheet filters are now text inputs (not dropdowns), so
+  // there's nothing to populate here. The filter logic below handles them
+  // directly via the values typed by the user.
 
   // Read filters
   const fDateFrom=(document.getElementById('opt-f-date-from')?.value||'');
   const fDateTo  =(document.getElementById('opt-f-date-to')?.value||'');
-  const fThick   =(document.getElementById('opt-f-thick')?.value||'');
-  const fSheet   =(document.getElementById('opt-f-sheet')?.value||'');
+  const fThick   =(document.getElementById('opt-f-thick')?.value||'').trim();
+  const fSheet   =(document.getElementById('opt-f-sheet')?.value||'').toLowerCase().trim();
   const fType    =(document.getElementById('opt-f-type')?.value||'');
   const fStatus  =(document.getElementById('opt-f-status')?.value||'');
   const fSearch  =(document.getElementById('opt-f-search')?.value||'').toLowerCase().trim();
 
-  // Apply filters
-  let list=[...optFiles].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  if(fDateFrom) list=list.filter(f=>(f.createdAt||'')>=fDateFrom);
-  if(fDateTo)   list=list.filter(f=>(f.createdAt||'').slice(0,10)<=fDateTo);
-  if(fThick)    list=list.filter(f=>{const rs=f.rawSheet||f.raw_sheet_snap; return rs&&String(rs.thickness)===fThick;});
-  if(fSheet)    list=list.filter(f=>{const rs=f.rawSheet||f.raw_sheet_snap; return rs&&String(rs.id)===fSheet;});
+  // Apply filters. Sort uses fileDate() so the order is correct even when
+  // the API and snapshot fields disagree.
+  let list = [...optFiles].sort((a,b) => fileDate(b).localeCompare(fileDate(a)));
+  if(fDateFrom) list=list.filter(f=>fileDate(f) && fileDate(f) >= fDateFrom);
+  if(fDateTo)   list=list.filter(f=>fileDate(f) && fileDate(f) <= fDateTo);
+  // Thickness: exact match by number (so "6" matches 6mm exactly, not 16mm).
+  // Compares as numbers so "6.0" and "6" both match a stored value of 6.
+  if(fThick){
+    const target = +fThick;
+    if(!isNaN(target)){
+      list = list.filter(f => {
+        const rs = f.rawSheet || f.raw_sheet_snap;
+        return rs && +rs.thickness === target;
+      });
+    }
+  }
+  // Raw Sheet: case-insensitive substring match across the sheet's identifying
+  // fields — code, color, type, company/manufacturer, notes, plus a stitched
+  // descriptor like "6mm Clear Glass". Matches partial typing so "QIN" or
+  // "3660" or "Low-iron" all narrow correctly.
+  if(fSheet){
+    list = list.filter(f => {
+      const rs = f.rawSheet || f.raw_sheet_snap;
+      if (!rs) return false;
+      const idx = (window._pur && window._pur._mfgIndex) || {};
+      const mfg = rs.manufacturer_id && idx[rs.manufacturer_id] ? idx[rs.manufacturer_id] : null;
+      const hay = [
+        rs.code || '',
+        rs.color || '',
+        rs.type || '',
+        rs.glass_type || '',
+        rs.company || '',
+        rs.notes || '',
+        String(rs.thickness || ''),
+        String(rs.w || ''),
+        String(rs.h || ''),
+        rs.w && rs.h ? rs.w + 'x' + rs.h : '',
+        mfg ? mfg.name || '' : '',
+        mfg ? mfg.country || '' : '',
+        // Stitched descriptor variants
+        (rs.thickness ? rs.thickness + 'mm ' : '') + (rs.color || '') + ' ' + (rs.type || rs.glass_type || ''),
+      ].join(' ').toLowerCase();
+      return hay.includes(fSheet);
+    });
+  }
   if(fType)     list=list.filter(f=>{const rs=f.rawSheet||f.raw_sheet_snap; return rs&&rs.type===fType;});
   if(fStatus)   list=list.filter(f=>f.status===fStatus);
-  if(fSearch)   list=list.filter(f=>{
-    const hay=[
-      f.name||'',
-      (f.rawSheet&&(f.rawSheet.color||''))||'',
-      (f.rawSheet&&String(f.rawSheet.thickness||''))||'',
-      (f.rawSheet&&(f.rawSheet.type||''))||'',
-      (f.rawSheet&&(f.rawSheet.company||''))||'',
-      ...(f.cutPieces||[]).map(p=>p.orderNum||''),
-      f.status||''
-    ].join(' ').toLowerCase();
-    return hay.includes(fSearch);
-  });
+  if(fSearch){
+    // Substring search across MANY fields so users can find files by any
+    // memorable detail: name, file ID, raw sheet description/code, customer
+    // refs and external refs through linked orders, piece refs, status.
+    const buildHay = (f) => {
+      const rs = f.rawSheet || f.raw_sheet_snap;
+      const cuts = Array.isArray(f.cutPieces) ? f.cutPieces
+                : (Array.isArray(f.cut_pieces) ? f.cut_pieces : []);
+      const orderNums = cuts.map(p => p.orderNum || '');
+      // Pull external refs and customer codes via the orders cache when available
+      const orderIds = [...new Set(cuts.map(p => p.orderId).filter(Boolean))];
+      const orderMeta = orderIds.flatMap(oid => {
+        const o = (typeof orders !== 'undefined' && orders) ? orders.find(x => x.id === oid) : null;
+        if (!o) return [];
+        const cust = (typeof customers !== 'undefined' && customers) ? customers.find(c => c.id === o.customerId) : null;
+        return [
+          o.num || '', o.serial || '', o.extref || '',
+          cust ? cust.name || '' : '',
+          cust ? cust.code || '' : '',
+        ];
+      });
+      const pieceRefs = cuts.map(p => p.ref || p.serial || '');
+      return [
+        f.name || '',
+        'ref-' + (f.id || ''),  // so searching "REF-53" matches even though server-side "REF-N" prefix is also used elsewhere
+        f.id || '',
+        rs ? rs.code || '' : '',
+        rs ? rs.color || '' : '',
+        rs ? String(rs.thickness || '') : '',
+        rs ? rs.type || '' : '',
+        rs ? rs.company || '' : '',
+        rs ? rs.notes || '' : '',
+        ...orderNums,
+        ...orderMeta,
+        ...pieceRefs,
+        f.status || '',
+        fileDate(f),
+      ].join(' ').toLowerCase();
+    };
+    list = list.filter(f => buildHay(f).includes(fSearch));
+  }
 
   const cnt=document.getElementById('opt-files-count');
   if(cnt) cnt.textContent=list.length+' of '+optFiles.length+' file'+(optFiles.length!==1?'s':'');
@@ -7895,7 +8222,7 @@ function updateCutWSHeader(){
   titleEl.textContent=f?f.name:'New Optimization';
   if(subEl){
     subEl.textContent=f?
-      ('Created: '+(f.createdAt||'').slice(0,10)+(f.status==='done'?' — Done':'')+'  |  Click Save to update'):
+      ('Created: '+fileDate(f)+(f.status==='done'?' — Done':'')+'  |  Click Save to update'):
       'Unsaved — click Save to store this session';
   }
 }
@@ -12377,6 +12704,7 @@ async function renderPurchasing(){
   document.getElementById('purtab-list').style.display = '';
   document.getElementById('purtab-detail').style.display = 'none';
   await purLoadCategories();
+  await purLoadManufacturers();
   await purRenderList();
 }
 
@@ -12386,6 +12714,24 @@ async function purLoadCategories(){
     const cats = await _purApi('GET', '/categories');
     window._pur.categories = cats || [];
   } catch (e) { console.warn('[purchasing] load categories', e.message); }
+}
+
+// Loads manufacturers from the server and builds an id→{name,country,...}
+// index so the PO line item rows can resolve manufacturer info from a
+// raw_sheet's manufacturer_id without a per-row API call.
+async function purLoadManufacturers(force){
+  if (!force && window._pur._mfgList) return;
+  try {
+    const list = await _purApi('GET', '/manufacturers');
+    window._pur._mfgList = list || [];
+    const idx = {};
+    for (const m of window._pur._mfgList) idx[m.id] = m;
+    window._pur._mfgIndex = idx;
+  } catch (e) {
+    console.warn('[purchasing] load manufacturers', e.message);
+    window._pur._mfgList = [];
+    window._pur._mfgIndex = {};
+  }
 }
 
 // Thin auth wrapper around fetch — every endpoint needs the bearer token.
@@ -12573,18 +12919,39 @@ function _purRenderItems(){
   const tbody = document.getElementById('pd-items-tbody');
   const locked = !!po.locked;
   if (!po.items.length) {
-    tbody.innerHTML = `<tr><td colspan="12" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No items yet. Click + Add Item.">No items yet. Click + Add Item.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No items yet. Click + Add Item.">No items yet. Click + Add Item.</td></tr>`;
     return;
   }
-  // Build raw_sheet picker options once (used in every row)
+  // Build raw_sheet picker options once (used in every row).
+  // Include manufacturer info inline in the option text so users can
+  // distinguish "10mm Low-Iron from QIN" vs "10mm Low-Iron from Guardian".
+  // _mfgIndex is populated by purLoadManufacturers (lazy-loaded on PO open).
+  const mfgIndex = window._pur._mfgIndex || {};
   const sheetOpts = '<option value="">—</option>' +
-    rawSheetCatalog.map(s => `<option value="${s.id}">${s.code} · ${s.thickness}mm ${s.color} ${s.type || s.glass_type || ''}</option>`).join('');
+    rawSheetCatalog.map(s => {
+      const mfg = s.manufacturer_id ? mfgIndex[s.manufacturer_id] : null;
+      const mfgLabel = mfg ? ` · ${mfg.name}${mfg.country ? ' (' + mfg.country + ')' : ''}` : (s.brand ? ` · ${s.brand}` : '');
+      return `<option value="${s.id}">${s.code} · ${s.thickness}mm ${s.color} ${s.type || s.glass_type || ''}${mfgLabel}</option>`;
+    }).join('');
   const catOpts = window._pur.categories.map(c => `<option value="${c.id}">${c.name} (${c.primary_unit})</option>`).join('');
+
+  // Helper: get manufacturer label for a given raw_sheet_id (column display)
+  const mfgLabelFor = (rawSheetId) => {
+    if (!rawSheetId) return '<span style="color:var(--mu)">—</span>';
+    const sheet = rawSheetCatalog.find(s => s.id === rawSheetId);
+    if (!sheet) return '<span style="color:var(--mu)">—</span>';
+    if (sheet.manufacturer_id && mfgIndex[sheet.manufacturer_id]) {
+      const m = mfgIndex[sheet.manufacturer_id];
+      return `${m.name}${m.country ? '<span style="color:var(--mu);font-size:.6rem"> (' + m.country + ')</span>' : ''}`;
+    }
+    return sheet.brand ? `<span style="color:var(--mu)">${sheet.brand}</span>` : '<span style="color:var(--mu)">—</span>';
+  };
 
   const dis = locked ? 'disabled style="opacity:0.6"' : '';
   tbody.innerHTML = po.items.map(it => `<tr data-item-id="${it.id}">
     <td><select ${dis} onchange="purUpdateItem(${it.id},'category_id',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px">${catOpts.replace('value="' + (it.category_id || '') + '"', 'value="' + (it.category_id || '') + '" selected')}</select></td>
     <td><select ${dis} onchange="purItemSheetChanged(${it.id},this.value)" class="inp" style="font-size:.65rem;padding:3px 4px">${_purInjectSelected(sheetOpts, it.raw_sheet_id)}</select></td>
+    <td style="font-size:.65rem">${mfgLabelFor(it.raw_sheet_id)}</td>
     <td><input ${dis} type="number" step="1" value="${it.qty_ordered ?? ''}" onchange="purUpdateItem(${it.id},'qty_ordered',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
     <td><input ${dis} type="number" step="1" value="${it.dimensions_w_mm ?? ''}" onchange="purItemDimChanged(${it.id},'w',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
     <td><input ${dis} type="number" step="1" value="${it.dimensions_h_mm ?? ''}" onchange="purItemDimChanged(${it.id},'h',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
@@ -13073,7 +13440,7 @@ async function renderSuppliers(){
 // Open the supplier modal in either Add or Edit mode. Pass id to edit, omit
 // (or null) to add. Returns nothing — a successful save calls renderSuppliers.
 async function purSupplierEdit(id){
-  document.getElementById('sup-mt').textContent = id ? 'Edit Supplier' : 'Add Supplier';
+  document.getElementById('sup-mt').textContent = id ? 'Edit Vendor' : 'Add Vendor';
   ['sup-id','sup-name','sup-country','sup-currency','sup-email','sup-phone','sup-terms','sup-lead','sup-notes']
     .forEach(k => { const el = document.getElementById(k); if (el) el.value = ''; });
   document.getElementById('sup-currency').value = 'JOD';
@@ -13140,7 +13507,115 @@ async function purSupplierDelete(id){
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
-// ── Supplier picker for the PO header ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// MANUFACTURERS — list + add/edit modal
+//
+// Lives in Settings → Raw Materials → Manufacturers tab. Mirrors the
+// Suppliers UI structurally — same patterns for list/edit/delete — but
+// "manufacturer" is a property of the raw material itself (whose glass it is)
+// rather than a property of a transaction (who you paid).
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function renderManufacturers(){
+  const tbody = document.getElementById('manufacturers-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr>';
+
+  const params = new URLSearchParams();
+  if (document.getElementById('mfg-active-only').checked) params.append('active_only', '1');
+  const q = document.getElementById('mfg-search').value.trim();
+  if (q) params.append('q', q);
+
+  let rows = [];
+  try { rows = await _purApi('GET', '/manufacturers?' + params.toString()); }
+  catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--a2)">Error: ${e.message}</td></tr>`;
+    return;
+  }
+  // Refresh the cached index too — used by the PO line item display
+  window._pur._mfgList = rows;
+  const idx = {};
+  for (const m of rows) idx[m.id] = m;
+  window._pur._mfgIndex = idx;
+
+  document.getElementById('mfg-count').textContent = rows.length + ' manufacturers';
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No manufacturers yet. Click + Add Manufacturer.">No manufacturers yet. Click + Add Manufacturer.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(m => `<tr>
+    <td style="font-weight:600">${m.name}</td>
+    <td style="font-size:.68rem;color:var(--tx2)">${m.country || '—'}</td>
+    <td style="font-size:.65rem;color:var(--tx2);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.notes || '—'}</td>
+    <td class="mn" style="text-align:right;font-size:.68rem">${m.raw_sheet_count || 0}</td>
+    <td>${m.active ? '<span style="color:var(--a3);font-size:.6rem">&#9679; Active</span>' : '<span style="color:var(--mu);font-size:.6rem">&#9675; Inactive</span>'}</td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bsm" onclick="purManufacturerEdit(${m.id})" style="font-size:.6rem">Edit</button>
+      <button class="btn br bsm" onclick="purManufacturerDelete(${m.id})" style="font-size:.6rem">&#10005;</button>
+    </td>
+  </tr>`).join('');
+}
+
+async function purManufacturerEdit(id){
+  document.getElementById('mfg-mt').textContent = id ? 'Edit Manufacturer' : 'Add Manufacturer';
+  ['mfg-id','mfg-name','mfg-country','mfg-notes'].forEach(k => {
+    const el = document.getElementById(k); if (el) el.value = '';
+  });
+  if (id) {
+    try {
+      const m = await _purApi('GET', '/manufacturers/' + id);
+      document.getElementById('mfg-id').value      = m.id;
+      document.getElementById('mfg-name').value    = m.name || '';
+      document.getElementById('mfg-country').value = m.country || '';
+      document.getElementById('mfg-notes').value   = m.notes || '';
+    } catch (e) { alert('Failed to load manufacturer: ' + e.message); return; }
+  }
+  OM('m-manufacturer');
+}
+
+async function purManufacturerSave(){
+  const name = document.getElementById('mfg-name').value.trim();
+  if (!name) { alert('Name is required.'); return; }
+  const id = +document.getElementById('mfg-id').value;
+  const body = {
+    name,
+    country: document.getElementById('mfg-country').value.trim(),
+    notes: document.getElementById('mfg-notes').value.trim(),
+  };
+  try {
+    const saved = id
+      ? await _purApi('PUT', '/manufacturers/' + id, body)
+      : await _purApi('POST', '/manufacturers', body);
+    showToast(id ? 'Manufacturer updated' : 'Manufacturer added');
+    CM('m-manufacturer');
+    // Refresh the cached list (used by PO line items + raw-sheet form picker)
+    await purLoadManufacturers(true);
+    // If we're on the manufacturers tab, refresh the visible list
+    const tab = document.getElementById('rstab-manufacturers');
+    if (tab && tab.style.display !== 'none') await renderManufacturers();
+    return saved;
+  } catch (e) { alert('Failed to save: ' + e.message); }
+}
+
+async function purManufacturerDelete(id){
+  const list = window._pur._mfgList || [];
+  const m = list.find(x => x.id === id);
+  if (!m) return;
+  const usedCount = m.raw_sheet_count || 0;
+  const msg = usedCount > 0
+    ? `Manufacturer "${m.name}" is used by ${usedCount} raw sheet(s). It will be deactivated (not deleted) so historical sheets keep their reference. Continue?`
+    : `Delete manufacturer "${m.name}"?`;
+  if (!_confirm(msg)) return;
+  try {
+    const r = await _purApi('DELETE', '/manufacturers/' + id);
+    showToast(r.message || (r.deleted ? 'Deleted' : 'Deactivated'));
+    await purLoadManufacturers(true);
+    await renderManufacturers();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+
 // Renders a select with all active suppliers + an "Add new..." option that
 // opens the supplier modal. After save, the new supplier is auto-selected.
 //
@@ -13153,7 +13628,7 @@ async function _purRenderSupplierPicker(po){
   }
   const sel = document.getElementById('pd-supplier-id');
   if (!sel) return;
-  const opts = ['<option value="">— Pick supplier or add new —</option>'];
+  const opts = ['<option value="">— Pick vendor or add new —</option>'];
   // Active first, then inactive (greyed out)
   const active = window._pur.suppliers.filter(s => s.active);
   const inactive = window._pur.suppliers.filter(s => !s.active);
@@ -13162,7 +13637,7 @@ async function _purRenderSupplierPicker(po){
     opts.push('<option disabled>— Inactive —</option>');
     inactive.forEach(s => opts.push(`<option value="${s.id}"${s.id===po.supplier_id?' selected':''} style="color:var(--mu)">${s.name}${s.country?' ('+s.country+')':''}</option>`));
   }
-  opts.push('<option value="__new__">＋ Add new supplier…</option>');
+  opts.push('<option value="__new__">＋ Add new vendor…</option>');
   sel.innerHTML = opts.join('');
 }
 

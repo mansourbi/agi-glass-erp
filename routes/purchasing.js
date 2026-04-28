@@ -72,6 +72,26 @@ try {
     created_by TEXT
   )`).run();
 
+  // 1c. Manufacturers — who actually makes the raw materials (Guardian, XYG,
+  // QIN, Majed Yacoub, etc.). Distinct from suppliers/vendors (who you pay).
+  // Manufacturer is a property of the raw material itself; supplier is a
+  // property of the transaction. A vendor can sell glass from many
+  // manufacturers, and a manufacturer's products can be sold by many vendors.
+  //
+  // This table is referenced by raw_sheets.manufacturer_id and (in future)
+  // by raw_paints.manufacturer_id, raw_films.manufacturer_id, etc. — so it
+  // intentionally holds NO material-type-specific fields.
+  db.prepare(`CREATE TABLE IF NOT EXISTS manufacturers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    country TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT (datetime('now')),
+    created_by TEXT
+  )`).run();
+
   // 2. Purchase orders — one per supplier transaction
   db.prepare(`CREATE TABLE IF NOT EXISTS purchase_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -209,6 +229,11 @@ try {
   // purchase_orders: link to suppliers table (nullable; legacy POs use the text fields)
   trySql("ALTER TABLE purchase_orders ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id)");
 
+  // raw_sheets: link to manufacturers table. Existing brand/origin TEXT
+  // columns are KEPT (don't drop) as a backup. UI prefers manufacturer_id;
+  // raw text is the safety net if anything in the migration goes sideways.
+  trySql("ALTER TABLE raw_sheets ADD COLUMN manufacturer_id INTEGER REFERENCES manufacturers(id)");
+
   // Helpful indexes
   trySql("CREATE INDEX IF NOT EXISTS idx_pi_po ON purchase_items(po_id)");
   trySql("CREATE INDEX IF NOT EXISTS idx_pc_po ON purchase_costs(po_id)");
@@ -216,6 +241,7 @@ try {
   trySql("CREATE INDEX IF NOT EXISTS idx_costhist_sheet ON raw_sheet_cost_history(raw_sheet_id, ts)");
   trySql("CREATE INDEX IF NOT EXISTS idx_rst_batch ON raw_sheet_transactions(batch_id)");
   trySql("CREATE INDEX IF NOT EXISTS idx_po_supplier ON purchase_orders(supplier_id)");
+  trySql("CREATE INDEX IF NOT EXISTS idx_rs_manufacturer ON raw_sheets(manufacturer_id)");
 } catch(e) { console.warn('[purchasing init]', e.message); }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -457,6 +483,87 @@ router.delete('/suppliers/:id', requireAdmin, (req, res) => {
       return res.json({ ok: true, deactivated: true, message: `Deactivated (used in ${used} PO${used>1?'s':''})` });
     }
     db.prepare('DELETE FROM suppliers WHERE id=?').run(+req.params.id);
+    res.json({ ok: true, deleted: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MANUFACTURERS — master table for who actually makes the raw materials.
+// Distinct from suppliers (vendors): manufacturer is on the raw_sheet,
+// supplier/vendor is on the purchase_order. See schema comment above.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/manufacturers', (req, res) => {
+  try {
+    const { active_only, q } = req.query;
+    // Include raw_sheet_count for the listing — same pattern as suppliers'
+    // po_count + total_spend, so the user sees usage at a glance.
+    let sql = `SELECT m.*,
+      (SELECT COUNT(*) FROM raw_sheets rs WHERE rs.manufacturer_id = m.id) AS raw_sheet_count
+      FROM manufacturers m WHERE 1=1`;
+    const p = [];
+    if (active_only === '1') { sql += ' AND m.active=1'; }
+    if (q) { sql += ' AND (m.name LIKE ? OR m.country LIKE ?)'; p.push('%' + q + '%', '%' + q + '%'); }
+    sql += ' ORDER BY m.sort_order, m.name';
+    res.json(db.prepare(sql).all(...p));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/manufacturers/:id', (req, res) => {
+  try {
+    const m = db.prepare('SELECT * FROM manufacturers WHERE id=?').get(+req.params.id);
+    if (!m) return res.status(404).json({ error: 'Not found' });
+    res.json(m);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/manufacturers', requireAdmin, (req, res) => {
+  try {
+    const d = req.body || {};
+    if (!d.name || !d.name.trim()) return res.status(400).json({ error: 'name required' });
+    const r = db.prepare(`INSERT INTO manufacturers
+      (name, country, notes, sort_order, created_by)
+      VALUES (?,?,?,?,?)`).run(
+      d.name.trim(),
+      d.country || '',
+      d.notes || '',
+      +d.sort_order || 0,
+      (req.user && req.user.name) || 'admin'
+    );
+    res.status(201).json(db.prepare('SELECT * FROM manufacturers WHERE id=?').get(r.lastInsertRowid));
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Manufacturer with that name already exists' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/manufacturers/:id', requireAdmin, (req, res) => {
+  try {
+    const cur = db.prepare('SELECT * FROM manufacturers WHERE id=?').get(+req.params.id);
+    if (!cur) return res.status(404).json({ error: 'Not found' });
+    const d = { ...cur, ...(req.body || {}) };
+    db.prepare(`UPDATE manufacturers SET
+      name=?, country=?, notes=?, active=?, sort_order=?
+      WHERE id=?`).run(
+      d.name, d.country || '', d.notes || '',
+      (d.active === false || d.active === 0) ? 0 : 1,
+      +d.sort_order || 0, +req.params.id
+    );
+    res.json(db.prepare('SELECT * FROM manufacturers WHERE id=?').get(+req.params.id));
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Manufacturer with that name already exists' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/manufacturers/:id', requireAdmin, (req, res) => {
+  try {
+    // Mirror the suppliers DELETE pattern: deactivate if used, hard-delete only orphans.
+    const used = db.prepare('SELECT COUNT(*) c FROM raw_sheets WHERE manufacturer_id=?').get(+req.params.id).c;
+    if (used > 0) {
+      db.prepare('UPDATE manufacturers SET active=0 WHERE id=?').run(+req.params.id);
+      return res.json({ ok: true, deactivated: true, message: `Deactivated (used by ${used} sheet${used>1?'s':''})` });
+    }
+    db.prepare('DELETE FROM manufacturers WHERE id=?').run(+req.params.id);
     res.json({ ok: true, deleted: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
