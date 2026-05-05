@@ -680,16 +680,102 @@ router.put('/:id', requireAdmin, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /:id — only allowed for draft / cancelled POs
+// DELETE /:id
+// Draft/cancelled POs → simple cascade delete.
+// Received/locked POs → require ?force=1; fully reverses inventory effects:
+//   1. Collects all raw_sheet_batches for this PO
+//   2. Deletes raw_sheet_transactions tagged with those batch_ids
+//   3. Deletes raw_sheet_cost_history rows for those batches
+//   4. Deletes the batches themselves
+//   5. Recomputes WAC + qty from scratch for each affected sheet
+//      (replays all remaining purchase batches in chronological order)
+//   6. Deletes the PO (cascades to items + costs)
 router.delete('/:id', requireAdmin, (req, res) => {
   try {
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id=?').get(+req.params.id);
     if (!po) return res.status(404).json({ error: 'Not found' });
-    if (po.locked || ['received', 'in_transit'].includes(po.status)) {
-      return res.status(403).json({ error: 'Cannot delete a received or locked PO' });
+
+    const isLocked = po.locked || po.status === 'received';
+
+    if (isLocked && req.query.force !== '1') {
+      return res.status(403).json({
+        error: 'Cannot delete a received or locked PO',
+        hint: 'Pass ?force=1 to reverse all inventory effects and delete.'
+      });
     }
-    // Cascade handles items + costs via FK ON DELETE CASCADE
-    db.prepare('DELETE FROM purchase_orders WHERE id=?').run(+req.params.id);
+
+    if (isLocked) {
+      // ── Force-delete: reverse all inventory effects in one transaction ──
+      const batches = db.prepare('SELECT * FROM raw_sheet_batches WHERE po_id=?').all(po.id);
+      const batchIds = batches.map(b => b.id);
+      const affectedSheetIds = [...new Set(batches.map(b => b.raw_sheet_id))];
+
+      const tx = db.transaction(() => {
+        if (batchIds.length) {
+          const ph = batchIds.map(() => '?').join(',');
+          // Delete transactions linked to these batches
+          db.prepare(`DELETE FROM raw_sheet_transactions WHERE batch_id IN (${ph})`).run(...batchIds);
+          // Delete cost history linked to these batches
+          db.prepare(`DELETE FROM raw_sheet_cost_history WHERE ref_type='batch' AND ref_id IN (${ph})`).run(...batchIds);
+          // Delete the batches themselves
+          db.prepare(`DELETE FROM raw_sheet_batches WHERE po_id=?`).run(po.id);
+        }
+
+        // Recompute WAC + qty for each affected sheet from remaining batches
+        const getBatches = db.prepare(`
+          SELECT b.raw_sheet_id, b.total_size_received, b.landed_cost_per_unit_jod_at_receipt,
+                 b.total_landed_cost_jod, b.received_at
+          FROM raw_sheet_batches b
+          WHERE b.raw_sheet_id=?
+          ORDER BY b.received_at ASC, b.id ASC
+        `);
+        const updSheet = db.prepare(`
+          UPDATE raw_sheets SET current_avg_cost_jod_per_unit=?,
+            current_qty_in_stock_units=?, last_cost_update_at=datetime('now') WHERE id=?
+        `);
+        // Also factor in non-purchase transactions (optimization_use, sale, adjustment)
+        const getNonPurchaseTxns = db.prepare(`
+          SELECT qty, type FROM raw_sheet_transactions
+          WHERE sheet_id=? AND (batch_id IS NULL OR batch_id NOT IN (
+            SELECT id FROM raw_sheet_batches WHERE raw_sheet_id=?
+          ))
+          ORDER BY created_at ASC
+        `);
+
+        for (const sheetId of affectedSheetIds) {
+          const remainingBatches = getBatches.all(sheetId);
+          // Replay WAC from scratch
+          let qty = 0, totalValue = 0;
+          for (const b of remainingBatches) {
+            const size = +b.total_size_received || 0;
+            const cost = +b.total_landed_cost_jod || 0;
+            qty = round4(qty + size);
+            totalValue += cost;
+          }
+          // Apply non-purchase deductions (cuts, sales, adjustments)
+          const otherTxns = getNonPurchaseTxns.all(sheetId, sheetId);
+          for (const t of otherTxns) {
+            // These are in sheet units (not sqm) — just adjust qty
+            qty = round4(qty + (+t.qty || 0)); // qty is signed (negative for deductions)
+          }
+          qty = Math.max(0, qty);
+          const avgCost = qty > 0 ? round4(totalValue / qty) : 0;
+          updSheet.run(avgCost, qty, sheetId);
+        }
+
+        // Delete PO (cascades to purchase_items + purchase_costs via FK)
+        db.prepare('DELETE FROM purchase_orders WHERE id=?').run(po.id);
+      });
+
+      tx();
+      return res.json({
+        ok: true,
+        reversed: { batches: batchIds.length, sheets: affectedSheetIds.length }
+      });
+    }
+
+    // Simple delete for draft/cancelled POs
+    db.prepare('DELETE FROM purchase_orders WHERE id=?').run(po.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

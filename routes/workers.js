@@ -9,7 +9,8 @@ router.use(requireAuth);
 // ── Schema migrations ─────────────────────────────────────────────────────
 ['hourly_rate','monthly_salary','employment_type','national_id',
  'phone','join_date','dob','notes_hr','vacation_days_balance',
- 'social_security_pct','photo_url','documents'].forEach(col => {
+ 'social_security_pct','photo_url','documents',
+ 'vac_days_junior','vac_days_senior'].forEach(col => {
   try { db.prepare(`ALTER TABLE workers ADD COLUMN ${col} TEXT`).run(); } catch(e) {}
 });
 
@@ -21,7 +22,9 @@ function parseW(w) {
     hourly_rate: w.hourly_rate ? +w.hourly_rate : null,
     monthly_salary: w.monthly_salary ? +w.monthly_salary : null,
     social_security_pct: w.social_security_pct ? +w.social_security_pct : 0,
-    vacation_days_balance: w.vacation_days_balance ? +w.vacation_days_balance : 0
+    vacation_days_balance: w.vacation_days_balance ? +w.vacation_days_balance : 0,
+    vac_days_junior: w.vac_days_junior ? +w.vac_days_junior : 14,
+    vac_days_senior: w.vac_days_senior ? +w.vac_days_senior : 21
   };
 }
 
@@ -89,7 +92,8 @@ router.put('/:id', (req, res) => {
     const { name, email, password, pass, role, processes, isActive,
             hourly_rate, monthly_salary, employment_type,
             national_id, phone, join_date, dob, notes_hr, vacation_days_balance,
-            social_security_pct, photo_url } = req.body;
+            social_security_pct, photo_url,
+            vac_days_junior, vac_days_senior } = req.body;
     const pwd = password || pass;
     const newRole   = req.user.role === 'admin' ? (role||'worker') : req.user.role;
     const newActive = req.user.role === 'admin' ? (isActive !== false ? 1 : 0) : 1;
@@ -120,6 +124,9 @@ router.put('/:id', (req, res) => {
           ON CONFLICT(worker_id) DO UPDATE SET balance_days=excluded.balance_days, worker_name=excluded.worker_name, updated_at=excluded.updated_at`)
           .run(targetId, name.trim(), +vacation_days_balance||0, 1.6667);
       } catch(e) { /* vacation_balance table may not exist yet; skip */ }
+    }
+    if (vac_days_junior !== undefined || vac_days_senior !== undefined) {
+      try { db.prepare('UPDATE workers SET vac_days_junior=?, vac_days_senior=? WHERE id=?').run(+vac_days_junior||14, +vac_days_senior||21, targetId); } catch(e) {}
     }
     res.json(parseW(db.prepare('SELECT * FROM workers WHERE id=?').get(targetId)));
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -44,6 +44,7 @@ app.use('/api/slots',      require('./routes/slots'));
 app.use('/api/gsheets',    require('./routes/gsheets'));
 app.use('/api/layout',     require('./routes/layout'));
 app.use('/api/purchasing', require('./routes/purchasing'));
+app.use('/api/holidays',  require('./routes/holidays'));
 app.use('/api/translations', require('./routes/translations'));
 
 // ── Config ────────────────────────────────────────────────

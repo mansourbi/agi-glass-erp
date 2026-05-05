@@ -7,7 +7,7 @@ const { signToken, requireAuth } = require('../middleware/auth');
 // POST /api/auth/login
 router.post('/login', (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, device_id } = req.body;
     if (!email || !password)
       return res.status(400).json({ error: 'Email and password required' });
 
@@ -20,6 +20,46 @@ router.post('/login', (req, res) => {
 
     if (!bcrypt.compareSync(password, worker.pass_hash))
       return res.status(401).json({ error: 'Invalid email or password' });
+
+    // Device approval check (workers only, not admins)
+    if (worker.role !== 'admin') {
+      if (!device_id) {
+        return res.status(403).json({
+          error: 'Device verification required. Please use the worker app.',
+          code: 'DEVICE_REQUIRED'
+        });
+      }
+      const existingDevice = worker.device_id;
+      const existingStatus = worker.device_status;
+      if (!existingDevice) {
+        // First time — register as pending and block
+        db.prepare('UPDATE workers SET device_id=?, device_status=?, device_registered_at=? WHERE id=?')
+          .run(device_id, 'pending', new Date().toISOString(), worker.id);
+        return res.status(403).json({
+          error: 'Device registration pending admin approval. Contact your administrator.',
+          code: 'DEVICE_PENDING'
+        });
+      }
+      if (existingDevice !== device_id) {
+        return res.status(403).json({
+          error: 'This account is bound to a different device. Contact admin to reset.',
+          code: 'DEVICE_MISMATCH'
+        });
+      }
+      if (existingStatus === 'pending') {
+        return res.status(403).json({
+          error: 'Device approval pending. Contact your administrator.',
+          code: 'DEVICE_PENDING'
+        });
+      }
+      if (existingStatus === 'rejected') {
+        return res.status(403).json({
+          error: 'Device access has been rejected. Contact admin.',
+          code: 'DEVICE_REJECTED'
+        });
+      }
+      // existingStatus === 'approved' — fall through to issue token
+    }
 
     const processes = JSON.parse(worker.processes || '[]');
     const token = signToken({

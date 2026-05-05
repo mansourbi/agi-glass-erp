@@ -28,14 +28,41 @@ function setToken(t){ _token=t; if(t) localStorage.setItem(TOK_KEY,t); else loca
 function clearToken(){ setToken(null); }
 function getToken(){ return _token; }
 
+// Generate a stable device fingerprint stored in localStorage.
+// Uses a combination of user-agent + screen + timezone + a random UUID
+// stored on first run. This is not cryptographically unique but is stable
+// across page reloads on the same browser/device.
+function getDeviceId(){
+  const KEY = 'agi_device_id';
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    // Generate a stable fingerprint
+    const ua  = navigator.userAgent || '';
+    const scr = (screen.width||0) + 'x' + (screen.height||0);
+    const tz  = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const rnd = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    // Simple hash of stable components + random suffix for uniqueness
+    let hash = 0;
+    const str = ua + scr + tz;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+    }
+    id = 'dev_' + Math.abs(hash).toString(36) + '_' + rnd;
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
 const Auth = {
-  async login(email,password){
-    const d = await POST('/api/auth/login',{email,password});
+  async login(email, password){
+    const device_id = getDeviceId();
+    const d = await POST('/api/auth/login', {email, password, device_id});
     setToken(d.token);
     return d.worker;
   },
   async me(){ return GET('/api/auth/me'); },
-  logout(){ clearToken(); }
+  logout(){ clearToken(); },
+  getDeviceId
 };
 
 const Customers = {
@@ -176,6 +203,14 @@ const Remnants = {
   }
 };
 
+const Holidays = {
+  list(year)  { return GET('/api/holidays'+(year?'?year='+year:'')); },
+  check(date) { return GET('/api/holidays/check/'+date); },
+  create(d)   { return POST('/api/holidays', d); },
+  update(id,d){ return PUT('/api/holidays/'+id, d); },
+  delete(id)  { return DEL('/api/holidays/'+id); }
+};
+
 const FpFields = {
   list(){ return GET('/api/fpfields'); },
   add(d){ return POST('/api/fpfields',d); },
@@ -218,7 +253,7 @@ const Deliveries = {
 
 window.AGI = {
   Auth, Customers, Orders, Workers, Labels,
-  RawSheets, OptFiles, Reports, Config, Purchases, Attendance, GlassFamilies, FinalProducts, FpFields, Remnants, HR, Deliveries, health,
+  RawSheets, OptFiles, Reports, Config, Purchases, Attendance, GlassFamilies, FinalProducts, FpFields, Remnants, HR, Deliveries, Holidays, health,
   getToken, setToken, clearToken, api
 };
 

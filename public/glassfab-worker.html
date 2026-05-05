@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060c14">
-<script src="/agi-api.js"></script>
+<script src="/agi-api.js?v=2"></script>
 <title>AGI Glass — Worker</title>
 <style>
 :root{
@@ -570,6 +570,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <div style="display:flex;gap:8px;margin-top:16px">
       <button onclick="document.getElementById('m-dlv-finalise').style.display='none'" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer">Cancel</button>
       <button onclick="dlvPrintNote()" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer">&#128438; Print</button>
+      <button onclick="dlvPrintNote2()" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer">&#128438; Print 2</button>
       <button onclick="dlvConfirmFinalise()" style="flex:2;padding:12px;background:var(--a3);border:none;border-radius:var(--r);color:#000;font-weight:700;cursor:pointer">&#10003; Confirm Delivery</button>
     </div>
   </div>
@@ -1789,6 +1790,16 @@ function dlvUpdateSessionUI(){
     printBtn.style.cssText = 'width:100%;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);font-size:.88rem;cursor:pointer;margin-top:8px';
     printBtn.textContent = '🖨 Print Delivery Note';
     finBtn.parentNode.insertBefore(printBtn, finBtn.nextSibling);
+    // Insert Print 2 after Print (printBtn is now in the DOM)
+    let printBtn2 = document.getElementById('dlv-print2-btn');
+    if(!printBtn2){
+      printBtn2 = document.createElement('button');
+      printBtn2.id = 'dlv-print2-btn';
+      printBtn2.style.cssText = 'width:100%;padding:14px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);font-size:.88rem;cursor:pointer;margin-top:6px';
+      printBtn2.innerHTML = '&#9113; Print 2 (No Customer)';
+      printBtn.parentNode.insertBefore(printBtn2, printBtn.nextSibling);
+    }
+    printBtn2.onclick = dlvPrintNote2;
   }
   printBtn.style.display = items.length ? '' : 'none';
 
@@ -2108,6 +2119,130 @@ function dlvPrintNote(){
   const w = window.open('','_blank','width=800,height=1000');
   w.document.write(html);
   w.document.close();
+}
+
+function dlvPrintNote2(){
+  if(!_dlvDelivery) return;
+  const d = _dlvDelivery;
+  const logo = (typeof cfg!=='undefined'&&cfg&&cfg.factory_logo) ? cfg.factory_logo : null;
+  const logoHtml = logo
+    ? `<img src="${logo}" style="max-height:60px;max-width:160px;object-fit:contain">`
+    : `<div style="font-size:26px;font-weight:700;letter-spacing:2px">AGI GLASS</div>`;
+  const date = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const pieces = d.items||[];
+  let totalSqm = 0;
+  let rowNum = 0;
+
+  const orderGroups = {};
+  const orderOrder = [];
+  pieces.forEach(p=>{
+    const key = p.order_num||'—';
+    if(!orderGroups[key]){ orderGroups[key]=[]; orderOrder.push(key); }
+    orderGroups[key].push(p);
+  });
+
+  const getExtref = (orderNum) => {
+    if(typeof orders!=='undefined'&&orders.length){
+      const o = orders.find(x=>x.num===orderNum);
+      return o ? (o.extref||o.ext_ref||'') : '';
+    }
+    return '';
+  };
+
+  let rows = '';
+  orderOrder.forEach(orderNum=>{
+    const grpPieces = orderGroups[orderNum];
+    const extref = getExtref(orderNum);
+    rows += `<tr><td colspan="6" style="padding:10px 0 4px 0;font-size:10px;font-weight:700;color:#111;letter-spacing:1px;border-bottom:1px solid #aaa">
+      ORDER: ${orderNum}${extref?' — '+extref:''}
+    </td></tr>`;
+    grpPieces.forEach(p=>{
+      rowNum++;
+      const w = p.w||0, h = p.h||0;
+      totalSqm += (w*h)/1e6;
+      const procsRaw = p.processes||'[]';
+      const procsArr = Array.isArray(procsRaw) ? procsRaw : JSON.parse(procsRaw);
+      const procs = procsArr.map(pr=>pr.charAt(0).toUpperCase()+pr.slice(1)).join(', ');
+      const typeStr = (p.glass_type||'').charAt(0).toUpperCase()+(p.glass_type||'').slice(1);
+      const colorStr = (p.color||'').charAt(0).toUpperCase()+(p.color||'').slice(1);
+      rows += `<tr style="border-bottom:0.5px solid #e0e0e0">
+        <td style="padding:7px 8px 7px 0;color:#555;font-size:11px">${rowNum}</td>
+        <td style="padding:7px 8px 7px 0;font-weight:600;font-size:11px">${p.piece_uid||p.uid||''}</td>
+        <td style="padding:7px 8px 7px 0;font-size:11px;color:#555">${p.piece_code||p.piece_uid||''}</td>
+        <td style="padding:7px 8px 7px 0;text-align:center;font-size:11px">${w} × ${h}</td>
+        <td style="padding:7px 8px 7px 0;font-size:11px;color:#555">${p.thickness||''}mm ${typeStr} ${colorStr}</td>
+        <td style="padding:7px 0 7px 0;font-size:11px;color:#555">${procs}</td>
+      </tr>`;
+    });
+  });
+
+  const notesHtml = d.notes ? `<div style="margin:0 32px 16px;background:#f8f8f8;border-radius:6px;padding:10px 14px;font-size:12px;color:#555">
+    <strong style="color:#111">Notes:</strong> ${d.notes}
+  </div>` : '';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Delivery Note 2 — ${d.serial||''}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;color:#111;background:#fff}
+    @page{size:A4 portrait;margin:12mm}
+    @media print{body{-webkit-print-color-adjust:exact}}
+  </style>
+  </head><body>
+  <div style="max-width:720px;margin:0 auto">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #111;margin-bottom:16px">
+      <div>
+        ${logoHtml}
+        <div style="font-size:11px;color:#666;margin-top:6px">Glass Fabrication Factory</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:18px;font-weight:700">Delivery Note</div>
+        <table style="margin-top:8px;font-size:12px;color:#555;margin-left:auto">
+          <tr><td style="padding:2px 8px 2px 0;color:#888">No:</td><td style="font-weight:600;color:#111">${d.serial||''}</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;color:#888">Date:</td><td style="font-weight:600;color:#111">${date}</td></tr>
+          ${orderOrder.length===1?`<tr><td style="padding:2px 8px 2px 0;color:#888">Order:</td><td style="font-weight:600;color:#111">${orderOrder[0]}</td></tr>`:''}
+          ${(()=>{const refs=[...new Set(orderOrder.map(getExtref).filter(Boolean))];return refs.length?`<tr><td style="padding:2px 8px 2px 0;color:#888">Ref:</td><td style="font-weight:600;color:#111">${refs.join(', ')}</td></tr>`:'';})()} 
+        </table>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+      <thead>
+        <tr style="border-bottom:1px solid #111">
+          <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">#</th>
+          <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Piece ID</th>
+          <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Description</th>
+          <th style="text-align:center;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">W × H (mm)</th>
+          <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Glass</th>
+          <th style="text-align:left;padding:6px 0 8px 0;font-size:10px;color:#888;font-weight:600">Processes</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;gap:32px;font-size:12px;padding-top:10px;border-top:1px solid #ddd;margin-bottom:16px">
+      <div style="color:#555">Total pieces: <strong style="color:#111">${pieces.length}</strong></div>
+      <div style="color:#555">Total sqm: <strong style="color:#111">${totalSqm.toFixed(3)} m²</strong></div>
+    </div>
+    ${notesHtml}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;padding-top:20px;border-top:0.5px solid #ddd;margin-top:8px">
+      <div>
+        <div style="font-size:10px;font-weight:600;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:48px">Delivered by</div>
+        <div style="border-top:1px solid #aaa;padding-top:6px;font-size:11px;color:#888">Name &amp; Signature</div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:48px">Received by</div>
+        <div style="border-top:1px solid #aaa;padding-top:6px;font-size:11px;color:#888">Name &amp; Signature</div>
+      </div>
+    </div>
+    <div style="margin-top:24px;padding-top:12px;border-top:2px solid #111;text-align:center;font-size:10px;color:#888">
+      AGI Glass Factory — This document serves as proof of delivery
+    </div>
+  </div>
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`;
+
+  const w2 = window.open('','_blank','width=800,height=1000');
+  w2.document.write(html);
+  w2.document.close();
 }
 
 async function dlvConfirmFinalise(){

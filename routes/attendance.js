@@ -139,7 +139,14 @@ router.post('/punch-in', (req, res) => {
     const weekendDayName = (schedRow && schedRow.weekend_day) || 'fri';
     const dayMap = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
     const dayName = dayMap[dayOfWeek];
-    const auto_day_type = (dayName === weekendDayName) ? 'weekend' : 'normal';
+    let auto_day_type = (dayName === weekendDayName) ? 'weekend' : 'normal';
+    // Override with holiday if date is in the holidays table
+    if (auto_day_type === 'normal') {
+      try {
+        const holiday = db.prepare('SELECT name FROM holidays WHERE date=?').get(today);
+        if (holiday) auto_day_type = 'holiday';
+      } catch(e) { /* holidays table may not exist yet */ }
+    }
     const now = nowStr();
     // Detect lateness (skips weekend/holiday/approved-leave days via helper)
     const late_mins = computeLateMins(now, today, auto_day_type, req.user.id);
@@ -373,6 +380,13 @@ router.post('/admin', requireAdmin, (req, res) => {
       const wdn2 = (schedRow2 && schedRow2.weekend_day) || 'fri';
       const dm2 = {0:'sun',1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat'};
       effDayType = (dm2[dayOfWeek2] === wdn2) ? 'weekend' : 'normal';
+      // Override with holiday if in holidays table
+      if (effDayType === 'normal') {
+        try {
+          const holiday = db.prepare('SELECT name FROM holidays WHERE date=?').get(date);
+          if (holiday) effDayType = 'holiday';
+        } catch(e) {}
+      }
     }
     const late_mins = computeLateMins(pin, date, effDayType, +worker_id);
     if (existing) {

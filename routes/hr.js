@@ -193,6 +193,34 @@ try {
     created_at      DATETIME DEFAULT (datetime('now','localtime'))
   )`).run();
 
+  // ── Adjustment Types ─────────────────────────────────────────────────────
+  db.prepare(`CREATE TABLE IF NOT EXISTS adjustment_types (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    direction   TEXT NOT NULL CHECK(direction IN ('addition','deduction')),
+    title       TEXT NOT NULL,
+    description TEXT,
+    is_active   INTEGER DEFAULT 1,
+    created_at  DATETIME DEFAULT (datetime('now','localtime'))
+  )`).run();
+  // Seed default types if empty
+  const adjTypesCount = db.prepare('SELECT COUNT(*) AS c FROM adjustment_types').get().c;
+  if (!adjTypesCount) {
+    const ins = db.prepare("INSERT INTO adjustment_types (direction,title,description) VALUES (?,?,?)");
+    ins.run('addition',  'Bonus',          'Performance or special reward bonus');
+    ins.run('deduction', 'Salary Advance', 'Cash advance deducted from salary (سلفة)');
+    ins.run('deduction', 'Penalty',        'Financial deduction for policy violation');
+    ins.run('addition',  'Rounding',       'Auto salary rounding up to nearest JD');
+  }
+  // Ensure Rounding type exists
+  const hasRounding = db.prepare("SELECT id FROM adjustment_types WHERE title='Rounding' LIMIT 1").get();
+  if (!hasRounding) {
+    db.prepare("INSERT INTO adjustment_types (direction,title,description) VALUES ('addition','Rounding','Auto salary rounding up to nearest JD')").run();
+  }
+  // Migrate payroll_adjustments — add new columns if missing
+  ['adj_type_id INTEGER','description TEXT','payroll_month TEXT','worker_ids TEXT'].forEach(col => {
+    try { db.prepare(`ALTER TABLE payroll_adjustments ADD COLUMN ${col}`).run(); } catch(e) {}
+  });
+
   // ── Payroll runs (immutable history of closed months) ────────────────────
   db.prepare(`CREATE TABLE IF NOT EXISTS payroll_runs (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -232,22 +260,28 @@ try {
 // ──────────────────────────────────────────────────────────────────────────
 function autoAccrueVacation() {
   try {
-    const sched = db.prepare('SELECT annual_vacation_days, vacation_accrual FROM work_schedule ORDER BY id LIMIT 1').get();
-    const annual = +sched?.annual_vacation_days || 14;
-    // Monthly accrual = annual / 12. Fallback to legacy vacation_accrual for DBs not yet migrated.
-    const accrual = annual > 0 ? (annual / 12) : (+sched?.vacation_accrual || 1.1667);
-    const workers = db.prepare('SELECT id, name FROM workers WHERE is_active=1').all();
+    const workers = db.prepare('SELECT id, name, join_date, vac_days_junior, vac_days_senior FROM workers WHERE is_active=1').all();
     const now = new Date();
     const thisMonth = now.toISOString().slice(0,7); // YYYY-MM
     let added = 0;
     for (const w of workers) {
+      // Per-worker accrual rate based on seniority from join_date
+      const junior = +w.vac_days_junior || 14;
+      const senior = +w.vac_days_senior || 21;
+      let accrual;
+      if (w.join_date) {
+        const yearsService = (now - new Date(w.join_date)) / (365.25 * 24 * 3600 * 1000);
+        accrual = (yearsService >= 5 ? senior : junior) / 12;
+      } else {
+        accrual = junior / 12; // default junior if no join_date
+      }
       const vb = db.prepare('SELECT balance_days, last_accrued FROM vacation_balance WHERE worker_id=?').get(w.id);
       if (!vb) {
-        // First time — create row at 0 balance, mark accrued-this-month so
-        // first accrual hits NEXT month.
+        // First time — create row, accrue first month immediately since join_date is set
         db.prepare(`INSERT INTO vacation_balance (worker_id, worker_name, balance_days, accrual_rate, last_accrued, updated_at)
-          VALUES (?, ?, 0, ?, ?, datetime('now','localtime'))`)
-          .run(w.id, w.name, accrual, thisMonth);
+          VALUES (?, ?, ?, ?, ?, datetime('now','localtime'))`)
+          .run(w.id, w.name, accrual, accrual, thisMonth);
+        added++;
         continue;
       }
       const lastAccruedMonth = vb.last_accrued ? vb.last_accrued.slice(0,7) : null;
@@ -437,8 +471,14 @@ router.get('/leave', (req, res) => {
 
 router.post('/leave', (req, res) => {
   try {
-    const { date_from, date_to, type, reason, leave_kind, hours, notes } = req.body;
+    const { date_from, date_to, type, reason, leave_kind, hours, notes, worker_id } = req.body;
     if (!date_from) return res.status(400).json({ error: 'date_from required' });
+    // Admin can submit on behalf of a worker
+    let targetWorker = { id: req.user.id, name: req.user.name };
+    if (req.user.role === 'admin' && worker_id) {
+      const w = db.prepare('SELECT id, name FROM workers WHERE id=?').get(+worker_id);
+      if (w) targetWorker = w;
+    }
     const kind = leave_kind || 'vacation'; // 'vacation' or 'hourly'
     let days = 0;
     const hrs = +hours || 0;
@@ -463,11 +503,20 @@ router.post('/leave', (req, res) => {
     }
     const r = db.prepare(`INSERT INTO leave_requests (worker_id,worker_name,date_from,date_to,days,type,reason,leave_kind,hours,notes,time_from,time_to,medical_report)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-        req.user.id, req.user.name, date_from, date_to||date_from,
+        targetWorker.id, targetWorker.name, date_from, date_to||date_from,
         days, type||'vacation', reason||null, kind, finalHrs, notes||null,
         time_from||null, time_to||null, medical_report||null
       );
     res.status(201).json(db.prepare('SELECT * FROM leave_requests WHERE id=?').get(r.lastInsertRowid));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/leave/:id', requireAdmin, (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM leave_requests WHERE id=?').get(+req.params.id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    db.prepare('DELETE FROM leave_requests WHERE id=?').run(+req.params.id);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -580,8 +629,8 @@ router.get('/payroll', requireAdmin, (req, res) => {
       });
     }
 
-    // OPEN month — compute live
-    const workers = db.prepare('SELECT * FROM workers WHERE is_active=1 AND monthly_salary IS NOT NULL AND monthly_salary > 0').all();
+    // OPEN month — include all active workers with a salary rate set
+    const workers = db.prepare('SELECT * FROM workers WHERE is_active=1 AND (hourly_rate > 0 OR (monthly_salary IS NOT NULL AND monthly_salary > 0)) ORDER BY name').all();
 
     const results = workers.map(w => {
       const att = db.prepare(
@@ -613,15 +662,13 @@ router.get('/payroll', requireAdmin, (req, res) => {
 
         if (worked > 0) {
           if (dt === 'weekend') {
-            if (otApproved)       weekendMins += approvedOT;
-            else if (!otRejected) unapprovedOtMins += worked;
+            if (otApproved)              weekendMins += approvedOT;
+            else if (otStatus==='pending') unapprovedOtMins += worked; // only pending counts as unapproved
           } else if (dt === 'holiday') {
-            if (otApproved)       holidayMins += approvedOT;
-            else if (!otRejected) unapprovedOtMins += worked;
+            if (otApproved)              holidayMins += approvedOT;
+            else if (otStatus==='pending') unapprovedOtMins += worked;
           } else {
-            // Normal day — OT is determined by punch-out time vs shift end,
-            // NOT by total_mins vs 8h (since total_mins is raw duration
-            // including the unpaid break).
+            // Normal day — OT is determined by punch-out time vs shift end
             if (a.punch_out && a.punch_in) {
               const dow = new Date(a.date).getDay();
               const shiftEnd = (dow === 4) ? shiftEndThu : shiftEndMain;
@@ -632,8 +679,8 @@ router.get('/payroll', requireAdmin, (req, res) => {
                 const [ph, pm] = poutTime.split(':').map(Number);
                 const overMins = (ph*60+pm) - (eh*60+em);
                 if (overMins > graceMins) {
-                  if (otApproved)       overtimeMins += approvedOT;
-                  else if (!otRejected) unapprovedOtMins += overMins;
+                  if (otApproved)              overtimeMins += approvedOT;
+                  else if (otStatus==='pending') unapprovedOtMins += overMins;
                 }
               }
             }
@@ -664,10 +711,9 @@ router.get('/payroll', requireAdmin, (req, res) => {
           LIMIT 1
         `).get(w.id, dateStr, dateStr, dateStr);
         if (covered) continue;
-        // Check if it's a holiday (we don't have a holidays table yet — treat 'holiday' attendance entries as holidays)
-        // Skip dates with day_type='holiday' in any attendance row (even for other workers)
+        // Check if date is a public holiday in the holidays table
         const isHoliday = db.prepare(
-          "SELECT 1 FROM attendance WHERE date=? AND day_type='holiday' LIMIT 1"
+          "SELECT 1 FROM holidays WHERE date=? LIMIT 1"
         ).get(dateStr);
         if (isHoliday) continue;
         absenceDays++;
@@ -686,22 +732,50 @@ router.get('/payroll', requireAdmin, (req, res) => {
           )
       `).all(w.id, m+'%', m+'%', m+'%');
       let paidLeaveDays = 0, unpaidLeaveMins = 0, paidLeaveMins = 0;
+      let vacationDays = 0; // whole-day vacation leaves only (not hourly)
       leaveRows.forEach(lr => {
         const d = lr.leave_kind === 'hourly' ? (+lr.hours || 0) / 8 : (+lr.days || 0);
-        if (lr.is_paid) { paidLeaveDays += d; paidLeaveMins += Math.round(d * STD_MINS); }
-        else            unpaidLeaveMins += Math.round(d * STD_MINS);
+        if (lr.is_paid) {
+          paidLeaveDays += d;
+          paidLeaveMins += Math.round(d * STD_MINS);
+          // Count as vacation days only if it's a whole-day leave (not hourly)
+          if (lr.leave_kind !== 'hourly') vacationDays += d;
+        } else {
+          unpaidLeaveMins += Math.round(d * STD_MINS);
+        }
       });
       const totalLeaveMins = paidLeaveMins + unpaidLeaveMins;
 
       // ── Balance math ────────────────────────────────────────────────────
-      // Current balance before this month's deductions:
+      // Opening balance = stored balance + this month's accrual (prorated for new joiners)
       const vb = db.prepare('SELECT balance_days FROM vacation_balance WHERE worker_id=?').get(w.id);
-      const currentBalance = vb ? (+vb.balance_days || 0) : 0;
+      const storedBalance = vb ? (+vb.balance_days || 0) : 0;
+      // Per-worker accrual for this month
+      const wJunior2 = +w.vac_days_junior || 14;
+      const wSenior2 = +w.vac_days_senior || 21;
+      const wJoinDate = w.join_date ? new Date(w.join_date) : null;
+      const [pmY, pmM] = m.split('-').map(Number);
+      const daysInPayMonth = new Date(pmY, pmM, 0).getDate();
+      const monthStartDate = new Date(pmY, pmM-1, 1);
+      const monthEndDate   = new Date(pmY, pmM-1, daysInPayMonth);
+      const wYrs2 = wJoinDate ? ((monthStartDate - wJoinDate)/(365.25*24*3600*1000)) : 0;
+      const wAnnual2 = wYrs2 >= 5 ? wSenior2 : wJunior2;
+      const wFullAccrual = wAnnual2 / 12;
+      let wMonthAccrual = 0;
+      if (wJoinDate) {
+        if (wJoinDate > monthEndDate)        wMonthAccrual = 0;
+        else if (wJoinDate <= monthStartDate) wMonthAccrual = wFullAccrual;
+        else {
+          const dw = daysInPayMonth - wJoinDate.getDate() + 1;
+          wMonthAccrual = (wFullAccrual / daysInPayMonth) * dw;
+        }
+      } else { wMonthAccrual = wFullAccrual; }
+      const openingBalance = storedBalance + wMonthAccrual;
       const lateDays = lateMins / 480;
-      // Effective balance after applying this month's deductions:
-      const balanceAfter = currentBalance - paidLeaveDays - lateDays - absenceDays;
+      // End-of-month balance = opening - vacations - leaves - late - absences
+      const balanceAfter = openingBalance - paidLeaveDays - lateDays - absenceDays;
       const negativeDays = balanceAfter < 0 ? -balanceAfter : 0;
-      const balanceDeduction = negativeDays * 8 * hourlyRate; // convert days to hours to cash
+      const balanceDeduction = negativeDays * 8 * hourlyRate;
 
       // ── Pay computations ───────────────────────────────────────────────
       const overtimePay  = (overtimeMins / 60) * hourlyRate * 1.25;
@@ -716,19 +790,49 @@ router.get('/payroll', requireAdmin, (req, res) => {
 
       // ── Adjustments for this month ─────────────────────────────────────
       const adjRows = db.prepare(
-        "SELECT id, type, amount, note, adjustment_date FROM payroll_adjustments WHERE worker_id=? AND adjustment_date LIKE ? ORDER BY adjustment_date"
-      ).all(w.id, m+'%');
+        "SELECT id, type, adj_type_id, amount, note, description, adjustment_date, payroll_month FROM payroll_adjustments WHERE worker_id=? AND (payroll_month=? OR (payroll_month IS NULL AND adjustment_date LIKE ?)) ORDER BY adjustment_date"
+      ).all(w.id, m, m+'%');
       const totalAdjustments = adjRows.reduce((s, a) => s + (+a.amount || 0), 0);
+      const adjAddition  = adjRows.filter(a => (+a.amount||0) > 0).reduce((s,a) => s + (+a.amount||0), 0);
+      const adjDeduction = adjRows.filter(a => (+a.amount||0) < 0).reduce((s,a) => s - (+a.amount||0), 0);
+      // Split deductions: advances vs other
+      const isAdvance = r => {
+        const t = (r.type||'').toLowerCase();
+        return t.includes('advance') || t.includes('سلفة') || t.includes('salary advance');
+      };
+      const adjAdvances  = adjRows.filter(a => (+a.amount||0) < 0 && isAdvance(a)).reduce((s,a) => s - (+a.amount||0), 0);
+      const adjOtherDed  = adjRows.filter(a => (+a.amount||0) < 0 && !isAdvance(a)).reduce((s,a) => s - (+a.amount||0), 0);
 
       // ── Gross / Net ────────────────────────────────────────────────────
-      const gross = monthlyBase
+      // For hourly workers: base = daysWorked × 8h × hourlyRate
+      const basePay = monthlyBase > 0 ? monthlyBase : (daysWorked * 8 * hourlyRate);
+      const gross = basePay
                   + overtimePay + weekendPay + holidayPay
                   - balanceDeduction
                   - unpaidLeavePay
                   + totalAdjustments;
       const ssPct = +w.social_security_pct || 0;
-      const ssDeduction = gross * (ssPct / 100);
-      const net = gross - ssDeduction;
+      const ssDeduction = basePay * (ssPct / 100); // SS applied on base salary only
+      const netBeforeRounding = gross - ssDeduction;
+      // Auto-round to nearest 0.5 JD
+      const netCeiled  = Math.round(netBeforeRounding * 2) / 2;
+      const roundingDiff = Math.round((netCeiled - netBeforeRounding) * 100) / 100;
+      const net = netCeiled;
+      // Auto-create rounding adjustment if diff > 0 and not already done this month
+      if (roundingDiff > 0) {
+        const roundType = db.prepare("SELECT id FROM adjustment_types WHERE title='Rounding' LIMIT 1").get();
+        const roundTypeId = roundType ? roundType.id : null;
+        const existingRound = db.prepare(
+          "SELECT id FROM payroll_adjustments WHERE worker_id=? AND payroll_month=? AND type='Rounding' LIMIT 1"
+        ).get(w.id, m);
+        if (!existingRound) {
+          db.prepare(`INSERT INTO payroll_adjustments
+            (worker_id,worker_name,adjustment_date,type,adj_type_id,amount,description,note,payroll_month,created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?)`)
+            .run(w.id, w.name, new Date().toISOString().slice(0,10), 'Rounding', roundTypeId,
+                 roundingDiff, 'Auto rounding to nearest JD', null, m, 'system');
+        }
+      }
 
       return {
         worker_id: w.id, worker_name: w.name,
@@ -742,8 +846,12 @@ router.get('/payroll', requireAdmin, (req, res) => {
         late_mins: lateMins,
         late_days: +lateDays.toFixed(3),
         // Balance
-        balance_before: +currentBalance.toFixed(3),
-        balance_after:  +balanceAfter.toFixed(3),
+        balance_before:  +storedBalance.toFixed(3),
+        vac_accrual:     +wMonthAccrual.toFixed(4),
+        opening_balance: +openingBalance.toFixed(3),
+        balance_after:   +balanceAfter.toFixed(3),
+        vac_days_taken:  +(vacationDays + absenceDays).toFixed(3), // vacation leaves + absences only
+        late_days:       +lateDays.toFixed(3),
         paid_leave_days: +paidLeaveDays.toFixed(3),
         leave_hours:     +(totalLeaveMins / 60).toFixed(2),
         // Hour breakdown (OT only — base is not hours-based)
@@ -752,18 +860,24 @@ router.get('/payroll', requireAdmin, (req, res) => {
         holiday_hours:  +(holidayMins  / 60).toFixed(2),
         unapproved_ot_hours: +(unapprovedOtMins / 60).toFixed(2),
         // Pay lines
-        base_salary:        +monthlyBase.toFixed(2),
+        base_salary:        +basePay.toFixed(2),
         overtime_pay:       +overtimePay.toFixed(2),
         weekend_pay:        +weekendPay.toFixed(2),
         holiday_pay:        +holidayPay.toFixed(2),
         balance_deduction:  +balanceDeduction.toFixed(2),
         unpaid_leave_deduction: +unpaidLeavePay.toFixed(2),
         total_adjustments:  +totalAdjustments.toFixed(2),
+        adj_addition:      +adjAddition.toFixed(2),
+        adj_deduction:     +adjDeduction.toFixed(2),
+        adj_advances:      +adjAdvances.toFixed(2),
+        adj_other_ded:     +adjOtherDed.toFixed(2),
         adjustments:        adjRows,
         ss_pct:             ssPct,
         ss_deduction:       +ssDeduction.toFixed(2),
         gross_pay:          +gross.toFixed(2),
         net_pay:            +net.toFixed(2),
+        net_before_rounding: +netBeforeRounding.toFixed(2),
+        rounding_diff:      +roundingDiff.toFixed(2),
         total_pay:          +net.toFixed(2)
       };
     });
@@ -774,6 +888,44 @@ router.get('/payroll', requireAdmin, (req, res) => {
 // ──────────────────────────────────────────────────────────────────────────
 // PAYROLL ADJUSTMENTS CRUD
 // ──────────────────────────────────────────────────────────────────────────
+// ── Adjustment Types CRUD ─────────────────────────────────────────────────
+router.get('/adjustment-types', requireAdmin, (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM adjustment_types ORDER BY direction, title').all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/adjustment-types', requireAdmin, (req, res) => {
+  try {
+    const { direction, title, description } = req.body;
+    if (!direction || !title) return res.status(400).json({ error: 'direction and title required' });
+    if (!['addition','deduction'].includes(direction)) return res.status(400).json({ error: 'direction must be addition or deduction' });
+    const r = db.prepare('INSERT INTO adjustment_types (direction,title,description) VALUES (?,?,?)').run(direction, title.trim(), description||null);
+    res.status(201).json(db.prepare('SELECT * FROM adjustment_types WHERE id=?').get(r.lastInsertRowid));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/adjustment-types/:id', requireAdmin, (req, res) => {
+  try {
+    const { direction, title, description, is_active } = req.body;
+    if (!direction || !title) return res.status(400).json({ error: 'direction and title required' });
+    db.prepare('UPDATE adjustment_types SET direction=?,title=?,description=?,is_active=? WHERE id=?')
+      .run(direction, title.trim(), description||null, is_active===false?0:1, +req.params.id);
+    res.json(db.prepare('SELECT * FROM adjustment_types WHERE id=?').get(+req.params.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/adjustment-types/:id', requireAdmin, (req, res) => {
+  try {
+    const used = db.prepare('SELECT COUNT(*) AS c FROM payroll_adjustments WHERE adj_type_id=?').get(+req.params.id);
+    if (used.c > 0) return res.status(409).json({ error: 'Cannot delete — this type is used in '+used.c+' adjustment(s)' });
+    db.prepare('DELETE FROM adjustment_types WHERE id=?').run(+req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Payroll Adjustments ───────────────────────────────────────────────────
 router.get('/payroll/adjustments', requireAdmin, (req, res) => {
   try {
     const { worker_id, month, from, to } = req.query;
@@ -790,22 +942,31 @@ router.get('/payroll/adjustments', requireAdmin, (req, res) => {
 
 router.post('/payroll/adjustments', requireAdmin, (req, res) => {
   try {
-    const { worker_id, adjustment_date, type, amount, note } = req.body;
-    if (!worker_id || !adjustment_date || !type || amount === undefined)
-      return res.status(400).json({ error: 'worker_id, adjustment_date, type, amount required' });
-    const w = db.prepare('SELECT name FROM workers WHERE id=?').get(+worker_id);
-    if (!w) return res.status(404).json({ error: 'Worker not found' });
-    const allowedTypes = ['bonus','penalty','forgiveness','correction','other'];
-    if (!allowedTypes.includes(type)) return res.status(400).json({ error: 'Invalid type' });
-    // Prevent edits to a closed month
-    const month = adjustment_date.slice(0,7);
-    const locked = db.prepare("SELECT 1 FROM payroll_runs WHERE worker_id=? AND month=? AND is_reopened=0 LIMIT 1").get(+worker_id, month);
-    if (locked) return res.status(400).json({ error: `${month} is closed. Reopen before editing.` });
-    const r = db.prepare(`
-      INSERT INTO payroll_adjustments (worker_id, worker_name, adjustment_date, type, amount, note, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(+worker_id, w.name, adjustment_date, type, +amount, note||null, req.user?.name || 'system');
-    res.status(201).json(db.prepare('SELECT * FROM payroll_adjustments WHERE id=?').get(r.lastInsertRowid));
+    const { worker_ids, worker_id, adjustment_date, adj_type_id, amount, description, note, payroll_month } = req.body;
+    const wids = (worker_ids && worker_ids.length) ? worker_ids.map(Number) : (worker_id ? [+worker_id] : []);
+    if (!wids.length || !adjustment_date || amount === undefined)
+      return res.status(400).json({ error: 'worker_id(s), adjustment_date, amount required' });
+    // Get type info from adjustment_types
+    let direction = 'addition', typeLabel = 'other';
+    if (adj_type_id) {
+      const at = db.prepare('SELECT * FROM adjustment_types WHERE id=?').get(+adj_type_id);
+      if (at) { direction = at.direction; typeLabel = at.title; }
+    }
+    const signedAmount = direction === 'deduction' ? -Math.abs(+amount) : Math.abs(+amount);
+    const month = payroll_month || adjustment_date.slice(0,7);
+    const created = [];
+    for (const wid of wids) {
+      const w = db.prepare('SELECT name FROM workers WHERE id=?').get(+wid);
+      if (!w) continue;
+      const locked = db.prepare("SELECT 1 FROM payroll_runs WHERE worker_id=? AND month=? AND is_reopened=0 LIMIT 1").get(+wid, month);
+      if (locked) continue; // skip locked months silently
+      const r = db.prepare(`
+        INSERT INTO payroll_adjustments (worker_id, worker_name, adjustment_date, type, adj_type_id, amount, description, note, payroll_month, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(+wid, w.name, adjustment_date, typeLabel, adj_type_id||null, signedAmount, description||null, note||null, month, req.user?.name||'system');
+      created.push(db.prepare('SELECT * FROM payroll_adjustments WHERE id=?').get(r.lastInsertRowid));
+    }
+    res.status(201).json(created.length === 1 ? created[0] : created);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -813,17 +974,36 @@ router.put('/payroll/adjustments/:id', requireAdmin, (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM payroll_adjustments WHERE id=?').get(+req.params.id);
     if (!row) return res.status(404).json({ error: 'Not found' });
-    const { adjustment_date, type, amount, note } = req.body;
+    const { adjustment_date, type, adj_type_id, amount, description, note, payroll_month } = req.body;
     const newDate = adjustment_date || row.adjustment_date;
     // Prevent edits if locked
     const month = newDate.slice(0,7);
     const locked = db.prepare("SELECT 1 FROM payroll_runs WHERE worker_id=? AND month=? AND is_reopened=0 LIMIT 1").get(row.worker_id, month);
     if (locked) return res.status(400).json({ error: `${month} is closed. Reopen before editing.` });
+    // Get direction from adj_type if provided
+    let typeLabel = type || row.type;
+    let direction = 'addition';
+    if (adj_type_id) {
+      const at = db.prepare('SELECT * FROM adjustment_types WHERE id=?').get(+adj_type_id);
+      if (at) { direction = at.direction; typeLabel = at.title; }
+    }
+    const signedAmount = amount !== undefined
+      ? (direction === 'deduction' ? -Math.abs(+amount) : Math.abs(+amount))
+      : row.amount;
     db.prepare(`
       UPDATE payroll_adjustments
-      SET adjustment_date=?, type=?, amount=?, note=?
+      SET adjustment_date=?, type=?, adj_type_id=?, amount=?, description=?, note=?, payroll_month=?
       WHERE id=?
-    `).run(newDate, type||row.type, amount!==undefined?+amount:row.amount, note!==undefined?note:row.note, +req.params.id);
+    `).run(
+      newDate,
+      typeLabel,
+      adj_type_id || row.adj_type_id || null,
+      signedAmount,
+      description !== undefined ? description : row.description,
+      note !== undefined ? note : row.note,
+      payroll_month || row.payroll_month || newDate.slice(0,7),
+      +req.params.id
+    );
     res.json(db.prepare('SELECT * FROM payroll_adjustments WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -947,7 +1127,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
         const weekendPay  = (weekendMins  / 60) * hourlyRate * 1.50;
         const holidayPay  = (holidayMins  / 60) * hourlyRate * 1.50;
         const unpaidLeavePay = (unpaidLeaveMins / 60) * hourlyRate;
-        const adjSum = db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM payroll_adjustments WHERE worker_id=? AND adjustment_date LIKE ?").get(w.id, month+'%').s || 0;
+        const adjSum = db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM payroll_adjustments WHERE worker_id=? AND (payroll_month=? OR (payroll_month IS NULL AND adjustment_date LIKE ?))").get(w.id, month, month+'%').s || 0;
         const gross = monthlyBase + overtimePay + weekendPay + holidayPay - balanceDeduction - unpaidLeavePay + adjSum;
         const ssPct = +w.social_security_pct || 0;
         const ssDeduction = gross * (ssPct / 100);
@@ -960,11 +1140,15 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
           adjSum, gross, ssDeduction, net,
           currentBalance, now, by
         );
-        // Reset balance to 0 + accrual
+        // Reset balance to 0 + per-worker accrual (based on seniority from join_date)
+        const wJunior = +w.vac_days_junior || 14;
+        const wSenior = +w.vac_days_senior || 21;
+        const wYrs = w.join_date ? ((new Date() - new Date(w.join_date)) / (365.25*24*3600*1000)) : 0;
+        const wAccrual = (wYrs >= 5 ? wSenior : wJunior) / 12;
         db.prepare(`INSERT INTO vacation_balance (worker_id, worker_name, balance_days, accrual_rate, last_accrued, updated_at)
           VALUES (?, ?, ?, ?, ?, datetime('now','localtime'))
-          ON CONFLICT(worker_id) DO UPDATE SET balance_days=excluded.balance_days, last_accrued=excluded.last_accrued, updated_at=excluded.updated_at`)
-          .run(w.id, w.name, accrual, accrual, month+'-close');
+          ON CONFLICT(worker_id) DO UPDATE SET balance_days=excluded.balance_days, accrual_rate=excluded.accrual_rate, last_accrued=excluded.last_accrued, updated_at=excluded.updated_at`)
+          .run(w.id, w.name, wAccrual, wAccrual, month+'-close');
       });
     });
     tx();
@@ -999,14 +1183,14 @@ router.post('/payroll/reopen-month', requireAdmin, (req, res) => {
 router.get('/vacation', requireAdmin, (req, res) => {
   try {
     const { worker_id } = req.query;
-    let sql = `SELECT vb.*, w.hire_date FROM vacation_balance vb
+    let sql = `SELECT vb.*, w.join_date AS hire_date FROM vacation_balance vb
       LEFT JOIN workers w ON w.id=vb.worker_id WHERE 1=1`;
     const p = [];
     if (worker_id) { sql += ' AND vb.worker_id=?'; p.push(+worker_id); }
     sql += ' ORDER BY vb.worker_name';
     const rows = db.prepare(sql).all(...p);
     // Also include workers with no balance record
-    const allWorkers = db.prepare("SELECT id,name,hire_date FROM workers WHERE is_active=1").all();
+    const allWorkers = db.prepare("SELECT id,name,join_date AS hire_date FROM workers WHERE is_active=1").all();
     // For each worker, compute days used from approved paid leaves
     // Vacation-kind: sum of (days) from approved paid-type leaves
     // Hourly-kind:   sum of (hours/8) from approved paid-type leaves
@@ -1074,6 +1258,313 @@ router.post('/vacation/accrue', requireAdmin, (req, res) => {
         .run(w.id, w.name, rate, rate, w.id, today);
     });
     res.json({ accrued: workers.length, rate, date: today });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Vacation Balance Report ───────────────────────────────────────────────
+// GET /hr/vacation-report?from=YYYY-MM&to=YYYY-MM
+// Returns pivoted data: per worker, per month — opening, vacations, leaves,
+// late_days, absences, ending balance, cash deduction
+router.get('/vacation-report', requireAdmin, (req, res) => {
+  try {
+    const { from, to } = req.query;
+    if (!from || !to) return res.status(400).json({ error: 'from and to (YYYY-MM) required' });
+
+    // Build list of months between from and to
+    const months = [];
+    let [cy, cm] = from.split('-').map(Number);
+    const [ey, em] = to.split('-').map(Number);
+    while (cy < ey || (cy === ey && cm <= em)) {
+      months.push(`${cy}-${String(cm).padStart(2,'0')}`);
+      cm++; if (cm > 12) { cm = 1; cy++; }
+    }
+
+    const now = new Date();
+    const workers = db.prepare('SELECT * FROM workers WHERE is_active=1 AND (hourly_rate > 0 OR (monthly_salary IS NOT NULL AND monthly_salary > 0)) ORDER BY name').all();
+    const sched = getSchedule();
+    const weekendDay = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}[sched.weekend_day||'fri'] ?? 5;
+
+    const results = workers.map(w => {
+      const junior = +w.vac_days_junior || 14;
+      const senior = +w.vac_days_senior || 21;
+      const hourlyRate = +w.hourly_rate || 0;
+      const joinDate = w.join_date ? new Date(w.join_date) : null;
+
+      // Start with balance from vacation_balance table as of the month before 'from'
+      // We replay month by month from the beginning
+      // Get the stored balance
+      const vb = db.prepare('SELECT balance_days FROM vacation_balance WHERE worker_id=?').get(w.id);
+      let runningBalance = vb ? +vb.balance_days : 0;
+
+      // We need to compute from scratch for each month in range
+      // For accuracy, we carry balance forward month by month
+      const monthData = months.map(m => {
+        const [yy, mm] = m.split('-').map(Number);
+        const daysInMonth = new Date(yy, mm, 0).getDate();
+        const monthStart = new Date(yy, mm-1, 1);
+        const monthEnd   = new Date(yy, mm-1, daysInMonth);
+
+        // Skip future months entirely
+        if (monthStart > now) {
+          return { month: m, future: true, accrual:0, opening:0, vac_days:0, leave_days:0, late_days:0, absence_days:0, total_deductions:0, ending:0, cash_deduction:0 };
+        }
+        // Skip months before worker joined
+        if (joinDate && monthEnd < joinDate) {
+          return { month: m, before_join: true, accrual:0, opening:0, vac_days:0, leave_days:0, late_days:0, absence_days:0, total_deductions:0, ending:0, cash_deduction:0 };
+        }
+
+        // ── Accrual for this month ─────────────────────────────────────
+        const yearsService = joinDate
+          ? ((monthStart - joinDate) / (365.25*24*3600*1000))
+          : 0;
+        const annualDays = yearsService >= 5 ? senior : junior;
+        const fullMonthAccrual = annualDays / 12;
+
+        let accrual = 0;
+        if (joinDate) {
+          if (joinDate > monthEnd) {
+            accrual = 0; // not yet joined
+          } else if (joinDate <= monthStart) {
+            accrual = fullMonthAccrual; // full month
+          } else {
+            // Prorated: days from join date to end of month
+            const daysWorked = daysInMonth - joinDate.getDate() + 1;
+            accrual = (fullMonthAccrual / daysInMonth) * daysWorked;
+          }
+        } else {
+          accrual = fullMonthAccrual;
+        }
+        accrual = Math.round(accrual * 10000) / 10000;
+
+        // Opening balance = previous ending + this month's accrual
+        const opening = Math.round((runningBalance + accrual) * 10000) / 10000;
+
+        // ── Vacation days taken (approved vacation leaves) ─────────────
+        const vacRows = db.prepare(`
+          SELECT SUM(CASE WHEN leave_kind='hourly' THEN hours/8.0 ELSE days END) AS total
+          FROM leave_requests lr
+          LEFT JOIN leave_types lt ON lower(trim(lt.label))=lower(trim(lr.type))
+          WHERE lr.worker_id=? AND lr.status='approved'
+            AND lower(trim(lr.type)) IN ('vacation','annual leave','annual','إجازة سنوية')
+            AND (date_from LIKE ? OR date_to LIKE ?)
+        `).get(w.id, m+'%', m+'%');
+        const vacLeaves = Math.round((+vacRows?.total || 0) * 10000) / 10000; // will add absenceDays after
+
+        // ── Other approved hourly leaves (non-sick, non-vacation) ──────
+        const leaveRows = db.prepare(`
+          SELECT SUM(CASE WHEN leave_kind='hourly' THEN hours/8.0 ELSE days END) AS total
+          FROM leave_requests lr
+          LEFT JOIN leave_types lt ON lower(trim(lt.label))=lower(trim(lr.type))
+          WHERE lr.worker_id=? AND lr.status='approved'
+            AND lower(trim(lr.type)) NOT IN ('vacation','annual leave','annual','إجازة سنوية','sick','sick leave','مرضية')
+            AND COALESCE(lt.is_paid,1)=1
+            AND (date_from LIKE ? OR date_to LIKE ?)
+        `).get(w.id, m+'%', m+'%');
+        const leaveDays = Math.round((+leaveRows?.total || 0) * 10000) / 10000;
+
+        // ── Late minutes → days ────────────────────────────────────────
+        const lateRow = db.prepare(`
+          SELECT SUM(late_mins) AS total FROM attendance
+          WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL
+        `).get(w.id, m+'%');
+        const lateDays = Math.round(((+lateRow?.total || 0) / 480) * 10000) / 10000;
+
+        // ── Absence days ───────────────────────────────────────────────
+        let absenceDays = 0;
+        const today2 = new Date();
+        const endDay = (today2.getFullYear()===yy && (today2.getMonth()+1)===mm)
+          ? today2.getDate() : daysInMonth;
+        const workedDates = new Set(
+          db.prepare(`SELECT date FROM attendance WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL`)
+            .all(w.id, m+'%').map(r => r.date)
+        );
+        for (let d = 1; d <= endDay; d++) {
+          const dateStr = `${yy}-${String(mm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          if (joinDate && new Date(dateStr) < joinDate) continue;
+          const dow = new Date(dateStr).getDay();
+          if (dow === weekendDay) continue;
+          if (workedDates.has(dateStr)) continue;
+          const covered = db.prepare(`SELECT 1 FROM leave_requests
+            WHERE worker_id=? AND status='approved'
+            AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?))
+            LIMIT 1`).get(w.id, dateStr, dateStr, dateStr);
+          if (covered) continue;
+          const isHol = db.prepare('SELECT 1 FROM holidays WHERE date=? LIMIT 1').get(dateStr);
+          if (isHol) continue;
+          absenceDays++;
+        }
+
+        // ── Combine vacation leaves + absences ────────────────────────
+        const vacDays = Math.round((vacLeaves + absenceDays) * 10000) / 10000;
+
+        // ── Ending balance ─────────────────────────────────────────────
+        const totalDeductions = vacDays + leaveDays + lateDays;
+        const ending = Math.round((opening - totalDeductions) * 10000) / 10000;
+
+        // ── Cash deduction if negative ─────────────────────────────────
+        const cashDeduction = ending < 0
+          ? Math.round(Math.abs(ending) * 8 * hourlyRate * 100) / 100
+          : 0;
+
+        // Carry forward — if negative, reset to 0 (cash deduction applied)
+        runningBalance = ending < 0 ? 0 : ending;
+
+        return {
+          month: m,
+          accrual:       +accrual.toFixed(4),
+          opening:       +opening.toFixed(4),
+          vac_days:      +vacDays.toFixed(2),
+          leave_days:    +leaveDays.toFixed(2),
+          late_days:     +lateDays.toFixed(3),
+          absence_days:  absenceDays,
+          total_deductions: +totalDeductions.toFixed(3),
+          ending:        +ending.toFixed(4),
+          cash_deduction: +cashDeduction.toFixed(2)
+        };
+      });
+
+      return {
+        worker_id:   w.id,
+        worker_name: w.name,
+        join_date:   w.join_date,
+        hourly_rate: hourlyRate,
+        months:      monthData
+      };
+    });
+
+    res.json({ months, workers: results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Worker Detail Report ─────────────────────────────────────────────────
+// GET /hr/worker-detail?worker_id=X&month=YYYY-MM
+router.get('/worker-detail', requireAdmin, (req, res) => {
+  try {
+    const { worker_id, month } = req.query;
+    if (!worker_id || !month) return res.status(400).json({ error: 'worker_id and month required' });
+    const w = db.prepare('SELECT * FROM workers WHERE id=?').get(+worker_id);
+    if (!w) return res.status(404).json({ error: 'Worker not found' });
+
+    const sched = getSchedule();
+    const weekendDay = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}[sched.weekend_day||'fri'] ?? 5;
+    const [yy, mm] = month.split('-').map(Number);
+    const daysInMonth = new Date(yy, mm, 0).getDate();
+    const today = new Date();
+    const endDay = (today.getFullYear()===yy && (today.getMonth()+1)===mm) ? today.getDate() : daysInMonth;
+
+    // Attendance rows for this month
+    const attRows = db.prepare(
+      "SELECT * FROM attendance WHERE worker_id=? AND date LIKE ? ORDER BY date"
+    ).all(+worker_id, month+'%');
+    const attMap = {};
+    attRows.forEach(a => { attMap[a.date] = a; });
+
+    // Leave requests for this month
+    const leaveRows = db.prepare(`
+      SELECT lr.*, COALESCE(lt.is_paid,1) AS is_paid_flag
+      FROM leave_requests lr
+      LEFT JOIN leave_types lt ON lower(trim(lt.label))=lower(trim(lr.type))
+      WHERE lr.worker_id=? AND lr.status='approved'
+        AND (lr.date_from LIKE ? OR lr.date_to LIKE ?)
+      ORDER BY lr.date_from
+    `).all(+worker_id, month+'%', month+'%');
+
+    // Build leave date map
+    const leaveDateMap = {};
+    leaveRows.forEach(lr => {
+      const start = new Date(lr.date_from);
+      const end   = new Date(lr.date_to || lr.date_from);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+        const ds = d.toISOString().slice(0,10);
+        if (ds.startsWith(month)) {
+          if (!leaveDateMap[ds]) leaveDateMap[ds] = [];
+          leaveDateMap[ds].push(lr);
+        }
+      }
+    });
+
+    // Holidays
+    const holidays = db.prepare("SELECT date, name FROM holidays WHERE date LIKE ?").all(month+'%');
+    const holidayMap = {};
+    holidays.forEach(h => { holidayMap[h.date] = h.name; });
+
+    // Adjustments this month
+    const adjRows = db.prepare(
+      "SELECT * FROM payroll_adjustments WHERE worker_id=? AND (payroll_month=? OR (payroll_month IS NULL AND adjustment_date LIKE ?)) ORDER BY adjustment_date"
+    ).all(+worker_id, month, month+'%');
+
+    // Build daily log
+    const days = [];
+    for (let d = 1; d <= endDay; d++) {
+      const dateStr = `${yy}-${String(mm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dow = new Date(dateStr).getDay();
+      const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow];
+      const isWeekend = dow === weekendDay;
+      const isHoliday = !!holidayMap[dateStr];
+      const att = attMap[dateStr];
+      const leaves = leaveDateMap[dateStr] || [];
+      const hasLeave = leaves.length > 0;
+
+      let status = 'absent';
+      if (isWeekend) status = 'weekend';
+      else if (isHoliday) status = 'holiday';
+      else if (att?.punch_in) status = 'present';
+      else if (hasLeave) status = 'leave';
+
+      // OT rate for this day
+      let otRate = null;
+      if (att?.punch_in) {
+        if (isWeekend || isHoliday) otRate = 1.5;
+        else if (att.overtime_status === 'approved') otRate = 1.25;
+      }
+
+      // Worked hours
+      let workedHours = null;
+      if (att?.punch_in && att?.punch_out) {
+        const pin  = new Date(att.punch_in);
+        const pout = new Date(att.punch_out);
+        workedHours = Math.round(((pout - pin) / 3600000) * 100) / 100;
+      }
+
+      // OT hours
+      let otHours = null;
+      if (att?.punch_in && att?.punch_out && otRate === 1.25) {
+        const shiftEnd = dow === 4 ? (sched.end_time_thu||sched.end_time||'16:30') : (sched.end_time||'16:30');
+        const pout = String(att.punch_out);
+        const poutTime = pout.length >= 16 ? pout.slice(11,16) : null;
+        if (poutTime) {
+          const [eh,em] = shiftEnd.split(':').map(Number);
+          const [ph,pm] = poutTime.split(':').map(Number);
+          const overMins = (ph*60+pm) - (eh*60+em);
+          if (overMins > 0) otHours = Math.round((overMins/60)*100)/100;
+        }
+      } else if (att?.punch_in && (isWeekend||isHoliday)) {
+        otHours = workedHours;
+      }
+
+      days.push({
+        date: dateStr,
+        day: dayName,
+        status,
+        punch_in:    att?.punch_in  ? String(att.punch_in).slice(11,16)  : null,
+        punch_out:   att?.punch_out ? String(att.punch_out).slice(11,16) : null,
+        worked_hours: workedHours,
+        late_mins:   att?.late_mins || 0,
+        ot_hours:    otHours,
+        ot_rate:     otRate,
+        holiday_name: holidayMap[dateStr] || null,
+        leaves:      leaves.map(l => ({ type: l.type, kind: l.leave_kind, hours: l.hours, days: l.days }))
+      });
+    }
+
+    res.json({
+      worker: { id: w.id, name: w.name, hourly_rate: +w.hourly_rate||0, social_security_pct: +w.social_security_pct||0 },
+      month,
+      days,
+      leaves:      leaveRows,
+      adjustments: adjRows,
+      holidays
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

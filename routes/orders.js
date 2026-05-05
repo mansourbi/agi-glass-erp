@@ -253,7 +253,7 @@ router.post('/', (req, res) => {
 // ── PUT /api/orders/:id ────────────────────────────────────────────────────
 router.put('/:id', (req, res) => {
   try {
-    const { customerId, date, extref, notes, items, attachments, finalProductId,
+    const { customerId, num, date, extref, notes, items, attachments, finalProductId,
             order_type, type_reason_id, original_order_id, responsible_worker_id, remake_notes } = req.body;
     if (!customerId || !date || !Array.isArray(items) || !items.length)
       return res.status(400).json({ error: 'customerId, date, items[] required' });
@@ -264,11 +264,18 @@ router.put('/:id', (req, res) => {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(+req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
+    // Use provided num if it differs from current; validate no conflict
+    const newNum = (num && num.trim() && num.trim() !== order.num) ? num.trim() : order.num;
+    if (newNum !== order.num) {
+      const conflict = db.prepare('SELECT id FROM orders WHERE num=? AND id!=?').get(newNum, +req.params.id);
+      if (conflict) return res.status(409).json({ error: `Order number ${newNum} already exists` });
+    }
+
     db.transaction(() => {
-      db.prepare(`UPDATE orders SET customer_id=?,date=?,extref=?,notes=?,attachments=?,
+      db.prepare(`UPDATE orders SET num=?,customer_id=?,date=?,extref=?,notes=?,attachments=?,
         order_type=?,type_reason_id=?,original_order_id=?,responsible_worker_id=?,remake_notes=?,
         updated_at=datetime('now') WHERE id=?`).run(
-        +customerId,date,extref||null,notes||null,JSON.stringify(attachments||[]),
+        newNum,+customerId,date,extref||null,notes||null,JSON.stringify(attachments||[]),
         order_type||'normal',
         type_reason_id?+type_reason_id:null,
         original_order_id?+original_order_id:null,
@@ -280,7 +287,7 @@ router.put('/:id', (req, res) => {
       let gs=1;
       for(let i=0;i<items.length;i++){
         const it=items[i]; const qty=Math.max(1,+it.qty||1);
-        const uids=[]; for(let q=0;q<qty;q++){uids.push(`${order.num}-${gs}`);gs++;}
+        const uids=[]; for(let q=0;q<qty;q++){uids.push(`${newNum}-${gs}`);gs++;}
         db.prepare(`INSERT INTO order_items
           (order_id,code,w,h,thickness,glass_type,color,qty,processes,bevel_mm,drill_count,cutout_count,sort_order,piece_uids,start_serial,original_piece_uid)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
