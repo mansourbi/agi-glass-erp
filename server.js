@@ -45,6 +45,8 @@ app.use('/api/gsheets',    require('./routes/gsheets'));
 app.use('/api/layout',     require('./routes/layout'));
 app.use('/api/purchasing', require('./routes/purchasing'));
 app.use('/api/holidays',  require('./routes/holidays'));
+app.use('/api/extprocesses', require('./routes/external_processes'));
+app.use('/api/factories',    require('./routes/factories'));
 app.use('/api/translations', require('./routes/translations'));
 
 // ── Config ────────────────────────────────────────────────
@@ -60,6 +62,42 @@ const migrations = [
 for (const sql of migrations) {
   try { db.prepare(sql).run(); } catch(e) { /* column exists */ }
 }
+
+// Allow updating supplier on locked POs
+app.patch('/api/purchasing/:id/supplier', requireAuth, (req, res) => {
+  try {
+    const { supplier_id, supplier_name, supplier_country } = req.body;
+    const po = db.prepare('SELECT id FROM purchase_orders WHERE id=?').get(+req.params.id);
+    if (!po) return res.status(404).json({ error: 'PO not found' });
+    db.prepare('UPDATE purchase_orders SET supplier_id=?, supplier_name=?, supplier_country=? WHERE id=?')
+      .run(supplier_id||null, supplier_name||'', supplier_country||'', +req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Public config endpoint — only exposes non-sensitive display fields (logo, factory name)
+app.get('/api/config/public', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT key,value FROM config WHERE key IN ('factory','factory_logo','factory_logo_dark')").all();
+    res.json(Object.fromEntries(rows.map(r=>[r.key,r.value])));
+  } catch(e) { res.json({}); }
+});
+
+// Serve logo publicly — writes base64 logo from config to a static file on save
+app.get('/logo.png', (req, res) => {
+  try {
+    const row = db.prepare("SELECT value FROM config WHERE key='factory_logo'").get();
+    if (!row || !row.value) return res.status(404).send('No logo');
+    const b64 = row.value.replace(/^data:image\/\w+;base64,/, '');
+    const buf = Buffer.from(b64, 'base64');
+    // Detect mime type
+    const mime = row.value.startsWith('data:image/png') ? 'image/png' :
+                 row.value.startsWith('data:image/svg') ? 'image/svg+xml' : 'image/jpeg';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buf);
+  } catch(e) { res.status(500).send(e.message); }
+});
 
 app.get('/api/config', requireAuth, (req, res) => {
   const rows = db.prepare('SELECT key,value FROM config').all();
@@ -116,12 +154,31 @@ app.get('/api/health', (req, res) => {
       req.write('{}'); req.end();
     }
   }
+  function runDeliveriesSync() {
+    const now = new Date();
+    const hour = now.getHours();
+    if (hour >= 8 && hour < 17) {
+      const opts2 = {
+        hostname: '127.0.0.1', port: process.env.PORT || 3000,
+        path: '/api/gsheets/sync-deliveries', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-cron': '1' }
+      };
+      const req2 = http.request(opts2, function(res2) {
+        let data2 = '';
+        res2.on('data', function(d) { data2 += d; });
+        res2.on('end', function() { console.log('[gsheets cron] Deliveries synced'); });
+      });
+      req2.on('error', function(e) { console.warn('[gsheets cron deliveries]', e.message); });
+      req2.write('{}'); req2.end();
+    }
+  }
   // Fire at the top of every hour, check window inside runSync
   function scheduleNextHour() {
     const now = new Date();
     const msUntilNextHour = (60 - now.getMinutes()) * 60000 - now.getSeconds() * 1000 - now.getMilliseconds() + 100;
     setTimeout(function() {
       runSync();
+      runDeliveriesSync();
       scheduleNextHour(); // re-schedule after each fire to stay aligned to top of hour
     }, msUntilNextHour);
   }

@@ -55,6 +55,10 @@ try {
 } catch(e) { console.warn('[deliveries init]', e.message); }
 
 try { db.prepare('ALTER TABLE delivery_items ADD COLUMN piece_code TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE deliveries ADD COLUMN factory_id INTEGER').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE deliveries ADD COLUMN factory_name TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE deliveries ADD COLUMN external_process_id INTEGER').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE deliveries ADD COLUMN external_process_name TEXT').run(); } catch(e) {}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function genSerial(customerId, customerCode) {
@@ -194,7 +198,7 @@ router.delete('/:id/items/:pieceUid', (req, res) => {
 
 router.post('/:id/finalise', (req, res) => {
   try {
-    const { receiver_id, receiver_name, receiver_company, notes } = req.body;
+    const { receiver_id, receiver_name, receiver_company, notes, factory_id, factory_name, external_process_id, external_process_name } = req.body;
     const delivery = db.prepare('SELECT * FROM deliveries WHERE id=?').get(+req.params.id);
     if (!delivery) return res.status(404).json({ error: 'Not found' });
     if (delivery.status !== 'open') return res.status(400).json({ error: 'Already finalised' });
@@ -207,9 +211,45 @@ router.post('/:id/finalise', (req, res) => {
       if (rec) { rName = rec.name; rCompany = rec.company || ''; }
     }
     if (!rName) return res.status(400).json({ error: 'Receiver name required' });
-    db.prepare(`UPDATE deliveries SET status='finalised', receiver_id=?, receiver_name=?, receiver_company=?, notes=?, finalised_at=datetime('now','localtime') WHERE id=?`)
-      .run(receiver_id||null, rName, rCompany, notes||'', +req.params.id);
+    // Resolve external_process_name — derive from first piece's order if not provided
+    let epId = external_process_id || null;
+    let epName = external_process_name || '';
+    if (!epName) {
+      try {
+        const firstItem = db.prepare('SELECT order_id FROM delivery_items WHERE delivery_id=? AND order_id IS NOT NULL LIMIT 1').get(+req.params.id);
+        if (firstItem && firstItem.order_id) {
+          const order = db.prepare('SELECT external_process_id FROM orders WHERE id=?').get(firstItem.order_id);
+          if (order && order.external_process_id) {
+            epId = order.external_process_id;
+            const ep = db.prepare('SELECT name FROM external_processes WHERE id=?').get(epId);
+            if (ep) epName = ep.name;
+          }
+        }
+      } catch(epErr) { console.warn('[finalise ext_process]', epErr.message); }
+    } else if (!epId && epName) {
+      // name provided but no id — try to resolve id
+      const ep = db.prepare('SELECT id FROM external_processes WHERE name=?').get(epName);
+      if (ep) epId = ep.id;
+    }
+    db.prepare(`UPDATE deliveries SET status='finalised', receiver_id=?, receiver_name=?, receiver_company=?, notes=?,
+      factory_id=?, factory_name=?, external_process_id=?, external_process_name=?,
+      finalised_at=datetime('now','localtime') WHERE id=?`)
+      .run(receiver_id||null, rName, rCompany, notes||'',
+        factory_id||null, factory_name||null, epId||null, epName||null,
+        +req.params.id);
     res.json(parseDelivery(db.prepare('SELECT * FROM deliveries WHERE id=?').get(+req.params.id)));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH /api/deliveries/:id/factory — update factory on any delivery
+router.patch('/:id/factory', requireAdmin, (req, res) => {
+  try {
+    const { factory_id, factory_name } = req.body;
+    const delivery = db.prepare('SELECT id FROM deliveries WHERE id=?').get(+req.params.id);
+    if (!delivery) return res.status(404).json({ error: 'Not found' });
+    db.prepare('UPDATE deliveries SET factory_id=?, factory_name=? WHERE id=?')
+      .run(factory_id||null, factory_name||null, +req.params.id);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -14,6 +14,7 @@ try { db.prepare(`ALTER TABLE orders ADD COLUMN remake_notes TEXT`).run(); } cat
 try { db.prepare(`ALTER TABLE order_items ADD COLUMN original_piece_uid TEXT`).run(); } catch(e){}
 try { db.prepare(`ALTER TABLE order_items ADD COLUMN drill_count INTEGER DEFAULT 0`).run(); } catch(e){}
 try { db.prepare(`ALTER TABLE order_items ADD COLUMN cutout_count INTEGER DEFAULT 0`).run(); } catch(e){}
+try { db.prepare(`ALTER TABLE orders ADD COLUMN external_process_id INTEGER`).run(); } catch(e){}
 
 // ── Order Type Reasons table + seed ───────────────────────────────────────
 try {
@@ -60,7 +61,6 @@ const REMAKE_TYPES = ['remake_agi','remake_cust'];
 function validateOrderType(body) {
   const type = body.order_type || 'normal';
   if (!ORDER_TYPES.includes(type))             return 'Invalid order_type';
-  // Reason required only for remake and warranty, not sample
   const requiresReason = ['remake_agi','remake_cust','warranty'].includes(type);
   if (requiresReason && !body.type_reason_id) return 'Reason is required for this order type';
   if (REMAKE_TYPES.includes(type) && !body.original_order_id) return 'Original order is required for remake orders';
@@ -174,7 +174,8 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const { customerId, date, extref, notes, items, attachments, finalProductId,
-            order_type, type_reason_id, original_order_id, responsible_worker_id, remake_notes } = req.body;
+            order_type, type_reason_id, original_order_id, responsible_worker_id, remake_notes,
+            external_process_id } = req.body;
     if (!customerId || !date || !Array.isArray(items) || !items.length)
       return res.status(400).json({ error: 'customerId, date, items[] required' });
     const typeErr = validateOrderType(req.body);
@@ -187,8 +188,6 @@ router.post('/', (req, res) => {
     let orderNum;
 
     if (REMAKE_TYPES.includes(order_type)) {
-      // Remake: derive from original order number
-      // REF-1 -> REF-1-RA, REF-1-RA2, REF-1-RA3...
       const orig = db.prepare('SELECT id,num FROM orders WHERE id=?').get(+original_order_id);
       if (!orig) return res.status(400).json({ error: 'Original order not found' });
       const base = orig.num + '-' + suffix;
@@ -200,7 +199,6 @@ router.post('/', (req, res) => {
         orderNum = base + n;
       }
     } else if (suffix) {
-      // Sample / Warranty: REF-SA-1, REF-SA-2... REF-WA-1...
       const existing = db.prepare("SELECT num FROM orders WHERE customer_id=? AND order_type=?").all(+customerId, order_type);
       let maxN = 0;
       existing.forEach(r => { const n=parseInt(r.num.split('-').pop()); if(!isNaN(n)&&n>maxN) maxN=n; });
@@ -208,7 +206,6 @@ router.post('/', (req, res) => {
       orderNum = customer.code + '-' + suffix + '-' + nextN;
       while (db.prepare('SELECT id FROM orders WHERE num=?').get(orderNum)) { nextN++; orderNum = customer.code+'-'+suffix+'-'+nextN; }
     } else {
-      // Normal: REF-1, REF-2...
       const existing = db.prepare("SELECT num FROM orders WHERE customer_id=? AND (order_type='normal' OR order_type IS NULL)").all(+customerId);
       let maxN = 0;
       existing.forEach(r => { const n=parseInt(r.num.split('-').pop()); if(!isNaN(n)&&n>maxN) maxN=n; });
@@ -229,6 +226,7 @@ router.post('/', (req, res) => {
              responsible_worker_id?+responsible_worker_id:null,
              remake_notes||null);
       if(finalProductId) db.prepare('UPDATE orders SET final_product_id=? WHERE id=?').run(+finalProductId,r.lastInsertRowid);
+      if(external_process_id!==undefined) db.prepare('UPDATE orders SET external_process_id=? WHERE id=?').run(external_process_id?+external_process_id:null,r.lastInsertRowid);
       const oid=r.lastInsertRowid;
       let gs=1;
       for(let i=0;i<items.length;i++){
@@ -254,7 +252,8 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const { customerId, num, date, extref, notes, items, attachments, finalProductId,
-            order_type, type_reason_id, original_order_id, responsible_worker_id, remake_notes } = req.body;
+            order_type, type_reason_id, original_order_id, responsible_worker_id, remake_notes,
+            external_process_id } = req.body;
     if (!customerId || !date || !Array.isArray(items) || !items.length)
       return res.status(400).json({ error: 'customerId, date, items[] required' });
     const typeErr = validateOrderType(req.body);
@@ -264,7 +263,6 @@ router.put('/:id', (req, res) => {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(+req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    // Use provided num if it differs from current; validate no conflict
     const newNum = (num && num.trim() && num.trim() !== order.num) ? num.trim() : order.num;
     if (newNum !== order.num) {
       const conflict = db.prepare('SELECT id FROM orders WHERE num=? AND id!=?').get(newNum, +req.params.id);
@@ -274,13 +272,15 @@ router.put('/:id', (req, res) => {
     db.transaction(() => {
       db.prepare(`UPDATE orders SET num=?,customer_id=?,date=?,extref=?,notes=?,attachments=?,
         order_type=?,type_reason_id=?,original_order_id=?,responsible_worker_id=?,remake_notes=?,
-        updated_at=datetime('now') WHERE id=?`).run(
+        external_process_id=?,updated_at=datetime('now') WHERE id=?`).run(
         newNum,+customerId,date,extref||null,notes||null,JSON.stringify(attachments||[]),
         order_type||'normal',
         type_reason_id?+type_reason_id:null,
         original_order_id?+original_order_id:null,
         responsible_worker_id?+responsible_worker_id:null,
-        remake_notes||null,+req.params.id);
+        remake_notes||null,
+        external_process_id!==undefined?(external_process_id?+external_process_id:null):null,
+        +req.params.id);
       if(finalProductId!==undefined)
         db.prepare('UPDATE orders SET final_product_id=? WHERE id=?').run(finalProductId?+finalProductId:null,+req.params.id);
       db.prepare('DELETE FROM order_items WHERE order_id=?').run(+req.params.id);
@@ -304,10 +304,6 @@ router.put('/:id', (req, res) => {
 });
 
 // ── PATCH /api/orders/:id/status ───────────────────────────────────────────
-// Allowed statuses: 'pending' | 'cutting' | 'done' | 'cancelled'
-// When status === 'cancelled', persists optional cancel_reason + cancelled_by
-// and stamps cancelled_at. When status === 'done', stamps completed_at and
-// optionally records completed_by.
 router.patch('/:id/status', (req, res) => {
   try {
     const { status, cancel_reason, cancelled_by, completed_by } = req.body;
@@ -319,7 +315,6 @@ router.patch('/:id/status', (req, res) => {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    // Inspect available audit columns once so we only set ones that exist
     const cols = db.prepare('PRAGMA table_info(orders)').all().map(c => c.name);
 
     if (status === 'cancelled') {
@@ -343,8 +338,6 @@ router.patch('/:id/status', (req, res) => {
       return res.json({ ok: true, status: 'done' });
     }
 
-    // 'pending' or 'cutting' — simple update. Also clear cancellation/completion
-    // timestamps if they exist, since this is a "reopen".
     const sets = ['status = ?', "updated_at = datetime('now')"];
     const args = [status];
     if (cols.includes('cancelled_at') && order.cancelled_at) sets.push('cancelled_at = NULL');

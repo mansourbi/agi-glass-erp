@@ -166,12 +166,12 @@ async function writeToSheet(sheets, spreadsheetId, rows) {
   // 0. Clear ALL existing formatting on populated range + reset borders
   const clearRows = Math.max(totalRows + 5, 50);
   requests.push({ repeatCell: {
-    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:0, endColumnIndex:totalCols+2 },
+    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:1, endColumnIndex:totalCols+2 },
     cell: { userEnteredFormat: {} },
     fields: 'userEnteredFormat'
   }});
   requests.push({ updateBorders: {
-    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:0, endColumnIndex:totalCols+2 },
+    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:1, endColumnIndex:totalCols+2 },
     top:    { style:'NONE' }, bottom: { style:'NONE' },
     left:   { style:'NONE' }, right:  { style:'NONE' },
     innerHorizontal: { style:'NONE' }, innerVertical: { style:'NONE' }
@@ -306,5 +306,275 @@ router.patch('/viewers/:customerId', requireAdmin, (req, res) => {
     res.json({ ok:true, emails:clean });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
+
+
+// ── Deliveries Sheet Builder ──────────────────────────────────────────────
+function buildDeliveriesData(customerId) {
+  let items;
+  try { items = db.prepare(`
+    SELECT
+      d.serial        AS delivery_code,
+      d.finalised_at  AS delivery_date,
+      d.factory_name,
+      d.external_process_name,
+      d.receiver_name,
+      di.order_num,
+      di.piece_uid,
+      di.w, di.h,
+      di.glass_type, di.color, di.thickness,
+      di.processes,
+      o.extref,
+      fp.label AS final_product_name
+    FROM delivery_items di
+    JOIN deliveries d ON d.id = di.delivery_id
+    LEFT JOIN orders o ON o.id = di.order_id
+    LEFT JOIN final_products fp ON fp.id = o.final_product_id
+    WHERE d.status = 'finalised' AND d.customer_id = ?
+    ORDER BY d.finalised_at DESC, d.serial DESC, di.order_num ASC, di.piece_uid ASC
+  `).all(customerId); }
+  catch(e) {
+    console.error('[buildDeliveriesData]', e.message);
+    // Fallback: without final_product join
+    items = db.prepare(`
+      SELECT d.serial AS delivery_code, d.finalised_at AS delivery_date,
+        d.factory_name, d.external_process_name, d.receiver_name,
+        di.order_num, di.piece_uid, di.w, di.h,
+        di.glass_type, di.color, di.thickness, di.processes,
+        o.extref, NULL AS final_product_name
+      FROM delivery_items di
+      JOIN deliveries d ON d.id = di.delivery_id
+      LEFT JOIN orders o ON o.id = di.order_id
+      WHERE d.status = 'finalised' AND d.customer_id = ?
+      ORDER BY d.finalised_at DESC, d.serial DESC, di.order_num ASC, di.piece_uid ASC
+    `).all(customerId);
+  }
+
+  if (!items.length) return null;
+
+  const headers = [
+    'Date of Delivery', 'Delivery Code', 'Factory', 'Final Product', 'External Process',
+    'Order Ref', 'Ext Ref', 'Piece Ref', 'W (mm)', 'H (mm)', 'SQM', 'Lin M', 'Qty', 'Processes', 'Receiver'
+  ];
+
+  const rows = [headers];
+  const now = new Date().toLocaleString('en-GB');
+
+  for (const it of items) {
+    const date = it.delivery_date ? it.delivery_date.slice(0,16).replace('T',' ') : '';
+    let procs = [];
+    try { procs = JSON.parse(it.processes||'[]').map(p=>PROC_LABELS[p]||p); } catch(e){}
+    const sqm = +((( (it.w||0) * (it.h||0) ) / 1000000).toFixed(4));
+    const linM = +((Math.max(it.w||0, it.h||0)) / 1000).toFixed(3);
+    rows.push([
+      date,
+      it.delivery_code || '',
+      it.factory_name || '',
+      it.final_product_name || '',
+      it.external_process_name || '',
+      it.order_num || '',
+      it.extref || '',
+      it.piece_uid || '',
+      it.w || 0,
+      it.h || 0,
+      sqm,
+      linM,
+      1,
+      procs.join(', '),
+      it.receiver_name || ''
+    ]);
+  }
+  return rows;
+}
+
+async function writeDeliveriesToSheet(sheets, spreadsheetId, rows) {
+  // Get or create "Deliveries" tab
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  let sheetId = null;
+  for (const s of meta.data.sheets) {
+    if (s.properties.title === 'Deliveries') { sheetId = s.properties.sheetId; break; }
+  }
+  if (sheetId === null) {
+    const addRes = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      resource: { requests: [{ addSheet: { properties: { title: 'Deliveries' } } }] }
+    });
+    sheetId = addRes.data.replies[0].addSheet.properties.sheetId;
+  }
+
+  const totalCols = rows[0].length;
+  const totalRows = rows.length;
+
+  // Column letter helper
+  function colLetter(idx) {
+    let s = ''; idx++;
+    while (idx > 0) { s = String.fromCharCode(64 + (idx % 26 || 26)) + s; idx = Math.floor((idx-1)/26); }
+    return s;
+  }
+  const endCol = colLetter(totalCols - 1);
+  const clearRows = Math.max(totalRows + 10, 200);
+
+  // Clear and write data
+  await sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Deliveries' });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `Deliveries!A1:${endCol}${totalRows}`,
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: rows }
+  });
+
+  const requests = [];
+
+  // 1. Remove ALL existing formatting and borders
+  requests.push({ repeatCell: {
+    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:0, endColumnIndex:totalCols+2 },
+    cell: { userEnteredFormat: {} },
+    fields: 'userEnteredFormat'
+  }});
+  requests.push({ updateBorders: {
+    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:0, endColumnIndex:totalCols+2 },
+    top:{ style:'NONE' }, bottom:{ style:'NONE' }, left:{ style:'NONE' }, right:{ style:'NONE' },
+    innerHorizontal:{ style:'NONE' }, innerVertical:{ style:'NONE' }
+  }});
+
+  // 2. Remove existing banding
+  const existingMeta = await sheets.spreadsheets.get({ spreadsheetId, ranges:['Deliveries'], includeGridData:false });
+  const existingSheet = existingMeta.data.sheets.find(s=>s.properties.sheetId===sheetId);
+  if (existingSheet && existingSheet.bandedRanges) {
+    for (const br of existingSheet.bandedRanges) {
+      requests.push({ deleteBanding: { bandedRangeId: br.bandedRangeId } });
+    }
+  }
+
+  // 3. Header row — dark navy, white bold, centered
+  requests.push({ repeatCell: {
+    range: { sheetId, startRowIndex:0, endRowIndex:1 },
+    cell: { userEnteredFormat: {
+      backgroundColor: { red:0.1, green:0.2, blue:0.35 },
+      textFormat: { bold:true, foregroundColor:{ red:1, green:1, blue:1 }, fontSize:10 },
+      horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE'
+    }},
+    fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
+  }});
+
+  // 4. Data rows — center aligned, light font
+  requests.push({ repeatCell: {
+    range: { sheetId, startRowIndex:1, endRowIndex:totalRows },
+    cell: { userEnteredFormat: {
+      horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE',
+      textFormat: { fontSize:9 }
+    }},
+    fields: 'userEnteredFormat(horizontalAlignment,verticalAlignment,textFormat)'
+  }});
+
+  // 5. Freeze header row
+  requests.push({ updateSheetProperties: {
+    properties: { sheetId, gridProperties: { frozenRowCount:1 } },
+    fields: 'gridProperties.frozenRowCount'
+  }});
+
+  // 6. Auto-resize columns
+  requests.push({ autoResizeDimensions: {
+    dimensions: { sheetId, dimension:'COLUMNS', startIndex:0, endIndex:totalCols }
+  }});
+
+  // 7. Thin border around every data cell (light grey)
+  requests.push({ updateBorders: {
+    range: { sheetId, startRowIndex:1, endRowIndex:totalRows, startColumnIndex:0, endColumnIndex:totalCols },
+    innerHorizontal: { style:'SOLID', color:{ red:0.85, green:0.88, blue:0.92 }, width:1 },
+    innerVertical:   { style:'SOLID', color:{ red:0.85, green:0.88, blue:0.92 }, width:1 },
+    top:    { style:'SOLID', color:{ red:0.85, green:0.88, blue:0.92 }, width:1 },
+    bottom: { style:'SOLID', color:{ red:0.85, green:0.88, blue:0.92 }, width:1 },
+    left:   { style:'SOLID', color:{ red:0.85, green:0.88, blue:0.92 }, width:1 },
+    right:  { style:'SOLID', color:{ red:0.85, green:0.88, blue:0.92 }, width:1 }
+  }});
+
+  // 8. Medium border below each delivery order group (col index 1 = Delivery Code)
+  // and thick border below each date group (col index 0 = Date)
+  // rows[0] = headers, rows[1..] = data
+  for (let i = 1; i < totalRows - 1; i++) {
+    const currDate     = rows[i][0].slice(0,10);
+    const nextDate     = rows[i+1][0].slice(0,10);
+    const currDelivery = rows[i][1];
+    const nextDelivery = rows[i+1][1];
+
+    if (currDate !== nextDate) {
+      // Thick border — new date group
+      requests.push({ updateBorders: {
+        range: { sheetId, startRowIndex:i, endRowIndex:i+1, startColumnIndex:0, endColumnIndex:totalCols },
+        bottom: { style:'SOLID_THICK', color:{ red:0.1, green:0.2, blue:0.35 }, width:2 }
+      }});
+    } else if (currDelivery !== nextDelivery) {
+      // Medium border — new delivery within same date
+      requests.push({ updateBorders: {
+        range: { sheetId, startRowIndex:i, endRowIndex:i+1, startColumnIndex:0, endColumnIndex:totalCols },
+        bottom: { style:'SOLID_MEDIUM', color:{ red:0.4, green:0.5, blue:0.65 }, width:1 }
+      }});
+    }
+  }
+
+  // 9. Color by date group — each date gets a slightly different tint
+  // Date palettes: alternating between warm-white and cool-blue families
+  const datePalettes = [
+    { red:1.0,  green:1.0,  blue:1.0  },  // white
+    { red:0.84, green:0.91, blue:0.98 },  // blue
+    { red:0.88, green:0.97, blue:0.88 },  // green
+    { red:1.0,  green:0.94, blue:0.82 },  // amber
+    { red:0.92, green:0.86, blue:0.98 },  // purple
+    { red:0.85, green:0.97, blue:0.95 },  // teal
+  ];
+  let dateIdx = -1;
+  let currentDate = null;
+  let i = 1;
+  while (i < totalRows) {
+    const rowDate = rows[i][0].slice(0,10);
+    if (rowDate !== currentDate) { currentDate = rowDate; dateIdx++; }
+    const delivCode = rows[i][1];
+    let j = i;
+    while (j < totalRows && rows[j][1] === delivCode) j++;
+    const bg = datePalettes[dateIdx % datePalettes.length];
+    requests.push({ repeatCell: {
+      range: { sheetId, startRowIndex:i, endRowIndex:j, startColumnIndex:0, endColumnIndex:totalCols },
+      cell: { userEnteredFormat: { backgroundColor: bg }},
+      fields: 'userEnteredFormat(backgroundColor)'
+    }});
+    i = j;
+  }
+
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests } });
+}
+
+// ── POST /api/gsheets/sync-deliveries ────────────────────────────────────
+router.post('/sync-deliveries',
+  function(req,res,next){ if(req.headers['x-internal-cron']==='1') return next(); requireAdmin(req,res,next); },
+  async (req, res) => {
+    try {
+      const auth   = getAuth();
+      const sheets = google.sheets({ version:'v4', auth });
+      const customers = db.prepare(
+        'SELECT * FROM customers WHERE sheet_id IS NOT NULL AND LENGTH(sheet_id) > 0 ORDER BY name'
+      ).all();
+
+      if (!customers.length) {
+        return res.json({ ok:true, synced:[], message:'No customers have a Google Sheet ID configured.' });
+      }
+
+      const results=[], errors=[];
+      for (const customer of customers) {
+        try {
+          const rows = buildDeliveriesData(customer.id);
+          if (!rows) { results.push({ customer: customer.name, rows: 0, skipped: true }); continue; }
+          await writeDeliveriesToSheet(sheets, customer.sheet_id, rows);
+          results.push({ customer: customer.name, rows: rows.length-1 });
+        } catch(e) {
+          errors.push({ customer: customer.name, error: e.message });
+        }
+      }
+      res.json({ ok:true, synced:results, errors });
+    } catch(e) {
+      console.error('[gsheets deliveries sync]', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
 
 module.exports = router;

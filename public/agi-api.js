@@ -170,7 +170,8 @@ const HR = {
   overtime:   {
     list(p={}){ const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/hr/overtime'+(qs?'?'+qs:'')); },
     submit(d)  { return POST('/api/hr/overtime',d); },
-    review(id,status){ return PATCH('/api/hr/overtime/'+id,{status}); }
+    review(id,status){ return PATCH('/api/hr/overtime/'+id,{status}); },
+    mine()             { return GET('/api/hr/overtime/mine'); }
   },
   leave: {
     list(p={}){ const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/hr/leave'+(qs?'?'+qs:'')); },

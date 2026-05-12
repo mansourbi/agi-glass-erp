@@ -198,4 +198,66 @@ router.post('/:id/assign', requireAdmin, (req, res) => {
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
+// GET /api/slots/movements — unified movement log: slot_inventory + raw_sheet_transactions
+router.get('/movements', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        si.id                    AS row_id,
+        si.date,
+        si.qty,
+        si.type                  AS move_type,
+        si.ref_type,
+        si.ref_id,
+        si.notes,
+        si.created_by,
+        si.created_at            AS row_ts,
+        'slot'                   AS source,
+        afs.name                 AS slot_name,
+        rs.code                  AS sheet_code,
+        rs.notes                 AS sheet_notes,
+        rs.thickness,
+        rs.color,
+        rs.glass_type,
+        po.po_number,
+        opf.name                 AS opt_name
+      FROM slot_inventory si
+      JOIN a_frame_slots afs ON afs.id = si.slot_id
+      JOIN raw_sheets rs ON rs.id = si.sheet_id
+      LEFT JOIN purchase_orders po
+        ON (si.ref_type='transaction' OR si.ref_type='purchase') AND si.ref_id = po.id
+      LEFT JOIN opt_files opf
+        ON si.ref_type='optimization' AND si.ref_id = opf.id
+
+      UNION ALL
+
+      SELECT
+        rst.id                   AS row_id,
+        rst.date,
+        rst.qty,
+        rst.type                 AS move_type,
+        rst.type                 AS ref_type,
+        rst.ref_id,
+        rst.notes,
+        rst.created_by,
+        rst.created_at           AS row_ts,
+        'ledger'                 AS source,
+        NULL                     AS slot_name,
+        rs.code                  AS sheet_code,
+        rs.notes                 AS sheet_notes,
+        rs.thickness,
+        rs.color,
+        rs.glass_type,
+        po.po_number,
+        NULL                     AS opt_name
+      FROM raw_sheet_transactions rst
+      JOIN raw_sheets rs ON rs.id = rst.sheet_id
+      LEFT JOIN purchase_orders po ON rst.type='purchase' AND rst.ref_id = po.id
+
+      ORDER BY date DESC, row_ts DESC
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

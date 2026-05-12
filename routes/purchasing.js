@@ -642,6 +642,18 @@ router.post('/', requireAdmin, (req, res) => {
 });
 
 // PUT /:id — update PO header (NOT items/costs, those have their own endpoints)
+// PATCH /:id/arrived — update actual arrival date (works even on locked POs)
+router.patch('/:id/arrived', requireAdmin, (req, res) => {
+  try {
+    const { actual_arrival } = req.body;
+    const po = db.prepare('SELECT id FROM purchase_orders WHERE id=?').get(+req.params.id);
+    if (!po) return res.status(404).json({ error: 'PO not found' });
+    db.prepare('UPDATE purchase_orders SET actual_arrival=? WHERE id=?')
+      .run(actual_arrival||null, +req.params.id);
+    res.json({ ok: true, actual_arrival: actual_arrival||null });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.put('/:id', requireAdmin, (req, res) => {
   try {
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id=?').get(+req.params.id);
