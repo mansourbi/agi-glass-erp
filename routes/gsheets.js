@@ -250,11 +250,11 @@ async function writeToSheet(sheets, spreadsheetId, rows) {
         format:{ backgroundColor:{ red:1.0, green:0.93, blue:0.6 } } } }, index:7 }});
   }
 
-  // 8. Bottom border between date groups
+  // 8. Bottom border between date groups (skip column A — startColumnIndex:1)
   for (let i = 1; i < totalRows - 1; i++) {
     if (rows[i][0] !== rows[i+1][0]) {
       requests.push({ updateBorders: {
-        range: { sheetId, startRowIndex:i, endRowIndex:i+1, startColumnIndex:0, endColumnIndex:totalCols },
+        range: { sheetId, startRowIndex:i, endRowIndex:i+1, startColumnIndex:1, endColumnIndex:totalCols },
         bottom: { style:'SOLID_MEDIUM', color:{ red:0.4, green:0.4, blue:0.4 } }
       }});
     }
@@ -498,15 +498,15 @@ async function writeDeliveriesToSheet(sheets, spreadsheetId, rows) {
     const nextDelivery = rows[i+1][1];
 
     if (currDate !== nextDate) {
-      // Thick border — new date group
+      // Thick border — new date group (skip col A)
       requests.push({ updateBorders: {
-        range: { sheetId, startRowIndex:i, endRowIndex:i+1, startColumnIndex:0, endColumnIndex:totalCols },
+        range: { sheetId, startRowIndex:i, endRowIndex:i+1, startColumnIndex:1, endColumnIndex:totalCols },
         bottom: { style:'SOLID_THICK', color:{ red:0.1, green:0.2, blue:0.35 }, width:2 }
       }});
     } else if (currDelivery !== nextDelivery) {
-      // Medium border — new delivery within same date
+      // Medium border — new delivery within same date (skip col A)
       requests.push({ updateBorders: {
-        range: { sheetId, startRowIndex:i, endRowIndex:i+1, startColumnIndex:0, endColumnIndex:totalCols },
+        range: { sheetId, startRowIndex:i, endRowIndex:i+1, startColumnIndex:1, endColumnIndex:totalCols },
         bottom: { style:'SOLID_MEDIUM', color:{ red:0.4, green:0.5, blue:0.65 }, width:1 }
       }});
     }

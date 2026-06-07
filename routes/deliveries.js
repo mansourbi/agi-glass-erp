@@ -178,6 +178,11 @@ router.post('/:id/items', (req, res) => {
     if (!piece_uid) return res.status(400).json({ error: 'piece_uid required' });
     const existing = db.prepare('SELECT id FROM delivery_items WHERE delivery_id=? AND piece_uid=?').get(+req.params.id, piece_uid);
     if (existing) return res.status(409).json({ error: 'Piece already in this delivery' });
+    // Also check if piece is already in a FINALISED delivery
+    const inFinalised = db.prepare(
+      "SELECT d.serial FROM delivery_items di JOIN deliveries d ON d.id=di.delivery_id WHERE di.piece_uid=? AND d.status='finalised' LIMIT 1"
+    ).get(piece_uid);
+    if (inFinalised) return res.status(409).json({ error: 'Piece already delivered in ' + inFinalised.serial });
     const piece_code = genPieceCode(+req.params.id, delivery.serial);
     const r = db.prepare(`INSERT INTO delivery_items (delivery_id,piece_code,piece_uid,order_id,order_num,customer_id,customer_code,w,h,thickness,glass_type,color,processes,added_by,added_by_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(+req.params.id, piece_code, piece_uid, order_id||null, order_num||null, customer_id||null, customer_code||null, +w||0, +h||0, +thickness||0, glass_type||'', color||'', JSON.stringify(processes||[]), req.user.id, req.user.name);

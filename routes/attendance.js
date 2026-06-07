@@ -69,6 +69,103 @@ function computeLateMins(punchInStr, dateStr, dayType, workerId) {
   } catch(e) { console.warn('[computeLateMins]', e.message); return 0; }
 }
 
+// Ensure overtime audit/conflict columns exist
+try { db.prepare('ALTER TABLE overtime ADD COLUMN conflict INTEGER DEFAULT 0').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE overtime ADD COLUMN edited_by TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE overtime ADD COLUMN edited_at DATETIME').run(); } catch(e) {}
+
+// ── recomputeAutoOT ───────────────────────────────────────────────────────
+// Single source of truth for punch-based overtime on one attendance record.
+// - Computes OT from punch_out vs shift end (grace applied), Thu=15:00.
+// - Weekend/holiday = whole worked shift is OT.
+// - Updates attendance.overtime_mins AND upserts the linked AUTO overtime row.
+// - Sub-grace => auto OT set to 0 + status 'rejected' (never deleted).
+// - Leaves any MANUAL overtime row for that day untouched.
+// - After upsert, if a live (non-rejected) manual OT also exists that day,
+//   flags conflict=1 on both; otherwise clears conflict on the auto row.
+// - Stamps edited_by/edited_at for traceability when opts.editedBy is given.
+// opts: { status: 'pending'|'approved', editedBy: string|null, description: string|null }
+function recomputeAutoOT(attendanceId, opts = {}) {
+  const status   = opts.status || 'pending';
+  const editedBy = opts.editedBy || null;
+  const row = db.prepare('SELECT * FROM attendance WHERE id=?').get(+attendanceId);
+  if (!row) return;
+
+  const sched = db.prepare('SELECT end_time, thursday_end_time, punch_out_grace_mins FROM work_schedule ORDER BY id LIMIT 1').get() || {};
+  const grace  = (+sched.punch_out_grace_mins) || 15;
+  const endTime    = sched.end_time || '16:30';
+  const thuEnd     = sched.thursday_end_time || '15:00';
+  const dow = new Date(row.date).getDay();
+
+  // Helper to pull HH:MM from a timestamp string
+  const hhmm = (ts) => {
+    if (!ts) return null;
+    const s = String(ts);
+    if (s.length >= 16 && (s.charAt(10)===' '||s.charAt(10)==='T')) return s.slice(11,16);
+    if (/^\d{1,2}:\d{2}$/.test(s)) return s;
+    return null;
+  };
+  const toMin = (t) => { if(!t) return null; const [h,m]=t.split(':').map(Number); return (isNaN(h)||isNaN(m))?null:h*60+m; };
+
+  // Weekend/holiday OT is handled by its own (existing) logic and pay rates.
+  // Per business rule it is NOT recomputed here — leave whatever is stored.
+  if (row.day_type === 'weekend' || row.day_type === 'holiday') {
+    return;
+  }
+
+  let overMins = 0;
+  let autoDesc = opts.description || null;
+  {
+    const endStr = (dow === 4) ? thuEnd : endTime;
+    const endMin = toMin(endStr);
+    const outMin = toMin(hhmm(row.punch_out));
+    if (outMin != null && endMin != null) {
+      let raw = outMin - endMin;
+      overMins = (raw > grace) ? raw : 0;
+    }
+    autoDesc = autoDesc || 'Auto: worked beyond ' + endStr;
+  }
+
+  // Update attendance.overtime_mins (punch-based value only)
+  const newAttStatus = overMins > 0 ? status : 'none';
+  db.prepare('UPDATE attendance SET overtime_mins=?, overtime_status=? WHERE id=?')
+    .run(overMins, newAttStatus, row.id);
+
+  // Upsert the linked AUTO overtime row
+  const existingAuto = db.prepare("SELECT * FROM overtime WHERE attendance_id=? AND type='auto'").get(row.id);
+  const startStr = (row.day_type==='weekend'||row.day_type==='holiday')
+    ? (hhmm(row.punch_in) || '00:00')
+    : ((dow===4)?thuEnd:endTime);
+  const endStrOut = hhmm(row.punch_out) || '00:00';
+
+  if (overMins <= 0) {
+    // Sub-grace or no OT: reject the auto row if it exists (never delete)
+    if (existingAuto) {
+      db.prepare("UPDATE overtime SET mins=0, status='rejected', edited_by=?, edited_at=datetime('now','localtime') WHERE id=?")
+        .run(editedBy, existingAuto.id);
+    }
+  } else {
+    if (existingAuto) {
+      db.prepare("UPDATE overtime SET mins=?, status=?, start_time=?, end_time=?, description=?, edited_by=?, edited_at=datetime('now','localtime') WHERE id=?")
+        .run(overMins, status, startStr, endStrOut, autoDesc, editedBy, existingAuto.id);
+    } else {
+      const w = db.prepare('SELECT name FROM workers WHERE id=?').get(row.worker_id);
+      db.prepare(`INSERT INTO overtime (worker_id,worker_name,date,type,start_time,end_time,mins,status,attendance_id,description,edited_by,edited_at,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'),datetime('now','localtime'))`)
+        .run(row.worker_id, w?.name||row.worker_name||'', row.date, 'auto', startStr, endStrOut, overMins, status, row.id, autoDesc, editedBy);
+    }
+  }
+
+  // Conflict detection: live auto + live manual same day
+  const liveAuto   = db.prepare("SELECT id FROM overtime WHERE attendance_id=? AND type='auto' AND status!='rejected'").get(row.id);
+  const liveManual = db.prepare("SELECT id FROM overtime WHERE worker_id=? AND date=? AND type='manual' AND status!='rejected'").get(row.worker_id, row.date);
+  if (liveAuto && liveManual) {
+    db.prepare("UPDATE overtime SET conflict=1 WHERE worker_id=? AND date=? AND status!='rejected'").run(row.worker_id, row.date);
+  } else {
+    db.prepare("UPDATE overtime SET conflict=0 WHERE attendance_id=? AND type='auto'").run(row.id);
+  }
+}
+
 // Sweep recent attendance records for unattributed overtime.
 // Call this lazily on admin list fetch: finds rows in the past N days
 // where the worker worked past shift end (normal days) or worked at all
@@ -76,37 +173,13 @@ function computeLateMins(punchInStr, dateStr, dayType, workerId) {
 // 'pending' with notes so admin can review.
 function autoFlagUnattributedOT(days = 7) {
   try {
-    const sched = db.prepare('SELECT end_time, thursday_end_time, punch_out_grace_mins FROM work_schedule ORDER BY id LIMIT 1').get();
-    const grace = (sched && +sched.punch_out_grace_mins) || 15;
-    const endTime = (sched && sched.end_time) || '16:30';
-    const thuEnd  = (sched && sched.thursday_end_time) || '15:00';
-    const [eh, em] = endTime.split(':').map(Number);
-    const [teh, tem] = thuEnd.split(':').map(Number);
     const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0,10);
     const rows = db.prepare(
-      "SELECT * FROM attendance WHERE date>=? AND punch_in IS NOT NULL AND punch_out IS NOT NULL AND (overtime_status IS NULL OR overtime_status='none')"
+      "SELECT id FROM attendance WHERE date>=? AND punch_in IS NOT NULL AND punch_out IS NOT NULL AND (overtime_status IS NULL OR overtime_status='none')"
     ).all(cutoff);
-    const upd = db.prepare("UPDATE attendance SET overtime_status='pending', overtime_mins=?, overtime_notes=? WHERE id=?");
-    rows.forEach(r => {
-      if (!r.punch_out) return;
-      if (r.day_type === 'weekend' || r.day_type === 'holiday') {
-        // Auto-flag entire shift as pending
-        upd.run(r.total_mins || 0, 'Auto-flagged — weekend/holiday work, no worker decision', r.id);
-        return;
-      }
-      // Normal day: check if punch_out exceeded shift end + grace
-      const dow = new Date(r.date).getDay();
-      const shiftEndMins = (dow === 4) ? (teh*60+tem) : (eh*60+em);
-      const pout = String(r.punch_out);
-      const hhmm = pout.length >= 16 && (pout.charAt(10)===' '||pout.charAt(10)==='T') ? pout.slice(11,16) : '';
-      if (!hhmm) return;
-      const [ph, pm] = hhmm.split(':').map(Number);
-      if (isNaN(ph) || isNaN(pm)) return;
-      const overMins = (ph*60+pm) - shiftEndMins;
-      if (overMins > grace) {
-        upd.run(overMins, 'Auto-flagged — no worker decision', r.id);
-      }
-    });
+    // Delegate to the single source of truth — keeps attendance + overtime table in sync.
+    // Worker hasn't decided yet, so leave as pending for admin review.
+    rows.forEach(r => { recomputeAutoOT(r.id, { status: 'pending', editedBy: null }); });
   } catch(e) { console.warn('[autoFlagUnattributedOT]', e.message); }
 }
 
@@ -171,12 +244,8 @@ router.post('/punch-out', (req, res) => {
     db.prepare(
       "UPDATE attendance SET punch_out=?, total_mins=? WHERE id=?"
     ).run(now, mins, row.id);
-    // Weekend/holiday work is intrinsically overtime — auto-create pending OT
-    if (row.day_type === 'weekend' || row.day_type === 'holiday') {
-      db.prepare(
-        "UPDATE attendance SET overtime_status='pending', overtime_mins=?, overtime_notes=? WHERE id=?"
-      ).run(mins, 'Weekend/holiday work — requires approval', row.id);
-    }
+    // Weekend/holiday work is NOT overtime — whole day is paid at weekend/holiday
+    // rate via total_mins in payroll. No overtime entry is created.
     const updated = db.prepare('SELECT * FROM attendance WHERE id=?').get(row.id);
     // Check if overtime territory (worker app will handle the prompt)
     try {
@@ -215,16 +284,11 @@ router.post('/overtime-decision', (req, res) => {
       db.prepare("UPDATE attendance SET punch_out=?, total_mins=?, overtime_status='none', overtime_mins=0 WHERE id=?")
         .run(adjustedPunchOut, mins, row.id);
     } else {
-      // Record overtime as pending approval
-      const sched = db.prepare('SELECT end_time, thursday_end_time FROM work_schedule ORDER BY id LIMIT 1').get();
-      const dayOfWeek = new Date(today).getDay();
-      const endTime = (dayOfWeek === 4) ? (sched?.thursday_end_time||'15:00') : (sched?.end_time||'16:30');
-      const punchOutTime = row.punch_out ? row.punch_out.slice(11,16) : nowStr().slice(11,16);
-      const [eh,em] = endTime.split(':').map(Number);
-      const [ph,pm] = punchOutTime.split(':').map(Number);
-      const overMins = Math.max(0, (ph*60+pm) - (eh*60+em));
-      db.prepare("UPDATE attendance SET overtime_mins=?, overtime_status='pending', overtime_notes=?, overtime_project=? WHERE id=?")
-        .run(overMins, notes||null, project||null, row.id);
+      // Worker confirmed overtime. Store project on attendance, then let
+      // recomputeAutoOT do the grace-correct calc + overtime-table upsert.
+      db.prepare("UPDATE attendance SET overtime_notes=?, overtime_project=? WHERE id=?")
+        .run(notes||null, project||null, row.id);
+      recomputeAutoOT(row.id, { status: 'pending', description: project || notes || null });
     }
     res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(row.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -341,6 +405,8 @@ router.patch('/:id/override', requireAdmin, (req, res) => {
     const late_mins = computeLateMins(newPunchIn, row.date, row.day_type, row.worker_id);
     db.prepare('UPDATE attendance SET punch_in=?,punch_out=?,total_mins=?,late_mins=? WHERE id=?')
       .run(newPunchIn, punch_out||row.punch_out, total_mins, late_mins, +req.params.id);
+    // Recompute punch-based OT after admin edit — overwrite auto OT, approved (admin blessing)
+    recomputeAutoOT(+req.params.id, { status: 'approved', editedBy: req.user.name });
     res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -356,6 +422,16 @@ router.patch('/:id/day-type', requireAdmin, (req, res) => {
     // Recompute late_mins with the new day_type (will be 0 for weekend/holiday)
     const late_mins = computeLateMins(row.punch_in, row.date, day_type, row.worker_id);
     db.prepare('UPDATE attendance SET day_type=?, late_mins=? WHERE id=?').run(day_type, late_mins, +req.params.id);
+    // Day-type change affects OT calc
+    if (day_type === 'weekend' || day_type === 'holiday') {
+      // Weekend/holiday is not overtime — reject any existing auto OT for that day,
+      // clear attendance OT. Whole day paid at weekend/holiday rate in payroll.
+      db.prepare("UPDATE overtime SET mins=0, status='rejected', edited_by=?, edited_at=datetime('now','localtime') WHERE attendance_id=? AND type='auto'")
+        .run(req.user.name, +req.params.id);
+      db.prepare("UPDATE attendance SET overtime_mins=0, overtime_status='none' WHERE id=?").run(+req.params.id);
+    } else {
+      recomputeAutoOT(+req.params.id, { status: 'approved', editedBy: req.user.name });
+    }
     res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -392,10 +468,12 @@ router.post('/admin', requireAdmin, (req, res) => {
     if (existing) {
       db.prepare('UPDATE attendance SET punch_in=?,punch_out=?,total_mins=?,late_mins=? WHERE id=?')
         .run(pin, pout, total_mins, late_mins, existing.id);
+      if (pout) recomputeAutoOT(existing.id, { status: 'approved', editedBy: req.user.name });
       res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(existing.id));
     } else {
       const r = db.prepare("INSERT INTO attendance (worker_id,worker_name,date,punch_in,punch_out,total_mins,type,day_type,late_mins) VALUES (?,?,?,?,?,?,?,?,?)")
         .run(+worker_id, worker.name, date, pin, pout, total_mins, 'sign_in', effDayType, late_mins);
+      if (pout) recomputeAutoOT(r.lastInsertRowid, { status: 'approved', editedBy: req.user.name });
       res.status(201).json(db.prepare('SELECT * FROM attendance WHERE id=?').get(r.lastInsertRowid));
     }
   } catch(e) { res.status(500).json({ error: e.message }); }

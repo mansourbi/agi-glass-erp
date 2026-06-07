@@ -178,8 +178,10 @@ router.post('/record-optimization', requireAdmin, (req, res) => {
   try {
     const { sheet_id, opt_file_id, opt_name, sheets_used, date } = req.body;
     if (!sheet_id || !sheets_used) return res.status(400).json({ error: 'sheet_id and sheets_used required' });
-    // Check not already recorded
-    const existing = db.prepare("SELECT id FROM raw_sheet_transactions WHERE type='optimization_use' AND ref_id=?").get(+opt_file_id);
+    // Dedup per (opt_file_id, sheet_id): a same-size split records one row PER
+    // raw sheet for the same optimization, so the guard must include sheet_id —
+    // otherwise the 2nd sheet of a split is wrongly skipped as a duplicate.
+    const existing = db.prepare("SELECT id FROM raw_sheet_transactions WHERE type='optimization_use' AND ref_id=? AND sheet_id=?").get(+opt_file_id, +sheet_id);
     if (existing) return res.json({ ok: true, skipped: true });
     const r = db.prepare(`INSERT INTO raw_sheet_transactions (sheet_id,type,qty,ref_id,ref_label,date,notes) VALUES (?,?,?,?,?,?,?)`)
       .run(+sheet_id, 'optimization_use', -Math.abs(+sheets_used), +opt_file_id, opt_name||('Opt #'+opt_file_id),

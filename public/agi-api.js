@@ -156,7 +156,7 @@ const Attendance = {
   list(p={})        { const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/attendance'+(qs?'?'+qs:'')); },
   today()           { return GET('/api/attendance/today'); },
   summary(p={})     { const qs=new URLSearchParams(Object.entries(p).filter(([,v])=>v)).toString(); return GET('/api/attendance/summary'+(qs?'?'+qs:'')); },
-  punchIn()         { return POST('/api/attendance/punch-in',{}); },
+  punchIn(opts)     { return POST('/api/attendance/punch-in', opts||{}); },
   punchOut()        { return POST('/api/attendance/punch-out',{}); },
   log(type,note)    { return POST('/api/attendance',{type,note}); },
   override(id,d)    { return PTCH('/api/attendance/'+id+'/override',d); },

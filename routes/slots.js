@@ -147,9 +147,15 @@ router.post('/deduct', requireAdmin, (req, res) => {
     const insertTx = db.transaction(() => {
       for(const d of deductions){
         if(!d.slot_id||!d.sheet_id||!d.qty) continue;
-        // Check slot has enough
-        const bal = slotBalance(d.slot_id, d.sheet_id);
-        if(d.qty > bal) throw new Error(`Slot has only ${bal} sheets of this type`);
+        // Check slot has enough — skip for remnant/offcut sheets (name contains فضل)
+        const _sheet = db.prepare('SELECT code, notes FROM raw_sheets WHERE id=?').get(d.sheet_id);
+        const _slot  = db.prepare('SELECT name FROM a_frame_slots WHERE id=?').get(d.slot_id);
+        const _isRemnant = ((_sheet&&((_sheet.code||'').includes('فضل')||(_sheet.notes||'').includes('فضل'))))||
+                           (_slot&&(_slot.name||'').includes('فضل'));
+        if(!_isRemnant){
+          const bal = slotBalance(d.slot_id, d.sheet_id);
+          if(d.qty > bal) throw new Error(`Slot has only ${bal} sheets of this type`);
+        }
         const r = db.prepare(
           'INSERT INTO slot_inventory (slot_id,sheet_id,qty,type,ref_type,ref_id,date,notes,created_by) VALUES (?,?,?,?,?,?,?,?,?)'
         ).run(d.slot_id, d.sheet_id, -Math.abs(d.qty), 'deduct', 'optimization', opt_file_id||null,

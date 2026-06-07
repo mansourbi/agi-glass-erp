@@ -4,6 +4,9 @@ const db     = require('../db');
 const { requireAuth } = require('../middleware/auth');
 router.use(requireAuth);
 
+// Migration: per-file additional sheets (multi-sheet optimization). Idempotent.
+try { db.prepare('ALTER TABLE opt_files ADD COLUMN additional_sheets TEXT').run(); } catch(e) {}
+
 router.get('/', (req, res) => {
   const rows = db.prepare('SELECT * FROM opt_files ORDER BY created_at DESC').all();
   res.json(rows.map(r => ({
@@ -12,6 +15,7 @@ router.get('/', (req, res) => {
     manual_pieces: JSON.parse(r.manual_pieces||'[]'),
     order_ids:     JSON.parse(r.order_ids||'[]'),
     raw_sheet_snap:r.raw_sheet_snap ? JSON.parse(r.raw_sheet_snap) : null,
+    additional_sheets: r.additional_sheets ? JSON.parse(r.additional_sheets) : [],
     results:       r.results ? JSON.parse(r.results) : null
   })));
 });
@@ -25,19 +29,21 @@ router.get('/:id', (req, res) => {
     manual_pieces: JSON.parse(r.manual_pieces||'[]'),
     order_ids:     JSON.parse(r.order_ids||'[]'),
     raw_sheet_snap:r.raw_sheet_snap ? JSON.parse(r.raw_sheet_snap) : null,
+    additional_sheets: r.additional_sheets ? JSON.parse(r.additional_sheets) : [],
     results:       r.results ? JSON.parse(r.results) : null
   });
 });
 
 router.post('/', (req, res) => {
   try {
-    const { name, raw_sheet_id, raw_sheet_snap, comp_w, comp_h, cut_pieces, manual_pieces, results, order_ids } = req.body;
+    const { name, raw_sheet_id, raw_sheet_snap, additional_sheets, comp_w, comp_h, cut_pieces, manual_pieces, results, order_ids } = req.body;
     const r = db.prepare(`
-      INSERT INTO opt_files (name,raw_sheet_id,raw_sheet_snap,comp_w,comp_h,cut_pieces,manual_pieces,results,order_ids)
-      VALUES (?,?,?,?,?,?,?,?,?)
+      INSERT INTO opt_files (name,raw_sheet_id,raw_sheet_snap,additional_sheets,comp_w,comp_h,cut_pieces,manual_pieces,results,order_ids)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
     `).run(
       name, raw_sheet_id||null,
       raw_sheet_snap ? JSON.stringify(raw_sheet_snap) : null,
+      JSON.stringify(additional_sheets||[]),
       +comp_w||0, +comp_h||0,
       JSON.stringify(cut_pieces||[]),
       JSON.stringify(manual_pieces||[]),
@@ -50,15 +56,16 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   try {
-    const { name, status, raw_sheet_id, raw_sheet_snap, comp_w, comp_h, cut_pieces, manual_pieces, results, order_ids } = req.body;
+    const { name, status, raw_sheet_id, raw_sheet_snap, additional_sheets, comp_w, comp_h, cut_pieces, manual_pieces, results, order_ids } = req.body;
     db.prepare(`
-      UPDATE opt_files SET name=?,status=?,raw_sheet_id=?,raw_sheet_snap=?,comp_w=?,comp_h=?,
+      UPDATE opt_files SET name=?,status=?,raw_sheet_id=?,raw_sheet_snap=?,additional_sheets=?,comp_w=?,comp_h=?,
         cut_pieces=?,manual_pieces=?,results=?,order_ids=?,updated_at=datetime('now'),
         completed_at=CASE WHEN ?='done' THEN datetime('now') ELSE completed_at END
       WHERE id=?
     `).run(
       name, status||'pending', raw_sheet_id||null,
       raw_sheet_snap ? JSON.stringify(raw_sheet_snap) : null,
+      JSON.stringify(additional_sheets||[]),
       +comp_w||0, +comp_h||0,
       JSON.stringify(cut_pieces||[]),
       JSON.stringify(manual_pieces||[]),
@@ -73,6 +80,7 @@ router.put('/:id', (req, res) => {
       manual_pieces: JSON.parse(r2.manual_pieces||'[]'),
       order_ids:     JSON.parse(r2.order_ids||'[]'),
       raw_sheet_snap:r2.raw_sheet_snap ? JSON.parse(r2.raw_sheet_snap) : null,
+      additional_sheets: r2.additional_sheets ? JSON.parse(r2.additional_sheets) : [],
       results:       r2.results ? JSON.parse(r2.results) : null
     });
   } catch(e){ res.status(500).json({error:e.message}); }

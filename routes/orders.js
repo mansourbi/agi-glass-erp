@@ -92,10 +92,33 @@ router.get('/', (req, res) => {
     if (customerId) { sql += ' AND o.customer_id=?';  params.push(+customerId); }
     if (orderType)  { sql += ' AND o.order_type=?';   params.push(orderType); }
     sql += ' ORDER BY o.id DESC';
-    res.json(db.prepare(sql).all(...params).map(r=>({
+    const rows = db.prepare(sql).all(...params).map(r=>({
       ...r, customerId:r.customer_id, finalProductId:r.final_product_id,
       attachments:JSON.parse(r.attachments||'[]'), orderType:r.order_type||'normal'
-    })));
+    }));
+    // Optional: include items in list for performance (avoids N+1 fetches)
+    if (req.query.include_items === '1') {
+      const allItems = db.prepare('SELECT * FROM order_items ORDER BY order_id, sort_order, id').all();
+      const itemsMap = {};
+      allItems.forEach(i => {
+        if(!itemsMap[i.order_id]) itemsMap[i.order_id]=[];
+        itemsMap[i.order_id].push({
+          ...i,
+          processes:  JSON.parse(i.processes||'[]'),
+          pieceUIDs:  JSON.parse(i.piece_uids||'[]'),
+          piece_uids: JSON.parse(i.piece_uids||'[]'),
+          glassType:  i.glass_type,
+          bevelMM:    i.bevel_mm,
+          startSerial:i.start_serial,
+          drillCount: i.drill_count||0,
+          cutoutCount:i.cutout_count||0,
+          originalPieceUid: i.original_piece_uid||null,
+          attachments:[]
+        });
+      });
+      rows.forEach(o => { o.items = itemsMap[o.id] || []; });
+    }
+    res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -244,6 +267,7 @@ router.post('/', (req, res) => {
       }
       return oid;
     })();
+    syncOrderLabels(orderId, orderNum, date);
     res.status(201).json(db.prepare(`SELECT o.*,c.name AS customer_name,c.code AS customer_code FROM orders o JOIN customers c ON c.id=o.customer_id WHERE o.id=?`).get(orderId));
   } catch (e) { console.error('[orders POST]',e); res.status(500).json({ error: e.message }); }
 });
@@ -299,6 +323,7 @@ router.put('/:id', (req, res) => {
           it.originalPieceUid||it.original_piece_uid||null);
       }
     })();
+    syncOrderLabels(+req.params.id, (db.prepare('SELECT num FROM orders WHERE id=?').get(+req.params.id)||{}).num||'', date);
     res.json(db.prepare(`SELECT o.*,c.name AS customer_name,c.code AS customer_code FROM orders o JOIN customers c ON c.id=o.customer_id WHERE o.id=?`).get(+req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -365,5 +390,37 @@ router.delete('/:id', (req, res) => {
     res.json({ ok:true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// ── Auto-sync label_items when order is saved ──────────────────────────────
+function syncOrderLabels(orderId, orderNum, orderDate) {
+  try {
+    const items = db.prepare('SELECT * FROM order_items WHERE order_id=?').all(orderId);
+    const upsert = db.prepare(`
+      INSERT INTO label_items (uid,code,w,h,thickness,glass_type,color,processes,bevel_mm,drill_count,cutout_count,order_id,order_num,date)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(uid) DO UPDATE SET
+        w=excluded.w, h=excluded.h, thickness=excluded.thickness,
+        glass_type=excluded.glass_type, color=excluded.color,
+        processes=excluded.processes, bevel_mm=excluded.bevel_mm,
+        drill_count=excluded.drill_count, cutout_count=excluded.cutout_count,
+        order_id=excluded.order_id, order_num=excluded.order_num
+    `);
+    const sync = db.transaction(() => {
+      for (const item of items) {
+        const uids = JSON.parse(item.piece_uids || '[]');
+        for (const uid of uids) {
+          upsert.run(
+            uid, uid, +item.w||0, +item.h||0, +item.thickness||6,
+            item.glass_type||'glass', item.color||'clear',
+            item.processes||'[]',
+            +item.bevel_mm||0, +item.drill_count||0, +item.cutout_count||0,
+            orderId, orderNum, orderDate
+          );
+        }
+      }
+    });
+    sync();
+  } catch(e) { console.warn('[syncOrderLabels]', e.message); }
+}
 
 module.exports = router;

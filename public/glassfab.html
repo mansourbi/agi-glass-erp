@@ -859,7 +859,6 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   <div class="ph">
     <div><div class="pt" data-i18n="Orders">Orders</div><div class="ps" data-i18n="Glass Fabrication Orders">Glass Fabrication Orders</div></div>
     <div class="acts">
-      <button class="btn bg bsm" onclick="exportTableCSV('orders')" style="font-size:.65rem">&#11015; <span data-i18n="CSV">CSV</span></button>
       <button class="btn bg bsm" onclick="exportTableCSV('orders-excel')" style="font-size:.65rem">&#11015; <span data-i18n="Excel">Excel</span></button>
       <button class="btn bg bsm" onclick="exportTableCSV('pieces-excel')" style="font-size:.65rem">&#11015; <span data-i18n="Pieces">Pieces</span></button>
       <button class="btn bp" onclick="openOrderModal()">+ <span data-i18n="New Order">New Order</span></button>
@@ -901,7 +900,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <div class="xcol-filter"><select class="xinp" id="xf-status" onchange="renderOrders()">
                 <option value="" data-i18n="All">All</option>
                 <option value="pending" data-i18n="Pending">Pending</option>
-                <option value="cutting" data-i18n="Cutting">Cutting</option>
+                <option value="cutting" data-i18n="In Progress">In Progress</option>
                 <option value="done" data-i18n="Done">Done</option>
                 <option value="cancelled" data-i18n="Cancelled">Cancelled</option>
               </select></div>
@@ -963,6 +962,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <th class="ord-th" data-i18n="Completed">Completed</th>
             <th class="ord-th" data-i18n="Cancelled">Cancelled</th>
             <th class="ord-th" data-i18n="Reason">Reason</th>
+            <th class="ord-th" data-i18n="DOs" style="min-width:80px">DOs</th>
             <th class="ord-th" data-i18n="Del">Del</th>
           </tr>
         </thead>
@@ -1410,31 +1410,28 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <button class="btn bg bsm" onclick="exportOrdersReportExcel()">&#8659; Excel</button>
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;padding:8px 16px 0;gap:6px">
-        <select id="ord-kpi-mode" class="inp" style="padding:4px 8px;font-size:.72rem" onchange="renderOrdersReport()">
-          <option value="week">This Week (Sat–now)</option>
-          <option value="month">This Month</option>
-          <option value="lastmonth">Last Month</option>
-        </select>
-      </div>
-      <div id="ord-rep-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;padding:8px 16px 12px"></div>
     </div>
     <!-- Daily Chart - Last 14 Days -->
-    <div class="card" style="margin-bottom:12px">
-      <div class="ch"><span class="ct">Daily — Last 14 Days</span></div>
-      <div id="ord-chart-daily" style="padding:12px 16px;height:200px;position:relative"></div>
+    <div class="card" style="margin-bottom:12px;overflow:visible">
+      <div class="ch"><span class="ct">Daily — Last 14 Days</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="ord-chart-thick" class="inp" style="padding:3px 6px;font-size:.7rem" onchange="renderOrdersReport()"><option value="">All Thickness</option></select>
+          <select id="ord-chart-fp" class="inp" style="padding:3px 6px;font-size:.7rem" onchange="renderOrdersReport()"><option value="">All Products</option></select>
+        </div>
+      </div>
+      <div id="ord-chart-daily" style="padding:12px 16px;min-height:220px;position:relative;overflow:visible"></div>
       <div id="ord-legend-daily" style="display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px;font-size:.65rem"></div>
     </div>
     <!-- Weekly Chart - Last 8 Weeks -->
     <div class="card" style="margin-bottom:12px">
       <div class="ch"><span class="ct">Weekly — Last 8 Weeks (Sat–Fri)</span></div>
-      <div id="ord-chart-weekly" style="padding:12px 16px;height:200px;position:relative"></div>
+      <div id="ord-chart-weekly" style="padding:12px 16px;min-height:220px;position:relative;overflow:visible"></div>
       <div id="ord-legend-weekly" style="display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px;font-size:.65rem"></div>
     </div>
     <!-- Monthly Chart - Last 12 Months -->
     <div class="card" style="margin-bottom:12px">
       <div class="ch"><span class="ct">Monthly — Last 12 Months</span></div>
-      <div id="ord-chart-monthly" style="padding:12px 16px;height:200px;position:relative"></div>
+      <div id="ord-chart-monthly" style="padding:12px 16px;min-height:220px;position:relative;overflow:visible"></div>
       <div id="ord-legend-monthly" style="display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px;font-size:.65rem"></div>
     </div>
     <div id="rep-ord-body" style="display:none"></div>
@@ -1612,7 +1609,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <th data-i18n="Note">Note</th>
             <th data-i18n="By">By</th>
           </tr></thead>
-          <tbody id="rl-tbody"><tr><td colspan="11" style="padding:18px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr></tbody>
+          <tbody id="rl-tbody"><tr><td colspan="12" style="padding:18px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1650,20 +1647,22 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <table id="dlv-table" style="width:max-content;min-width:100%" style="width:100%;border-collapse:collapse;font-size:.78rem">
         <thead>
           <tr style="border-bottom:2px solid var(--border)">
+            <th style="padding:8px 12px;text-align:left;color:var(--a);font-size:.7rem;letter-spacing:1px;font-weight:700">DATE</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">SERIAL</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">CUSTOMER</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">GLASS</th>
             <th style="padding:8px 12px;text-align:center;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">PIECES</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">TOTAL SQM</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">ORDERS</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">FACTORY</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">EXT PROCESS</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">RECEIVER</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">STATUS</th>
-            <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">DATE</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">CREATED BY</th>
           </tr>
         </thead>
         <tbody id="dlv-table-body">
-          <tr><td colspan="10" style="padding:40px;text-align:center;color:var(--mu)">Loading...</td></tr>
+          <tr><td colspan="12" style="padding:40px;text-align:center;color:var(--mu)">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -1758,7 +1757,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <thead><tr>
             <th>Date</th><th>Type</th><th>Slot</th><th>Code</th><th>Raw Sheet</th><th style="text-align:center">Qty</th><th>PO Ref</th><th>Opt Ref</th><th>From → To</th><th>Notes / Adjustment</th><th>By</th>
           </tr></thead>
-          <tbody id="af-log-tbody"><tr><td colspan="11" style="padding:12px;text-align:center;color:var(--mu)">Click Refresh to load</td></tr></tbody>
+          <tbody id="af-log-tbody"><tr><td colspan="12" style="padding:12px;text-align:center;color:var(--mu)">Click Refresh to load</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1883,6 +1882,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn bg bsm" onclick="purOpenInventoryReport()">&#9684; <span data-i18n="Inventory Value">Inventory Value</span></button>
         <button class="btn bg bsm" onclick="purOpenSpendReport()">&#128202; <span data-i18n="Supplier Spend">Supplier Spend</span></button>
+        <button class="btn bg bsm" onclick="purExportExcel()">&#11015; <span data-i18n="Excel">Excel</span></button>
         <button class="btn ba" onclick="purNewPO()">+ <span data-i18n="New PO">New PO</span></button>
       </div>
     </div>
@@ -2635,7 +2635,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <th data-i18n="Status">Status</th>
             <th data-i18n="Actions">Actions</th>
           </tr></thead>
-          <tbody id="suppliers-tbody"><tr><td colspan="11" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr></tbody>
+          <tbody id="suppliers-tbody"><tr><td colspan="12" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -4085,7 +4085,7 @@ async function loadAll(){
   try{
     [customers, orders, workers, labelItems, rawSheetCatalog, optFiles, purchases, glassFamilies, finalProducts, fpFieldValues] = await Promise.all([
       AGI.Customers.list(),
-      AGI.Orders.list(),
+      AGI.Orders.list({include_items:1}),
       AGI.Workers.list(),
       AGI.Labels.list(),
       AGI.RawSheets.list(),
@@ -4096,7 +4096,7 @@ async function loadAll(){
       AGI.FpFields.list()
     ]);
     // Normalise order items for UI compatibility
-    orders = await Promise.all(orders.map(o => AGI.Orders.get(o.id)));
+    orders = await AGI.Orders.list({include_items:1});
     const cfgRaw = await AGI.Config.get();
     cfg = cfgRaw;
   }catch(e){
@@ -4119,12 +4119,12 @@ async function apiDeleteCustomer(id){
 async function apiSaveOrder(data, id=null){
   try{
     const r = id ? await AGI.Orders.update(id,data) : await AGI.Orders.create(data);
-    orders = await Promise.all((await AGI.Orders.list()).map(o=>AGI.Orders.get(o.id)));
+    orders = await AGI.Orders.list({include_items:1});
     return r;
   }catch(e){ alert('Error: '+e.message); throw e; }
 }
 async function apiDeleteOrder(id){
-  try{ await AGI.Orders.delete(id); orders = await Promise.all((await AGI.Orders.list()).map(o=>AGI.Orders.get(o.id))); }
+  try{ await AGI.Orders.delete(id); orders = await AGI.Orders.list({include_items:1}); }
   catch(e){ alert('Error: '+e.message); throw e; }
 }
 async function apiSetOrderStatus(id, status){
@@ -4269,7 +4269,7 @@ async function saveActiveProcIds(ids){
     alert('Could not save: '+e.message);
   }
 }
-const THICKNESSES = [4,5,6,8,10,12,15,19,22,25];
+const THICKNESSES = [4,5,5.5,6,8,10,12,15,19,22,25];
 
 
 // Raw sheets loaded from API on demand
@@ -4300,7 +4300,7 @@ async function SP(id){
   badges();
 }
 async function badges(){
-  try{ if(!orders.length) orders=await Promise.all((await AGI.Orders.list()).map(o=>AGI.Orders.get(o.id))); }catch(e){}
+  try{ if(!orders.length) orders=await AGI.Orders.list({include_items:1}); }catch(e){}
   const n=orders.length;
   const b=document.getElementById('nb-ord');
   b.textContent=n; b.style.display=n?'':'none';
@@ -4355,7 +4355,7 @@ async function renderDash(){
   try{
     [customers, orders, labelItems, scanLog] = await Promise.all([
       AGI.Customers.list(),
-      AGI.Orders.list().then(list=>Promise.all(list.map(o=>AGI.Orders.get(o.id)))),
+      AGI.Orders.list({include_items:1}),
       AGI.Labels.list(),
       AGI.Labels.scanlog()
     ]);
@@ -4368,7 +4368,7 @@ async function renderDash(){
     <div class="sbox"><div class="slbl" data-i18n="Customers">Customers</div><div class="sval" style="color:var(--a)">${customers.length}</div></div>
     <div class="sbox"><div class="slbl" data-i18n="Orders">Orders</div><div class="sval" style="color:var(--a)">${orders.length}</div></div>
     <div class="sbox"><div class="slbl">${t('Pending')}</div><div class="sval" style="color:var(--a4)">${pend}</div></div>
-    <div class="sbox"><div class="slbl" data-i18n="In Cutting">In Cutting</div><div class="sval" style="color:var(--a2)">${cut}</div></div>
+    <div class="sbox"><div class="slbl" data-i18n="In Progress">In Progress</div><div class="sval" style="color:var(--a2)">${cut}</div></div>
     <div class="sbox"><div class="slbl">${t('Done')}</div><div class="sval" style="color:var(--a3)">${done}</div></div>
     <div class="sbox"><div class="slbl" data-i18n="Total Pieces">Total Pieces</div><div class="sval" style="color:var(--a)">${pcs}</div></div>`;
 
@@ -4378,7 +4378,7 @@ async function renderDash(){
     <tr><td class="mn" style="color:var(--a)">${o.num}</td>
     <td>${(cMap[o.customerId]||{}).name||'?'}</td>
     <td>${(o.items||[]).reduce((a,i)=>a+i.qty,0)}</td>
-    <td><span class="bge bg-${o.status}">${o.status==='cutting'?'In Progress':o.status}</span></td>
+    <td><span class="bge bg-${o.status==='cutting'?'pend':o.status}" style="${o.status==='cutting'?'background:rgba(255,200,0,.15);color:#ffc800;border:1px solid rgba(255,200,0,.3)':''}">${o.status==='cutting'?'In Progress':o.status==='done'?'Done':o.status==='cancelled'?'Cancelled':'Pending'}</span></td>
     <td class="mn" style="color:var(--mu)">${o.date}</td></tr>`).join('')
     :`<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:20px">No orders</td></tr>`;
 
@@ -4387,7 +4387,7 @@ async function renderDash(){
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
       <div><span class="mn" style="color:var(--a);font-size:.8rem">${o.num}</span>
         <span style="color:var(--mu);font-size:.73rem;margin-left:8px">${(cMap[o.customerId]||{}).name||''}</span></div>
-      <span class="bge bg-${o.status}">${o.status}</span></div>`).join('')
+      <span class="bge bg-${o.status==='cutting'?'pend':o.status}" style="${o.status==='cutting'?'background:rgba(255,200,0,.15);color:#ffc800;border:1px solid rgba(255,200,0,.3)':''}">${o.status==='cutting'?'In Progress':o.status==='done'?'Done':o.status==='cancelled'?'Cancelled':'Pending'}</span></div>`).join('')
     :`<div class="empty"><div class="empty-t" data-i18n="No open orders">No open orders</div></div>`;
 
   renderOrderMatrix('dash-matrix',true);
@@ -4400,6 +4400,14 @@ function getOrderProcs(o){
   const set=new Set();
   (o.items||[]).forEach(item=>(item.processes||[]).forEach(p=>set.add(p)));
   return [...set];
+}
+
+function hasAnyScanDone(o){
+  // Returns true if any piece of any process in this order has been scanned 'done'
+  return (o.items||[]).some(function(item){
+    const uids=item.pieceUIDs||item.piece_uids||Array.from({length:item.qty||0},function(_,i){return o.num+'-'+(item.startSerial?item.startSerial+i:i+1);});
+    return (item.processes||[]).some(function(pid){return uids.some(function(uid){return scanLog.some(function(s){return s.pieceUid===uid&&s.process===pid&&s.action==='done';});});});
+  });
 }
 
 function isOrderAllProcessesDone(o){
@@ -4469,11 +4477,11 @@ function renderOrderMatrix(containerId, compact=false){
     const isCancelled=o.status==='cancelled';
     const isDone=o.status==='done';
     html+=`<tr style="${isCancelled?'opacity:.65':''}">
-      <td style="font-size:.72rem;white-space:nowrap">${(o.date||'').slice(0,10)}${!compact?`<div style="margin-top:3px;display:flex;gap:3px"><button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="View order" data-i18n-title="View order" style="font-size:.6rem">&#128065;</button>${(o.attachments&&o.attachments.length)?`<button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="${o.attachments.length} attachment(s)" style="font-size:.6rem">&#128206; ${o.attachments.length}</button>`:''}</div>`:''}</td>
+      <td style="font-size:.72rem;white-space:nowrap">${(o.date||'').slice(0,10)}${!compact?`<div style="margin-top:3px;display:flex;gap:3px"><button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="View order" data-i18n-title="View order" style="font-size:.6rem">&#128065;</button>${(o.attachments&&o.attachments.length)?`<button class="btn bg bsm" onclick="viewOrderAttachments(${o.id})" title="${o.attachments.length} attachment(s)" style="font-size:.6rem">&#128206; ${o.attachments.length}</button>`:''}</div>`:''}</td>
       <td class="mn" style="color:var(--a);cursor:pointer" onclick="showOrderDetail(${o.id})">${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}</td>
       <td class="mn" style="font-size:.72rem;color:var(--mu)">${o.extref||'—'}</td>
       <td style="font-size:.72rem">${(()=>{const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));return fp?`<span style="color:var(--a4);font-size:.68rem">${fp.label}</span>`:'<span style="color:var(--mu)">—</span>';})()}</td>
-      <td><span class="bge" style="background:${isDone?'rgba(54,255,138,.15)':isCancelled?'rgba(255,90,90,.15)':'rgba(0,204,255,.1)'};color:${isDone?'var(--a3)':isCancelled?'var(--a2)':'var(--a)'};font-size:.6rem;padding:2px 6px;border-radius:3px">${isDone?'Done':isCancelled?'Cancelled':o.status==='cutting'?'Cutting':'Pending'}</span></td>
+      <td><span class="bge" style="background:${isDone?'rgba(54,255,138,.15)':isCancelled?'rgba(255,90,90,.15)':'rgba(0,204,255,.1)'};color:${isDone?'var(--a3)':isCancelled?'var(--a2)':'var(--a)'};font-size:.6rem;padding:2px 6px;border-radius:3px">${isDone?'Done':isCancelled?'Cancelled':o.status==='cutting'?'In Progress':'Pending'}</span></td>
       ${!compact?(()=>{const m=ORDER_TYPE_META[o.order_type||o.orderType||'normal'];return `<td style="white-space:nowrap">${m&&m.badge?`<span class="ot-badge ${m.cls}">${m.badge}</span>`:'<span style="font-size:.6rem;color:var(--mu)">—</span>'}</td>`;})():''}`;
     if(!compact){
       const compAt=o.completedAt||o.cancelledAt||'';
@@ -4544,7 +4552,7 @@ function renderOrderMatrix(containerId, compact=false){
 }
 
 function showOrderDetail(oid){
-  const o=orders.find(x=>x.id===oid); if(!o) return;
+  const o=orders.find(x=>x.id===oid||x.id===+oid||String(x.id)===String(oid)); if(!o){ console.warn('[showOrderDetail] order not found:',oid); return; }
   _trackOrderId=oid;
   const card=document.getElementById('track-detail-card');
   const isCancelled=o.status==='cancelled', isDone=o.status==='done';
@@ -5018,7 +5026,11 @@ async function openOrderModal(id=null){
     renderAttachList();
   }
   if(id){
-    const o=orders.find(x=>x.id===id);
+    let o=orders.find(x=>x.id===id);
+    // If items not loaded (order came from a non-include_items context), fetch fresh
+    if(o && (!o.items || !o.items.length)){
+      try{ const fresh=await AGI.Orders.get(id); if(fresh&&fresh.items) o=fresh; }catch(e){}
+    }
     sel.value=o.customerId||o.customer_id;
     document.getElementById('o-date').value=o.date;
     document.getElementById('o-ref').value=o.num||'';
@@ -5597,7 +5609,7 @@ function viewOrder(id){
           <div style="font-weight:700;margin-top:3px">${c.name||'?'}</div>
           <div style="color:var(--mu);font-size:.7rem">${c.company||c.code||''}</div></div>
         <div><div class="lbl" data-i18n="Status">Status</div>
-          <div style="margin-top:3px"><span class="bge bg-${o.status}">${o.status}</span></div>
+          <div style="margin-top:3px"><span class="bge bg-${o.status==='cutting'?'pend':o.status}" style="${o.status==='cutting'?'background:rgba(255,200,0,.15);color:#ffc800;border:1px solid rgba(255,200,0,.3)':''}">${o.status==='cutting'?'In Progress':o.status==='done'?'Done':o.status==='cancelled'?'Cancelled':'Pending'}</span></div>
           ${statusExtraHtml}</div>
         <div><div class="lbl" data-i18n="Date">Date</div>
           <div style="font-family:'Cairo','DM Mono',monospace;margin-top:3px">${o.date}</div>
@@ -5855,8 +5867,8 @@ function populateOrdThickFilter(){
 
 async function renderOrders(){
   try{
-    [customers, orders, optFiles] = await Promise.all([AGI.Customers.list(), AGI.Orders.list(), AGI.OptFiles.list()]);
-    orders = await Promise.all(orders.map(o=>AGI.Orders.get(o.id)));
+    [customers, orders, optFiles, scanLog] = await Promise.all([AGI.Customers.list(), AGI.Orders.list({include_items:1}), AGI.OptFiles.list(), AGI.Labels.scanlog()]);
+    await fetchPieceDeliveryStatus(orders);
   }catch(e){ console.warn('[orders]',e.message); }
   populateOrdThickFilter();
   populateOrdCustomerFilter();
@@ -5980,7 +5992,7 @@ async function renderOrders(){
       <td style="white-space:nowrap">${c2.name||'?'}</td>
       <td class="mn" style="color:var(--tx2);font-size:.7rem">${o.extref||'&#8212;'}</td>
       <td class="mn" style="color:var(--mu);white-space:nowrap">${o.date}</td>
-      <td><span class="bge bg-${o.status}">${o.status}</span></td>
+      <td><span class="bge bg-${o.status==='cutting'?'pend':o.status}" style="${o.status==='cutting'?'background:rgba(255,200,0,.15);color:#ffc800;border:1px solid rgba(255,200,0,.3)':''}">${o.status==='cutting'?'In Progress':o.status==='done'?'Done':o.status==='cancelled'?'Cancelled':'Pending'}</span></td>
       <td style="font-size:.72rem">${(()=>{const m=ORDER_TYPE_META[o.order_type||o.orderType||'normal'];return m&&m.badge?`<span class="ot-badge ${m.cls}">${m.badge}</span>`:'<span style="color:var(--mu)">—</span>';})()}</td>
       <td style="font-size:.72rem;color:var(--a4);white-space:nowrap">${(()=>{const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));return fp?`<span style="background:rgba(0,180,140,.1);border:1px solid rgba(0,180,140,.2);border-radius:3px;padding:1px 5px;color:var(--a4)">${fp.label}</span>`:'<span style="color:var(--mu)">—</span>'})()}</td>
       <td style="font-size:.7rem">${(()=>{const ep=(extProcesses||[]).find(p=>p.id===(o.external_process_id||o.externalProcessId));return ep?`<span style="background:rgba(255,140,0,.12);border:1px solid rgba(255,140,0,.3);border-radius:3px;padding:1px 6px;color:#ffa040;font-size:.65rem">&#9654; ${ep.name}</span>`:'<span style="color:var(--mu)">—</span>'})()}</td>
@@ -5993,6 +6005,13 @@ async function renderOrders(){
       <td class="mn" style="font-size:.65rem">${compAt?`<span style="color:var(--a3)">${compAt}</span>${compBy?`<div style="color:var(--mu);font-size:.58rem">${compBy}</div>`:''}` : '<span style="color:var(--mu)">—</span>'}</td>
       <td class="mn" style="font-size:.65rem">${cancAt?`<span style="color:var(--a2)">${cancAt}</span>${cancBy?`<div style="color:var(--mu);font-size:.58rem">${cancBy}</div>`:''}` : '<span style="color:var(--mu)">—</span>'}</td>
       <td style="font-size:.65rem;color:var(--mu);max-width:120px;white-space:normal">${cancReason||'—'}</td>
+      <td style="font-size:.65rem;white-space:nowrap">${(()=>{
+        const _pUids=(o.items||[]).flatMap(i=>i.pieceUIDs||i.piece_uids||[]);
+        const _doMap={};
+        _pUids.forEach(uid=>{ const _dm=_pieceDeliveryMap[uid]; if(_dm&&_dm.serial) _doMap[_dm.serial]=_dm.delivery_id; });
+        const _entries=Object.entries(_doMap);
+        return _entries.length?_entries.map(([serial,dlvId])=>`<span onclick="navToDelivery(${dlvId})" style="cursor:pointer;color:var(--a);text-decoration:underline;display:inline-block;margin:1px 2px;font-family:monospace">${serial}</span>`).join(' '):'<span style="color:var(--mu)">—</span>';
+      })()}</td>
       <td><button class="btn bd bsm" onclick="delOrder(${o.id})" data-i18n="Del">Del</button></td>
     </tr>`;
   }).join('');
@@ -6002,20 +6021,29 @@ async function renderOrders(){
 function renderOrdSummary(list){
   const el=document.getElementById('ord-summary'); if(!el) return;
   if(!list.length){el.innerHTML='';return}
-  const totPcs=list.reduce((a,o)=>a+getOrderMetrics(o).pcs,0);
-  const totSQM=list.reduce((a,o)=>a+getOrderMetrics(o).sqm,0);
-  const totLM =list.reduce((a,o)=>a+getOrderMetrics(o).lm,0);
-  const byStatus={pending:0,cutting:0,done:0};
-  list.forEach(o=>{ if(byStatus[o.status]!==undefined) byStatus[o.status]++; });
-  const hasFilter=!!(document.getElementById('of-cust-sel')?.value||document.getElementById('of-status')?.value||
-    document.getElementById('of-date-from')?.value||document.getElementById('of-date-to')?.value||
-    document.getElementById('of-num')?.value||document.getElementById('of-extref')?.value||
-    document.getElementById('of-thick')?.value||document.getElementById('of-type')?.value||document.getElementById('of-color')?.value);
+  // This month's orders only for KPIs
+  const thisMonth = new Date().toISOString().slice(0,7); // YYYY-MM
+  const monthList = list.filter(o=>(o.date||o.created_at||'').slice(0,7)===thisMonth);
+  const kpiList   = (monthList.length ? monthList : list).filter(o=>o.status!=='cancelled'); // exclude cancelled
+  const isMonthFiltered = monthList.length > 0;
+  // Scan-based status definitions
+  const noPending    = kpiList.filter(o=>o.status!=='done'&&!hasAnyScanDone(o)).length;
+  const nInProgress  = kpiList.filter(o=>o.status!=='done'&&hasAnyScanDone(o)).length;
+  const nDone        = kpiList.filter(o=>o.status==='done').length;
+  const totPcs=kpiList.reduce((a,o)=>a+getOrderMetrics(o).pcs,0);
+  const totSQM=kpiList.reduce((a,o)=>a+getOrderMetrics(o).sqm,0);
+  const totLM =kpiList.reduce((a,o)=>a+getOrderMetrics(o).lm,0);
+  const hasFilter=!!(document.getElementById('xf-cust')?.value||document.getElementById('xf-status')?.value||
+    document.getElementById('xf-date-from')?.value||document.getElementById('xf-date-to')?.value||
+    document.getElementById('xf-num')?.value||document.getElementById('xf-extref')?.value||
+    document.getElementById('xf-thick')?.value||document.getElementById('xf-type')?.value||document.getElementById('xf-color')?.value||
+    document.getElementById('xf-extproc')?.value||document.getElementById('xf-fp')?.value);
+  const label = hasFilter ? t('Filtered') : (isMonthFiltered ? t('This Month') : t('Total'));
   el.innerHTML=`
-    <div class="sbox"><div class="slbl">${hasFilter?t('Filtered'):t('Total')} ${t('Orders')}</div><div class="sval" style="color:var(--a)">${list.length}</div></div>
-    <div class="sbox" style="cursor:pointer" onclick="document.getElementById('of-status').value='pending';renderOrders()"><div class="slbl">${t('Pending')}</div><div class="sval" style="color:var(--a4)">${byStatus.pending}</div></div>
-    <div class="sbox" style="cursor:pointer" onclick="document.getElementById('of-status').value='cutting';renderOrders()"><div class="slbl">${t('In Progress')}</div><div class="sval" style="color:var(--a2)">${byStatus.cutting}</div></div>
-    <div class="sbox" style="cursor:pointer" onclick="document.getElementById('of-status').value='done';renderOrders()"><div class="slbl">${t('Done')}</div><div class="sval" style="color:var(--a3)">${byStatus.done}</div></div>
+    <div class="sbox"><div class="slbl">${label} ${t('Orders')}</div><div class="sval" style="color:var(--a)">${kpiList.length}</div></div>
+    <div class="sbox" style="cursor:pointer" title="No scans done yet" onclick="document.getElementById('xf-status').value='pending';renderOrders()"><div class="slbl">${t('Pending')}</div><div class="sval" style="color:var(--a4)">${noPending}</div></div>
+    <div class="sbox" style="cursor:pointer" title="Has at least one scan done" onclick="document.getElementById('xf-status').value='cutting';renderOrders()"><div class="slbl">${t('In Progress')}</div><div class="sval" style="color:var(--a2)">${nInProgress}</div></div>
+    <div class="sbox" style="cursor:pointer" onclick="document.getElementById('xf-status').value='done';renderOrders()"><div class="slbl">${t('Done')}</div><div class="sval" style="color:var(--a3)">${nDone}</div></div>
     <div class="sbox"><div class="slbl">${t('Total Pcs')}</div><div class="sval" style="color:var(--a)">${totPcs}</div></div>
     <div class="sbox"><div class="slbl">${t('Total SQM')}</div><div class="sval" style="color:var(--a3)">${totSQM.toFixed(2)}</div></div>
     <div class="sbox"><div class="slbl">${t('Total Lin m')}</div><div class="sval" style="color:var(--tx2)">${totLM.toFixed(1)}</div></div>
@@ -6289,7 +6317,7 @@ async function renderSettingsRSCatalog(){
   });
 
   if(!list.length){
-    tbody.innerHTML='<tr><td colspan="11"><div class="empty" style="padding:16px"><div class="empty-t" data-i18n="No sheets match filters">No sheets match filters</div></div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="12"><div class="empty" style="padding:16px"><div class="empty-t" data-i18n="No sheets match filters">No sheets match filters</div></div></td></tr>';
     return;
   }
   tbody.innerHTML=list.map(s=>{
@@ -6574,11 +6602,16 @@ async function renderCutSheetDropdown(){
 // They can then opt-in additional same-spec sheets — different SIZES, same
 // glass spec — so the optimizer can mix them for better efficiency.
 //
-// State lives on window._additionalSheets so it survives between renders
-// without being mutated by reactive re-renders. Each entry is a snapshot of
-// the catalog row at selection time.
+// Additional sheets are stored per opt file in window._additionalSheetsByFile
+// (keyed by activeOptId, or '_new' for an unsaved session) so selections never
+// leak between files. Each entry is a snapshot of the catalog row at selection time.
 
-if (!window._additionalSheets) window._additionalSheets = [];
+// Per-opt-file additional sheets. Keyed by activeOptId so selections never
+// leak between optimization files. Unsaved (new) sessions use the '_new' key.
+if (!window._additionalSheetsByFile) window._additionalSheetsByFile = {};
+function _addlKey(){ return activeOptId != null ? ('f:'+activeOptId) : '_new'; }
+function getAddlSheets(){ return window._additionalSheetsByFile[_addlKey()] || []; }
+function setAddlSheets(list){ window._additionalSheetsByFile[_addlKey()] = list || []; }
 
 // Re-renders the small bar in the active sheet card showing:
 //   - The number of additional sheets selected
@@ -6588,7 +6621,7 @@ function renderAdditionalSheetsBar(){
   const wrap = document.getElementById('additional-sheets-wrap');
   if (!wrap) return;
   if (!activeRawSheet){ wrap.innerHTML = ''; return; }
-  const sel = window._additionalSheets || [];
+  const sel = getAddlSheets();
 
   let html = '';
   if (sel.length){
@@ -6611,7 +6644,7 @@ function renderAdditionalSheetsBar(){
 }
 
 function removeAdditionalSheet(id){
-  window._additionalSheets = (window._additionalSheets || []).filter(s => s.id !== id);
+  setAddlSheets(getAddlSheets().filter(s => s.id !== id));
   renderAdditionalSheetsBar();
 }
 
@@ -6665,7 +6698,7 @@ async function openAdditionalSheetsPicker(){
   }
   el.style.display = 'flex';
 
-  const selectedIds = new Set((window._additionalSheets || []).map(s => s.id));
+  const selectedIds = new Set(getAddlSheets().map(s => s.id));
   const anchorStock = stockOf(a);
 
   if (!matches.length){
@@ -6745,7 +6778,7 @@ function confirmAdditionalSheets(){
     const s = (rawSheetCatalog || []).find(x => x.id === id);
     if (s) next.push({ ...s, _maxQty: stockOf(s) });
   });
-  window._additionalSheets = next;
+  setAddlSheets(next);
   el.style.display = 'none';
   renderAdditionalSheetsBar();
 }
@@ -6756,7 +6789,7 @@ function onRsSelect(val){
   // Anchor changed — additional sheets selected for the previous anchor are
   // no longer valid (they may not match the new anchor's thick/color/type).
   // Cleanest UX is to reset the additional list whenever anchor changes.
-  window._additionalSheets = [];
+  setAddlSheets([]);
   renderCutSheetDropdown();
   // Auto-save raw_sheet_id to the opt file immediately
   if(activeOptId){
@@ -6802,6 +6835,62 @@ function renderAttachList(){
     '</div>';
   }).join('');
 }
+function navToDelivery(deliveryId){
+  SP('deliveries');
+  // Wait for page to render then open delivery detail
+  setTimeout(async()=>{
+    try{
+      const d = await AGI.Deliveries.get(deliveryId);
+      if(d) dlvOpenDetail(d.id);
+    }catch(e){ console.warn('navToDelivery:',e.message); }
+  }, 300);
+}
+
+function viewOrderAttachments(oid){
+  const o=orders.find(x=>x.id===oid||x.id===+oid);
+  if(!o||!o.attachments||!o.attachments.length) return;
+  const atts=o.attachments;
+  // Build modal overlay
+  let existing=document.getElementById('m-attach-overlay');
+  if(existing) existing.remove();
+  const overlay=document.createElement('div');
+  overlay.id='m-attach-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center';
+  // Tabs if multiple attachments
+  const tabs=atts.length>1?`<div style="display:flex;gap:6px;margin-bottom:8px">${atts.map((a,i)=>`<button onclick="document.getElementById('m-attach-overlay').dataset.idx=${i};viewAttachInOverlay(${i})" style="padding:4px 10px;background:var(--s2);border:1px solid var(--br);border-radius:4px;color:var(--tx);cursor:pointer;font-size:.72rem">${a.name||'File '+(i+1)}</button>`).join('')}</div>`:'';
+  overlay.innerHTML=`
+    <div style="background:var(--s1);border-radius:8px;padding:16px;width:90vw;max-width:900px;max-height:90vh;display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700;color:var(--tx)">${o.num} — Attachments</div>
+        <button onclick="document.getElementById('m-attach-overlay').remove()" style="background:var(--a2);border:none;border-radius:4px;color:#fff;padding:4px 12px;cursor:pointer">✕ Close</button>
+      </div>
+      ${tabs}
+      <div id="m-attach-content" style="flex:1;overflow:auto;text-align:center"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  window._orderAttachments=atts;
+  viewAttachInOverlay(0);
+}
+
+function viewAttachInOverlay(i){
+  const a=(window._orderAttachments||[])[i]; if(!a) return;
+  const isPdf=(a.type==='application/pdf')||/\.pdf$/i.test(a.name||'');
+  const isImg=a.type&&a.type.startsWith('image/');
+  let src=a.data;
+  if(!src.startsWith('data:')){
+    const mime=isPdf?'application/pdf':(isImg?(a.type||'image/jpeg'):'application/octet-stream');
+    src='data:'+mime+';base64,'+src;
+  }
+  const el=document.getElementById('m-attach-content'); if(!el) return;
+  if(isPdf){
+    el.innerHTML=`<iframe src="${src}" style="width:100%;height:70vh;border:none"></iframe>`;
+  } else if(isImg){
+    el.innerHTML=`<img src="${src}" style="max-width:100%;max-height:70vh;object-fit:contain">`;
+  } else {
+    el.innerHTML=`<a href="${src}" download="${a.name||'attachment'}" style="color:var(--a)">Download ${a.name||'file'}</a>`;
+  }
+}
+
 function viewAttach(i){
   const a=(window._orderAttachments||[])[i]; if(!a) return;
   const vw=document.getElementById('attach-viewer');
@@ -7224,7 +7313,7 @@ async function confirmSendToCutting(orderId, sheetId){
 
 // Load Order Modal
 async function openLoadOrderModal(){
-  try{ orders=await Promise.all((await AGI.Orders.list()).map(o=>AGI.Orders.get(o.id))); customers=await AGI.Customers.list(); remnants=await AGI.Remnants.list({status:'available'}); remnantSlots=await AGI.Remnants.slots.list(); }catch(e){}
+  try{ orders=await AGI.Orders.list({include_items:1}); customers=await AGI.Customers.list(); remnants=await AGI.Remnants.list({status:'available'}); remnantSlots=await AGI.Remnants.slots.list(); }catch(e){}
   // Filter: exclude done orders AND orders already fully loaded into another active opt file
   const pending=orders.filter(o=>{
     if(o.status==='done') return false;
@@ -7278,7 +7367,7 @@ async function openLoadOrderModal(){
         '<div style="color:var(--tx2);font-size:.72rem">'+
           ((cMap[o.customerId]||{}).name||'?')+
           ' &bull; <strong style="color:var(--tx)">'+matchPcs+'/'+allPcs+' matching pcs</strong>'+
-          ' &bull; <span class="bge bg-'+o.status+'">'+o.status+'</span>'+
+          ' &bull; <span class="bge bg-'+(o.status==='cutting'?'pend':o.status)+'" style="'+(o.status==='cutting'?'background:rgba(255,200,0,.15);color:#ffc800;border:1px solid rgba(255,200,0,.3)':'')+'">'+(o.status==='cutting'?'In Progress':o.status==='done'?'Done':o.status==='cancelled'?'Cancelled':'Pending')+'</span>'+
           (typeof remMatches!=='undefined'&&remMatches.length?' &bull; <span style="color:var(--a4);font-size:.65rem">&#9632; '+remMatches.length+' remnant fit</span>':'')+
           (isLocked?'<span style="color:'+(isLockedDone?'#ff6464':'var(--a2)')+';font-size:.65rem;margin-left:4px">&#128274; '+(isLockedDone?'Done in: ':'In: ')+lockedFile.name+'</span>':'')+
         '</div>'+
@@ -7913,7 +8002,7 @@ async function runOptimize(){
       code: activeRawSheet.code,
       _maxQty: Infinity,  // anchor is treated as unlimited (legacy behavior)
     };
-    const additional = (window._additionalSheets || []).map(s => ({
+    const additional = getAddlSheets().map(s => ({
       id: s.id,
       w: s.w,
       h: s.h,
@@ -9119,6 +9208,8 @@ async function saveOptFile(name){
     // snake_case for API
     raw_sheet_id:activeRawSheet?activeRawSheet.id:null,
     raw_sheet_snap:activeRawSheet?{...activeRawSheet}:null,
+    additional_sheets:getAddlSheets(),
+    additionalSheets:getAddlSheets(),
     comp_w:DB.l('comp-w',0), comp_h:DB.l('comp-h',0),
     cut_pieces:[...cutPieces],
     manual_pieces:[...manualPieces],
@@ -9135,7 +9226,13 @@ async function saveOptFile(name){
     snapshot.createdAt=new Date().toISOString();
     try{
       const saved=await apiSaveOptFile(snapshot);
+      const _prevKey = '_new';
       activeOptId=saved.id||snapshot.id;
+      // Carry over additional sheets picked during the unsaved (_new) session
+      if (window._additionalSheetsByFile && window._additionalSheetsByFile[_prevKey]) {
+        window._additionalSheetsByFile['f:'+activeOptId] = window._additionalSheetsByFile[_prevKey];
+        delete window._additionalSheetsByFile[_prevKey];
+      }
     }catch(e){ console.warn('opt save:',e.message); optFiles.push(snapshot); }
   }
   // Re-save all labels with the correct optFileId (may have been null when first saved)
@@ -9200,6 +9297,8 @@ async function loadOptFile(id){
   activeOptId=f.id;
   // rawSheet is saved as 'rawSheet' locally but API returns 'raw_sheet_snap'
   activeRawSheet=f.rawSheet||f.raw_sheet_snap||null;
+  // Restore this file's additional (similar) sheets into the per-file map
+  setAddlSheets(f.additionalSheets||f.additional_sheets||[]);
   // Restore saved compensation values first
   if(f.compW!==undefined){
     DB.s('comp-w',f.compW); DB.s('comp-h',f.compH);
@@ -9242,53 +9341,59 @@ async function loadOptFile(id){
 
 async function markOptDone(id){
   const f=optFiles.find(x=>x.id===id); if(!f) return;
-  // Cannot unmark done
   if(f.status==='done'){
     alert('This optimization is already marked as Done and cannot be changed.');
     return;
   }
-  // Confirmation before marking done
-  if(!_confirm('Mark this optimization as Done?\n\nThis will:\n• Lock the optimization permanently\n• Record all remnant plate usages to the Remnants section\n\nThis cannot be undone.')) return;
-  f.status='done';
-  f.completedAt=new Date().toISOString();
-  try{ await AGI.OptFiles.update(id,f); }catch(e){ console.warn('opt status:',e.message); }
+  if(!_confirm('Mark this optimization as Done?\n\nThis will:\n• Assign slot deductions (required)\n• Lock the optimization permanently\n• Record raw sheet consumption\n\nThis cannot be undone.')) return;
 
-  // NOTE: Marking optimization as Done does NOT change order status.
-  // Orders are completed only when all pieces have been scanned and processes
-  // marked done by workers (or manually by admin in the Tracking page).
-
-  // ── Record raw sheet consumption ──────────────────────────────────────
-  try {
-    const rsId = f.rawSheet?.id || f.raw_sheet_id || activeRawSheet?.id || null;
-    if (rsId) {
-      // Count sheets used = number of result layouts
-      let sheetsUsed = 1;
-      try {
-        const res = f.results || window._lastOptResults;
-        const arr = Array.isArray(res) ? res : (res?.results || []);
-        sheetsUsed = arr.length || 1;
-      } catch(e) {}
-      await AGI.RawSheets.recordOptimization({
-        sheet_id:   rsId,
-        opt_file_id: id,
-        opt_name:   f.name,
-        sheets_used: sheetsUsed,
-        date:       new Date().toISOString().slice(0,10)
-      });
-    }
-  } catch(e) { console.warn('[opt stock record]', e.message); }
-
-  // Record remnant usages that were assigned in this session
-  const assignmentsForThisOpt=_sessionRemAssignments.filter(a=>true); // all session assignments
-  for(const a of assignmentsForThisOpt){
-    try{
-      await AGI.Remnants.use(a.remId,{order_num:a.orderNum||null,piece_uid:a.pieceUid,used_at:new Date().toISOString().slice(0,10)});
-    }catch(e){ console.warn('remnant use record:',e.message); }
-  }
-  if(assignmentsForThisOpt.length) _sessionRemAssignments=[];
-
-  // Ask user whether to create remnant plates from free areas
+  // Ask remnants BEFORE opening slot modal (collect all input first)
   const createRemnants = _confirm('Create remnant plates from this optimization?\n\nThis will record leftover offcuts as available remnant plates in the Remnants section.\n\nPress OK to create, Cancel to skip.');
+
+  // ── Open slot deduction modal (MANDATORY) ─────────────────────────────
+  // Set callback — all saving happens ONLY after slot deduction is saved
+  window._markOptDoneCallback = async function(){
+    // Lock the optimization
+    f.status='done';
+    f.completedAt=new Date().toISOString();
+    try{ await AGI.OptFiles.update(id,f); }catch(e){ console.warn('opt status:',e.message); }
+
+    // Record raw sheet consumption
+    try {
+      const today = new Date().toISOString().slice(0,10);
+      if (Array.isArray(window._optDoneSplit) && window._optDoneSplit.length) {
+        // Same-size split chosen — record usage per raw sheet
+        for (const s of window._optDoneSplit) {
+          await AGI.RawSheets.recordOptimization({
+            sheet_id: s.sheet_id, opt_file_id: id, opt_name: f.name,
+            sheets_used: s.qty, date: today
+          });
+        }
+      } else {
+        const rsId = f.rawSheet?.id || f.raw_sheet_id || activeRawSheet?.id || null;
+        if (rsId) {
+          let sheetsUsed = 1;
+          try {
+            const res = f.results || window._lastOptResults;
+            const arr = Array.isArray(res) ? res : (res?.results || []);
+            sheetsUsed = arr.length || 1;
+          } catch(e) {}
+          await AGI.RawSheets.recordOptimization({
+            sheet_id: rsId, opt_file_id: id, opt_name: f.name,
+            sheets_used: sheetsUsed, date: today
+          });
+        }
+      }
+      window._optDoneSplit = null; // clear for next time
+    } catch(e) { console.warn('[opt stock record]', e.message); }
+
+    // Record remnant usages from session
+    const assignmentsForThisOpt=_sessionRemAssignments.filter(a=>true);
+    for(const a of assignmentsForThisOpt){
+      try{ await AGI.Remnants.use(a.remId,{order_num:a.orderNum||null,piece_uid:a.pieceUid,used_at:new Date().toISOString().slice(0,10)}); }
+      catch(e){ console.warn('remnant use record:',e.message); }
+    }
+    if(assignmentsForThisOpt.length) _sessionRemAssignments=[];
 
   if(createRemnants){
     try{
@@ -9372,19 +9477,110 @@ async function markOptDone(id){
     showToast('Optimization marked done — no remnant plates created');
   }
 
-  // ── Slot Assignment step ──────────────────────────────────────────────
-  const assignSlots = _confirm('Assign slot deductions for this optimization?\n\nThis will record which A-Frame slots this raw sheet was taken from.');
-  if(assignSlots){
-    // Ensure prerequisites are loaded for the deduct modal
-    try{ if(!afSlots.length) afSlots = await AF.slots(); }catch(e){}
-    try{ if(!rawSheetCatalog.length) rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
-    // Update optFiles so afOpenDeduct can find this file
-    try{ optFiles = await AGI.OptFiles.list(); }catch(e){}
-    await afOpenDeduct(id);
-  }
+    renderOptFiles();
+    renderSettingsRSCatalog();
+  }; // end _markOptDoneCallback
 
-  renderOptFiles();
-  renderSettingsRSCatalog();
+  // ── Open slot deduction modal (MANDATORY — nothing saves until this completes) ──
+  try{ if(!afSlots.length) afSlots = await AF.slots(); }catch(e){}
+  try{ if(!rawSheetCatalog.length) rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
+  try{ optFiles = await AGI.OptFiles.list(); }catch(e){}
+  showToast('⚠ Assign slot deductions to complete — saving locked until done');
+  // If the optimization mixed same-size candidate sheets (anchor + similar of
+  // identical size), the optimizer can't attribute sheets to a specific raw
+  // sheet. Ask the user to split the count first, then pre-fill slot deductions.
+  const split = await maybePromptSheetSplit(f);
+  if(split === '__cancelled__'){
+    // User backed out — nothing committed, optimization stays open
+    showToast('Mark Done cancelled');
+    return;
+  }
+  window._optDoneSplit = (Array.isArray(split) && split.length) ? split : null;
+  await afOpenDeduct(id, split || null);
+  // Note: if user closes modal without saving, _markOptDoneCallback is never called
+  // and nothing is committed — optimization stays open
+}
+
+// Detect same-size sheet ambiguity and, if present, prompt for the per-sheet
+// split. Returns: null (no split needed), '__cancelled__' (user aborted), or
+// an array [{sheet_id, code, w, h, qty}] summing to the total sheets used.
+async function maybePromptSheetSplit(f){
+  // Candidate sheets = anchor + saved additional sheets for this file
+  const anchor = f.rawSheet || f.raw_sheet_snap || null;
+  const additional = f.additionalSheets || f.additional_sheets || [];
+  if(!anchor || !additional.length) return null; // single sheet → no ambiguity
+
+  // Total sheets actually used in results
+  const res = f.results || window._lastOptResults;
+  const arr = Array.isArray(res) ? res : (res && res.results || []);
+  const totalSheets = arr.length;
+  if(!totalSheets) return null;
+
+  // Group candidates by size. Only sizes shared by 2+ candidates are ambiguous.
+  const candidates = [anchor, ...additional].map(s => ({
+    sheet_id: s.id, code: s.code || s.notes || ('#'+s.id), w: +s.w, h: +s.h
+  }));
+  const sizeKey = (s)=> s.w+'x'+s.h;
+  const bySize = {};
+  candidates.forEach(s => { (bySize[sizeKey(s)] = bySize[sizeKey(s)] || []).push(s); });
+  const ambiguousGroups = Object.values(bySize).filter(g => g.length >= 2);
+  if(!ambiguousGroups.length) return null; // all different sizes → optimizer already knows
+
+  // For simplicity + the real-world case, offer ALL candidates that share an
+  // ambiguous size. (If multiple ambiguous size-groups exist, list them all.)
+  const ambiguous = ambiguousGroups.flat();
+
+  return await new Promise(resolve => {
+    let el = document.getElementById('m-sheet-split');
+    if(!el){ el=document.createElement('div'); el.id='m-sheet-split'; el.className='mbg'; document.body.appendChild(el); }
+    el.style.display='flex';
+    const rows = ambiguous.map((s,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.76rem;font-weight:600;color:var(--tx)">${s.code}</div>
+          <div style="font-size:.62rem;color:var(--mu)">${s.w}&times;${s.h} mm</div>
+        </div>
+        <input type="number" class="inp split-qty" data-sheet-id="${s.sheet_id}" data-code="${s.code}" data-w="${s.w}" data-h="${s.h}"
+          min="0" value="${i===0?totalSheets:0}" style="width:90px;font-size:.78rem;text-align:center">
+      </div>`).join('');
+    el.innerHTML = `<div class="mdl" style="max-width:520px">
+      <div class="mh"><span class="mt">&#9906; Sheets Used per Raw Sheet</span></div>
+      <div class="mb">
+        <div style="font-size:.72rem;color:var(--a3);margin-bottom:4px">This optimization used <strong>${totalSheets}</strong> sheets of the same size.</div>
+        <div style="font-size:.66rem;color:var(--mu);margin-bottom:12px">Enter how many sheets were physically cut from each raw sheet. The total must equal ${totalSheets}.</div>
+        ${rows}
+        <div id="split-total-note" style="font-size:.72rem;margin-top:8px;font-weight:600"></div>
+      </div>
+      <div class="mf" style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn bg" id="split-cancel">Cancel</button>
+        <button class="btn bp" id="split-confirm">Continue to Slots</button>
+      </div>
+    </div>`;
+
+    const inputs = [...el.querySelectorAll('.split-qty')];
+    const note = el.querySelector('#split-total-note');
+    const recalc = ()=>{
+      const sum = inputs.reduce((a,x)=>a+(+x.value||0),0);
+      const ok = sum === totalSheets;
+      note.textContent = 'Total entered: '+sum+' / '+totalSheets+(ok?' ✓':' — must equal '+totalSheets);
+      note.style.color = ok ? 'var(--a3)' : 'var(--a2)';
+      el.querySelector('#split-confirm').disabled = !ok;
+    };
+    inputs.forEach(inp=>inp.addEventListener('input',recalc));
+    recalc();
+
+    el.querySelector('#split-cancel').onclick = ()=>{ el.style.display='none'; resolve('__cancelled__'); };
+    el.querySelector('#split-confirm').onclick = ()=>{
+      const split = inputs.map(inp=>({
+        sheet_id: +inp.getAttribute('data-sheet-id'),
+        code: inp.getAttribute('data-code'),
+        w: +inp.getAttribute('data-w'), h: +inp.getAttribute('data-h'),
+        qty: +inp.value||0
+      })).filter(s=>s.qty>0);
+      el.style.display='none';
+      resolve(split);
+    };
+  });
 }
 
 async function deleteOptFile(id){
@@ -9420,6 +9616,8 @@ async function deleteOptFile(id){
 function clearOptSession(){
   activeOptId=null;
   cutPieces=[]; manualPieces=[]; _cpid=0; _sessionRemAssignments=[];
+  // Reset the unsaved-session additional sheets so a new session starts clean
+  if(window._additionalSheetsByFile) window._additionalSheetsByFile['_new']=[];
   window._lastOptResults=null;
   const statsEl=document.getElementById('cut-stats');
   if(statsEl) statsEl.style.display='none';
@@ -9780,7 +9978,7 @@ function showOptToast(msg){
 async function renderTrack(){
   try{
     [orders, labelItems, scanLog] = await Promise.all([
-      AGI.Orders.list().then(list=>Promise.all(list.map(o=>AGI.Orders.get(o.id)))),
+      AGI.Orders.list({include_items:1}),
       AGI.Labels.list(),
       AGI.Labels.scanlog()
     ]);
@@ -9869,6 +10067,12 @@ function renderPieceView(){
         const pieceProcs=(item.processes||[]).filter(p=>procList.includes(p));
         const allDone=pieceProcs.length>0&&pieceProcs.every(pid=>scanLog.some(s=>s.pieceUid===uid&&s.process===pid&&s.action==='done'));
         const pendingProcs=pieceProcs.filter(pid=>!scanLog.some(s=>s.pieceUid===uid&&s.process===pid&&s.action==='done'));
+        // Open+Undelivered: hide pieces that are BOTH all-done AND delivered (finalised DO)
+        if(statusF==='open-undelivered'){
+          const _dm=_pieceDeliveryMap[uid];
+          const pieceDelivered=_dm&&_dm.status==='finalised';
+          if(allDone&&pieceDelivered) return; // skip this piece
+        }
         html+=`<tr style="${allDone?'opacity:.75':''}">
           <td class="mn" style="color:var(--a3);font-size:.7rem">${uid}</td>
           <td class="mn" style="font-size:.7rem;color:var(--a)">${o.num}</td>
@@ -10703,7 +10907,7 @@ function renderCutLabels(){
 }
 
 async function renderLabels(){
-  try{ labelItems=await AGI.Labels.list(); orders=await Promise.all((await AGI.Orders.list()).map(o=>AGI.Orders.get(o.id))); }catch(e){}
+  try{ labelItems=await AGI.Labels.list(); orders=await AGI.Orders.list({include_items:1}); }catch(e){}
   const fv=document.getElementById('lbl-ord-filter').value;
   // refresh filter options
   const sel=document.getElementById('lbl-ord-filter'), cur=sel.value;
@@ -10768,7 +10972,7 @@ async function showReport(id){
   document.querySelectorAll('.rtab').forEach(t=>{if(t.textContent.toLowerCase().replace(/\s/g,'-').includes(id.split('-')[0]))t.classList.add('on')});
   if(id==='productivity') await renderProdReport();
   if(id==='hourly-rep') await renderHourlyReport();
-  if(id==='orders-rep') renderOrdersReport();
+  if(id==='orders-rep'){ try{ orders=await AGI.Orders.list({include_items:1}); }catch(e){} renderOrdersReport(); }
   if(id==='workers-rep') await renderWorkersReport();
   if(id==='attendance-rep') await renderAttendanceReport();
   if(id==='fp-rep') await renderFpReport();
@@ -10786,13 +10990,44 @@ function renderOrdersReport(){
     if(statusMode==='all') return true;
     return o.status===statusMode;
   };
-  const allFiltered = orders.filter(filterByStatus);
 
   // Thickness palette
   const THICK_COLORS = {'4':'#00aaff','5':'#00ccff','6':'#00eeff','8':'#00ffcc','10':'#00ff88','12':'#aaff00','15':'#ffcc00','19':'#ff8800','other':'#aa88ff'};
   const getThickKey = t => { const v=String(+t||0); return THICK_COLORS[v]?v:'other'; };
   const getThickLabel = k => k==='other'?'Other':k+'mm';
   const getOrderThick = o => getThickKey(o.thickness||(o.items&&o.items[0]?.thickness)||0);
+
+  // Populate thickness filter
+  const thickSel = document.getElementById('ord-chart-thick');
+  const fpSel = document.getElementById('ord-chart-fp');
+  const baseFiltered = orders.filter(filterByStatus);
+  // Always repopulate filters based on current data
+  if(thickSel){
+    const curThick=thickSel.value;
+    thickSel.innerHTML='<option value="">All Thickness</option>';
+    const thicks=[...new Set(baseFiltered.map(o=>getOrderThick(o)))].sort((a,b)=>(+a||99)-(+b||99));
+    thicks.forEach(k=>{ const opt=document.createElement('option'); opt.value=k; opt.textContent=getThickLabel(k); thickSel.appendChild(opt); });
+    if(curThick) thickSel.value=curThick;
+  }
+  if(fpSel){
+    const curFP=fpSel.value;
+    fpSel.innerHTML='<option value="">All Products</option>';
+    // Use finalProducts global — already loaded
+    const fpList = window.finalProducts||[];
+    const usedFpIds = new Set(baseFiltered.map(o=>o.finalProductId||o.final_product_id).filter(Boolean));
+    fpList.filter(fp=>usedFpIds.has(fp.id)).forEach(fp=>{
+      const opt=document.createElement('option'); opt.value=String(fp.id); opt.textContent=fp.name; fpSel.appendChild(opt);
+    });
+    if(curFP) fpSel.value=curFP;
+  }
+  const fThick = thickSel?.value||'';
+  const fFP    = fpSel?.value||'';
+  const allFiltered = baseFiltered.filter(o=>{
+    if(fThick && getOrderThick(o)!==fThick) return false;
+    if(fFP && String(o.finalProductId||o.final_product_id||'')!==fFP) return false;
+    return true;
+  });
+
   const allThicks = [...new Set(allFiltered.map(o=>getOrderThick(o)))].sort((a,b)=>(+a||99)-(+b||99));
 
   // Bucket metrics: orders, pcs, sqm, lm per thickness
@@ -10800,11 +11035,13 @@ function renderOrdersReport(){
     const totals={orders:0,pcs:0,sqm:0,lm:0};
     const byThick={};
     allThicks.forEach(k=>byThick[k]={orders:0,pcs:0,sqm:0,lm:0});
+
     orderList.forEach(o=>{
       const m=getOrderMetrics(o); const tk=getOrderThick(o);
       totals.orders++; totals.pcs+=m.pcs; totals.sqm+=m.sqm; totals.lm+=m.lm;
       if(byThick[tk]){ byThick[tk].orders++; byThick[tk].pcs+=m.pcs; byThick[tk].sqm+=m.sqm; byThick[tk].lm+=m.lm; }
     });
+
     return {totals,byThick};
   };
 
@@ -10836,9 +11073,10 @@ function renderOrdersReport(){
     if(!el) return;
     const bucketSums=buckets.map(b=>allThicks.reduce((s,k)=>s+(b.byThick[k]?.orders||0),0));
     const maxSum=Math.max(1,...bucketSums);
-    const barW=Math.max(16,Math.min(55,Math.floor((el.offsetWidth-40)/Math.max(buckets.length,1))-4));
-    const chartH=130;
-    el.innerHTML=`<div style="display:flex;align-items:flex-end;gap:3px;height:${chartH+30}px;padding:0 4px">
+    const barW=Math.max(18,Math.min(60,Math.floor((el.offsetWidth-40)/Math.max(buckets.length,1))-4));
+    const chartH=140;
+    const labelH=44; // fixed height for top labels so bars don't overflow
+    el.innerHTML=`<div style="display:flex;align-items:flex-end;gap:3px;padding:0 4px;overflow-x:auto">
       ${buckets.map((b,bi)=>{
         const total=bucketSums[bi];
         const m=b.metrics;
@@ -10851,13 +11089,15 @@ function renderOrdersReport(){
         }).filter(Boolean).reverse();
         const tip2=`${b.label}: ${total} orders | ${m.pcs} pcs | ${m.sqm.toFixed(2)} m² | ${m.lm.toFixed(1)} lm`;
         return `<div style="display:flex;flex-direction:column;align-items:center;min-width:${barW}px" title="${tip2}">
-          ${total>0?`<div style="font-size:.5rem;color:var(--a);font-weight:700;margin-bottom:1px;text-align:center;line-height:1.3">
-            <div>${total}</div>
-            <div style="color:var(--tx2)">${m.pcs}pc</div>
-            <div style="color:var(--a3)">${m.sqm.toFixed(1)}m²</div>
-          </div>`:''}
+          <div style="height:${labelH}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;margin-bottom:3px">
+            ${total>0?`<div style="font-size:.68rem;color:var(--a);font-weight:800;text-align:center;line-height:1.5">
+              <div>${total}</div>
+              <div style="color:var(--tx2);font-size:.6rem">${m.pcs}pc</div>
+              <div style="color:var(--a3);font-size:.6rem">${m.sqm.toFixed(1)}m²</div>
+            </div>`:''}
+          </div>
           <div style="width:${barW-2}px;display:flex;flex-direction:column;justify-content:flex-end;height:${chartH}px">${segments.join('')}</div>
-          <div style="font-size:.52rem;color:var(--mu);margin-top:4px;text-align:center;white-space:nowrap">${b.label}</div>
+          <div style="font-size:.58rem;color:var(--tx2);margin-top:5px;text-align:center;white-space:nowrap;font-weight:600">${b.label}</div>
         </div>`;
       }).join('')}
     </div>`;
@@ -10868,7 +11108,8 @@ function renderOrdersReport(){
   const daily14=[];
   for(let i=13;i>=0;i--){
     const d=new Date(now); d.setDate(d.getDate()-i);
-    const key=toISO(d);
+    // Use local date parts to avoid UTC timezone shift
+    const key=d.getFullYear()+'-'+(d.getMonth()+1<10?'0'+(d.getMonth()+1):d.getMonth()+1)+'-'+(d.getDate()<10?'0'+d.getDate():d.getDate());
     const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
     const label=d.getDate()+'-'+mon;
     const dayOrders=allFiltered.filter(o=>o.date===key);
@@ -10883,7 +11124,8 @@ function renderOrdersReport(){
   for(let i=7;i>=0;i--){
     const wStart=new Date(lastSat); wStart.setDate(wStart.getDate()-i*7);
     const wEnd=new Date(wStart); wEnd.setDate(wEnd.getDate()+6);
-    const wKey=toISO(wStart); const wEndKey=toISO(wEnd);
+    const wKey=wStart.getFullYear()+'-'+(wStart.getMonth()+1<10?'0'+(wStart.getMonth()+1):wStart.getMonth()+1)+'-'+(wStart.getDate()<10?'0'+wStart.getDate():wStart.getDate());
+    const wEndKey=wEnd.getFullYear()+'-'+(wEnd.getMonth()+1<10?'0'+(wEnd.getMonth()+1):wEnd.getMonth()+1)+'-'+(wEnd.getDate()<10?'0'+wEnd.getDate():wEnd.getDate());
     const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][wStart.getMonth()];
     const label=wStart.getDate()+'-'+mon;
     const wOrders=allFiltered.filter(o=>o.date>=wKey&&o.date<=wEndKey);
@@ -10895,14 +11137,21 @@ function renderOrdersReport(){
   // ── MONTHLY — Last 12 months inclusive of current month ──────────────
   const monthly12=[];
   for(let i=11;i>=0;i--){
-    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-    const key=toISO(d).slice(0,7);
-    const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
-    const label=mon+' '+String(d.getFullYear()).slice(2);
-    const mOrders=allFiltered.filter(o=>(o.date||'').slice(0,7)===key);
+    const yr=now.getFullYear(), mo=now.getMonth()-i;
+    const d=new Date(yr, mo, 1);
+    // Use local date parts to avoid UTC timezone shift
+    const keyYr=d.getFullYear(), keyMo=d.getMonth();
+    const key=keyYr+'-'+(keyMo+1<10?'0'+(keyMo+1):''+(keyMo+1));
+    const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][keyMo];
+    const label=mon+' '+String(keyYr).slice(2);
+    const mOrders=allFiltered.filter(o=>{
+      const oDate=(o.date||o.created_at||'').slice(0,7);
+      return oDate===key;
+    });
     const {totals,byThick}=bucketMetrics(mOrders);
     monthly12.push({key,label,metrics:totals,byThick});
   }
+
   buildChart('ord-chart-monthly','ord-legend-monthly',monthly12);
 }
 
@@ -11042,7 +11291,7 @@ async function exportVacReportExcel(){
   XLSX.writeFile(wb, 'vacation_balances.xlsx');
 }
 
-async function renderReports(){ try{ [customers,orders,scanLog]=await Promise.all([AGI.Customers.list(),AGI.Orders.list().then(l=>Promise.all(l.map(o=>AGI.Orders.get(o.id)))),AGI.Labels.scanlog()]); }catch(e){} await renderProdReport(); }
+async function renderReports(){ try{ [customers,orders,scanLog]=await Promise.all([AGI.Customers.list(),AGI.Orders.list({include_items:1}),AGI.Labels.scanlog()]); }catch(e){} await renderProdReport(); }
 // ── Productivity V2 (per-process KPI breakdown) ──────────────────────────
 let _prodV2Period = 'today';  // current preset
 let _prodV2From = null;       // ISO date 'YYYY-MM-DD'
@@ -12163,7 +12412,7 @@ function renderDataSummary(){
       <div class="sbox"><div class="slbl" data-i18n="Customers">Customers</div><div class="sval" style="color:var(--a)">${customers.length}</div></div>
       <div class="sbox"><div class="slbl" data-i18n="Orders">Orders</div><div class="sval" style="color:var(--a)">${orders.length}</div></div>
       <div class="sbox"><div class="slbl" data-i18n="Pending">Pending</div><div class="sval" style="color:var(--a4)">${ordByStat.pending}</div></div>
-      <div class="sbox"><div class="slbl" data-i18n="Cutting">Cutting</div><div class="sval" style="color:var(--a2)">${ordByStat.cutting}</div></div>
+      <div class="sbox"><div class="slbl" data-i18n="In Progress">In Progress</div><div class="sval" style="color:var(--a2)">${ordByStat.cutting}</div></div>
       <div class="sbox"><div class="slbl" data-i18n="Done">Done</div><div class="sval" style="color:var(--a3)">${ordByStat.done}</div></div>
       <div class="sbox"><div class="slbl" data-i18n="Total Pieces">Total Pieces</div><div class="sval" style="color:var(--a)">${totalPcs}</div></div>
       <div class="sbox"><div class="slbl" data-i18n="Total SQM">Total SQM</div><div class="sval" style="color:var(--a3)">${totalSQM}</div></div>
@@ -12226,24 +12475,32 @@ function exportTableCSV(type){
 
   if(baseType==='orders'){
     const header=['Order #','Customer','Customer Code','Ext Ref','Date','Status',
-      'Classification','Final Product','Thickness','Type','Color',
-      'SQM','Pieces','Lin m (m)','Completed At','Completed By','Cancelled At','Cancelled By','Cancel Reason','Notes'];
+      'Classification','Final Product','Ext. Process','Thickness','Type','Color',
+      'SQM','Pieces','Lin m (m)','Delivery Orders','Completed At','Completed By','Cancelled At','Cancelled By','Cancel Reason','Notes'];
     const rows=[header,...orders.map(o=>{
       const cu=cMap[o.customerId]||{};
       const m=getOrderMetrics(o);
       const ot=ORDER_TYPE_META[o.order_type||o.orderType||'normal'];
-      const cls=ot&&ot.badge?ot.badge:'';
+      const cls=ot?ot.label:'Normal';
       const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));
       const fpLabel=fp?fp.label:'';
+      const epId=o.external_process_id||o.externalProcessId||null;
+      const epObj=(extProcesses||[]).find(p=>p.id===epId);
+      const epName=epObj?epObj.name:(o.external_process_name||o.externalProcessName||'');
       const compAt=(o.completedAt||o.completed_at||'').slice(0,16).replace('T',' ');
       const compBy=o.completedBy||o.completed_by||'';
       const cancAt=(o.cancelledAt||o.cancelled_at||'').slice(0,16).replace('T',' ');
       const cancBy=o.cancelledBy||o.cancelled_by||'';
       const cancReason=o.cancelReason||o.cancel_reason||'';
+      // DOs — delivery serials for this order
+      const _pUids=(o.items||[]).flatMap(i=>i.pieceUIDs||i.piece_uids||[]);
+      const _doSet=new Set();
+      _pUids.forEach(uid=>{ const _dm=_pieceDeliveryMap[uid]; if(_dm&&_dm.serial) _doSet.add(_dm.serial); });
+      const doList=[..._doSet].join(', ');
       return [o.num,cu.name||'',cu.code||'',o.extref||'',o.date,o.status,
-        cls,fpLabel,m.thicks,m.types,m.colors,
+        cls,fpLabel,epName,m.thicks,m.types,m.colors,
         +m.sqm.toFixed(3),m.pcs,+m.lm.toFixed(2),
-        compAt,compBy,cancAt,cancBy,cancReason,o.notes||''];
+        doList,compAt,compBy,cancAt,cancBy,cancReason,o.notes||''];
     })];
     if(isExcel) downloadExcel(rows,`orders-${dt}.xlsx`,'Orders');
     else downloadCSV(rows,`orders-${dt}.csv`);
@@ -12261,16 +12518,27 @@ function exportTableCSV(type){
 
   else if(baseType==='pieces'){
     // All pieces across all orders — one row per piece UID
-    const header=['Piece UID','Order #','Ext Ref','Customer','Description','Width','Height',
-      'Thickness','Type','Color','Processes','Bevel cm','Drills','Cut-outs','Status'];
+    const header=['Piece UID','Order #','Ext Ref','Customer','Final Product','Ext. Process',
+      'Description','Width','Height','Thickness','Type','Color','SQM',
+      'Processes','Bevel cm','Drills','Cut-outs','Order Status','Delivery Order'];
     const pieceRows=[];
     orders.forEach(o=>{
       const cu=cMap[o.customerId]||{};
+      const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));
+      const fpLabel=fp?fp.label:'';
+      const epId=o.external_process_id||o.externalProcessId||null;
+      const epObj=(extProcesses||[]).find(p=>p.id===epId);
+      const epName=epObj?epObj.name:'';
       (o.items||[]).forEach(item=>{
-        (item.pieceUIDs||[]).forEach(uid=>{
-          pieceRows.push([uid,o.num,o.extref||'',cu.name||'',item.code,
-            item.w,item.h,item.thickness,item.glassType||'glass',item.color||'clear',
-            (item.processes||[]).join(', '),item.bevelMM||0,item.drillCount||0,item.cutoutCount||0,o.status]);
+        const pieceSqm=+(item.w*item.h/1e6).toFixed(4);
+        (item.pieceUIDs||item.piece_uids||[]).forEach(uid=>{
+          const _dm=_pieceDeliveryMap[uid];
+          const doSerial=_dm?_dm.serial:'';
+          pieceRows.push([uid,o.num,o.extref||'',cu.name||'',fpLabel,epName,
+            item.code||'',item.w,item.h,item.thickness,
+            item.glassType||'glass',item.color||'clear',pieceSqm,
+            (item.processes||[]).join(', '),item.bevelMM||0,
+            item.drillCount||0,item.cutoutCount||0,o.status,doSerial]);
         });
       });
     });
@@ -14791,6 +15059,106 @@ async function _purApi(method, path, body){
 }
 
 // ── List view ──────────────────────────────────────────────────────────────
+async function purExportExcel(){
+  const dt = new Date().toISOString().slice(0,10);
+  try{
+    showToast('Preparing PO export...');
+    const pos = await _purApi('GET', '/');
+    if(!pos.length){ showToast('No POs to export'); return; }
+    const fullPOs = await Promise.all(pos.map(p => _purApi('GET', '/'+p.id).catch(()=>null)));
+
+    // Sheet 1: Line Items
+    // Pre-load raw sheet catalog for description lookup
+    let _rsCatalog = [];
+    try{ _rsCatalog = await fetch('/api/rawsheets',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json()); }catch(_){}
+    const _rsMap = Object.fromEntries(_rsCatalog.map(s=>[s.id,s]));
+
+    const itemHeader = [
+      'PO #','Type','Vendor','Vendor Country','Order Date','Expected Arrival','Actual Arrival','Status','PO Notes',
+      'Currency','Rate to JOD','Created By','Received By','Received At',
+      'Line #','Description',
+      'Raw Material Code','Raw Material Notes','Thickness (mm)','Type','Color','Brand','Origin',
+      'Width (mm)','Height (mm)','Length (mm)',
+      'Unit Size','Total Size','Qty Ordered','Qty Received','Unit',
+      'Price/Unit (foreign)','Subtotal ex-VAT (foreign)','VAT Rate %','VAT Amount (foreign)','Line Total incl-VAT (foreign)',
+      'Customs Value Override','Landed Cost/Unit (JOD)','Total Landed (JOD)','Item Notes'
+    ];
+    const itemRows = [itemHeader];
+
+    // Sheet 2: Extra Costs
+    const costHeader = ['PO #','Vendor','Cost Type','Description','Amount (foreign)','Amount (JOD)','Allocation Method','Notes'];
+    const costRows = [costHeader];
+
+    // Sheet 3: PO Summary
+    const summHeader = [
+      'PO #','Type','Vendor','Vendor Country','Order Date','Expected Arrival','Actual Arrival','Status',
+      'Currency','Rate to JOD',
+      'Total Goods ex-VAT (JOD)','Total VAT (JOD)','Total Extra Costs (JOD)','Total Landed (JOD)',
+      'Created By','Created At','Received By','Received At','Notes'
+    ];
+    const summRows = [summHeader];
+
+    for(const po of fullPOs){
+      if(!po) continue;
+      const rate = po.goods_to_jod_rate||1;
+      summRows.push([
+        po.po_number, po.purchase_type==='international'?'International':'Local',
+        po.supplier_name||'', po.supplier_country||'',
+        po.order_date||'', po.expected_arrival||'', po.actual_arrival||'', po.status||'',
+        po.goods_currency||'JOD', +rate.toFixed(6),
+        +((po.total_goods_ex_vat_jod||0).toFixed(3)),
+        +((po.total_vat_jod||0).toFixed(3)),
+        +((po.total_extra_costs_jod||0).toFixed(3)),
+        +((po.total_landed_jod||0).toFixed(3)),
+        po.created_by||'', po.created_at||'', po.received_by||'', po.received_at||'',
+        po.notes||''
+      ]);
+      (po.items||[]).forEach((item,idx)=>{
+        itemRows.push([
+          po.po_number, po.purchase_type==='international'?'International':'Local',
+          po.supplier_name||'', po.supplier_country||'',
+          po.order_date||'', po.expected_arrival||'', po.actual_arrival||'', po.status||'', po.notes||'',
+          po.goods_currency||'JOD', +rate.toFixed(6),
+          po.created_by||'', po.received_by||'', po.received_at||'',
+          idx+1, item.description||'',
+          // Raw sheet catalog fields
+          ...(()=>{ const rs=_rsMap[item.raw_sheet_id]||{}; return [
+            rs.code||'', rs.notes||'', rs.thickness||'', rs.type||'', rs.color||'', rs.brand||rs.company||'', rs.origin||''
+          ]; })(),
+          item.dimensions_w_mm||'', item.dimensions_h_mm||'', item.length_mm||'',
+          item.unit_size||1, item.total_size||'',
+          item.qty_ordered||0, item.qty_received||'', item.primary_unit||'piece',
+          +((item.price_per_unit||0).toFixed(4)),
+          +((item.line_subtotal_goods||0).toFixed(3)),
+          +((+item.vat_rate||0)*100).toFixed(1),
+          +((item.vat_amount_goods||0).toFixed(3)),
+          +((item.line_total_goods||0).toFixed(3)),
+          item.customs_value_override_goods||'',
+          +((item.landed_cost_per_unit_jod||0).toFixed(4)),
+          +((item.total_landed_jod||0).toFixed(3)),
+          item.notes||''
+        ]);
+      });
+      (po.costs||[]).forEach(cost=>{
+        costRows.push([
+          po.po_number, po.supplier_name||'',
+          cost.cost_type||'', cost.description||'',
+          +((cost.amount_foreign||cost.amount||0).toFixed(3)),
+          +((cost.amount_jod||0).toFixed(3)),
+          cost.allocation_method||'', cost.notes||''
+        ]);
+      });
+    }
+
+    // Build multi-sheet workbook using XLSX (already loaded on the page)
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(itemRows), 'Line Items');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(costRows), 'Extra Costs');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summRows), 'PO Summary');
+    XLSX.writeFile(wb, `purchase-orders-${dt}.xlsx`);
+    showToast('\u2713 PO export ready \u2014 3 sheets');
+  }catch(e){ showToast('Export error: '+e.message); console.error(e); }
+}
 async function purRenderList(){
   const body = document.getElementById('pur-tbody');
   if (!body) return;
@@ -15618,7 +15986,7 @@ window._pur.suppliers = [];
 async function renderSuppliers(){
   const tbody = document.getElementById('suppliers-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="12" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="Loading...">Loading…</td></tr>';
 
   const params = new URLSearchParams();
   if (document.getElementById('sup-active-only').checked) params.append('active_only', '1');
@@ -15628,14 +15996,14 @@ async function renderSuppliers(){
   let rows = [];
   try { rows = await _purApi('GET', '/suppliers?' + params.toString()); }
   catch (e) {
-    tbody.innerHTML = `<tr><td colspan="11" style="padding:18px;text-align:center;color:var(--a2)">Error: ${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" style="padding:18px;text-align:center;color:var(--a2)">Error: ${e.message}</td></tr>`;
     return;
   }
   window._pur.suppliers = rows;
   document.getElementById('sup-count').textContent = rows.length + ' suppliers';
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No suppliers yet. Click + Add Supplier.">No suppliers yet. Click + Add Supplier.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No suppliers yet. Click + Add Supplier.">No suppliers yet. Click + Add Supplier.</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(s => `<tr>
@@ -16381,7 +16749,7 @@ async function renderAFLog(){
   try{
     const movs = await AF.movements();
     if(!movs.length){
-      tbody.innerHTML='<tr><td colspan="11" style="padding:16px;text-align:center;color:var(--mu)">No movements yet</td></tr>';
+      tbody.innerHTML='<tr><td colspan="12" style="padding:16px;text-align:center;color:var(--mu)">No movements yet</td></tr>';
       return;
     }
 
@@ -16448,7 +16816,7 @@ async function renderAFLog(){
         <td style="font-size:.65rem;color:var(--mu);padding:7px 8px">${r.created_by||'—'}</td>
       </tr>`;
     }).join('');
-  }catch(e){ tbody.innerHTML='<tr><td colspan="11" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
+  }catch(e){ tbody.innerHTML='<tr><td colspan="12" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
 }
 
 async function renderAFAssign(){
@@ -16683,7 +17051,7 @@ function afOpenEditDeductById(txId){
 async function afDeleteDeductById(txId,deductIdsStr){
   await afDeleteDeduct(txId,deductIdsStr);
 }
-async function afOpenDeduct(optId){
+async function afOpenDeduct(optId, presplit){
   const f=optFiles.find(x=>x.id===optId);
   const sheetId = f ? (f.raw_sheet_id||f.rawSheetId||null) : null;
   _afDeductOptData = {optId, sheetId};
@@ -16697,7 +17065,13 @@ async function afOpenDeduct(optId){
   info.innerHTML='<strong>Opt #'+optId+'</strong> — '+(f?f.name:'')+(sheetLabel?' | <span style="color:var(--a4)">'+sheetLabel+'</span>':'');
   document.getElementById('af-deduct-rows').innerHTML='';
   document.getElementById('af-deduct-warn').style.display='none';
-  afAddDeductRow(sheetId);
+  // If a same-size split was provided, pre-fill one deduction row per sheet
+  // with its quantity (user just picks the slot). Otherwise a single blank row.
+  if(Array.isArray(presplit) && presplit.length){
+    presplit.forEach(s=> afAddDeductRow(s.sheet_id, s.qty));
+  } else {
+    afAddDeductRow(sheetId);
+  }
   OM('m-af-deduct');
 }
 
@@ -16724,7 +17098,7 @@ function afUpdateDeductRowSlots(sheetSel){
   slotSel.innerHTML = afBuildSlotOpts(sid, curSlot);
 }
 
-function afAddDeductRow(preSheetId){
+function afAddDeductRow(preSheetId, preQty){
   const sid = preSheetId || (_afDeductOptData&&_afDeductOptData.sheetId) || null;
   const container=document.getElementById('af-deduct-rows');
   const div=document.createElement('div');
@@ -16733,9 +17107,10 @@ function afAddDeductRow(preSheetId){
   const sheetOpts='<option value="">Select sheet...</option>'+rawSheetCatalog.map(s=>
     '<option value="'+s.id+'"'+(sid&&s.id===sid?' selected':'')+'>'+( s.notes||s.code)+'</option>'
   ).join('');
+  const qtyVal = (preQty!=null && +preQty>0) ? (' value="'+(+preQty)+'"') : '';
   div.innerHTML='<select class="inp af-dr-sheet" style="flex:1.5;font-size:.72rem" onchange="afUpdateDeductRowSlots(this)">'+sheetOpts+'</select>'
     +'<select class="inp af-dr-slot" style="flex:1;font-size:.72rem">'+slotOpts+'</select>'
-    +'<input type="number" class="inp af-dr-qty" placeholder="Qty" data-i18n-placeholder="Qty" min="1" style="width:70px;font-size:.72rem">'
+    +'<input type="number" class="inp af-dr-qty" placeholder="Qty" data-i18n-placeholder="Qty" min="1"'+qtyVal+' style="width:70px;font-size:.72rem">'
     +'<button class="btn bd bsm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button>';
   container.appendChild(div);
 }
@@ -16763,6 +17138,12 @@ async function afSaveDeduct(){
     showToast('Slot deductions saved');
     renderAFDeduct();
     renderAFSlots();
+    // Fire markOptDone callback if set (mandatory slot assignment flow)
+    if(typeof window._markOptDoneCallback === 'function'){
+      const cb = window._markOptDoneCallback;
+      window._markOptDoneCallback = null;
+      await cb();
+    }
   }catch(e){ alert('Error: '+e.message); }
 }
 
@@ -16810,13 +17191,13 @@ let _dlvItemsCache = {}; // delivery_id -> [order_num, ...]
 async function renderDeliveriesPage(){
   const tbody = document.getElementById('dlv-table-body');
   if(!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="10" style="padding:40px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--mu)">Loading...</td></tr>';
   try{
     [_adminDeliveries, _adminReceivers] = await Promise.all([
       AGI.Deliveries.list(),
       AGI.Deliveries.receivers.list()
     ]);
-  }catch(e){ tbody.innerHTML='<tr><td colspan="10" style="padding:20px;color:var(--a2)">Error: '+e.message+'</td></tr>'; return; }
+  }catch(e){ tbody.innerHTML='<tr><td colspan="12" style="padding:20px;color:var(--a2)">Error: '+e.message+'</td></tr>'; return; }
 
   const fSerial   = (document.getElementById('dlv-f-serial')?.value||'').toLowerCase().trim();
   const fCustomer = (document.getElementById('dlv-f-customer')?.value||'').toLowerCase().trim();
@@ -16841,25 +17222,15 @@ async function renderDeliveriesPage(){
   // For order-code filter we need items — load for filtered set if needed
   if(fOrders){
     const toLoad = list.filter(d=>!_dlvItemsCache[d.id]);
-    await Promise.all(toLoad.map(async d=>{
-      try{
-        const full = await AGI.Deliveries.get(d.id);
-        _dlvItemsCache[d.id] = [...new Set((full.items||[]).map(i=>i.order_num||''))].filter(Boolean);
-      }catch(e){ _dlvItemsCache[d.id]=[]; }
-    }));
-    list = list.filter(d=>(_dlvItemsCache[d.id]||[]).some(n=>n.toLowerCase().includes(fOrders)));
+    await Promise.all(toLoad.map(async d=>{ await _loadDlvItemsMeta(d.id); }));
+    list = list.filter(d=>((_dlvItemsCache[d.id]||{}).orderCounts? Object.keys(_dlvItemsCache[d.id].orderCounts):[]).some(n=>n.toLowerCase().includes(fOrders)));
   }
 
-  if(!list.length){ tbody.innerHTML='<tr><td colspan="10" style="padding:40px;text-align:center;color:var(--mu)">No deliveries found.</td></tr>'; return; }
+  if(!list.length){ tbody.innerHTML='<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--mu)">No deliveries found.</td></tr>'; return; }
 
-  // Load items for order-code display (only for visible rows not yet cached)
-  const toLoad2 = list.filter(d=>!_dlvItemsCache[d.id]);
-  await Promise.all(toLoad2.map(async d=>{
-    try{
-      const full = await AGI.Deliveries.get(d.id);
-      _dlvItemsCache[d.id] = [...new Set((full.items||[]).map(i=>i.order_num||''))].filter(Boolean);
-    }catch(e){ _dlvItemsCache[d.id]=[]; }
-  }));
+  // Load items for order-code display + piece counts + SQM (only for visible rows not yet cached)
+  const toLoad2 = list.filter(d=>!_dlvItemsCache[d.id]||!_dlvItemsCache[d.id].orderCounts);
+  await Promise.all(toLoad2.map(async d=>{ await _loadDlvItemsMeta(d.id); }));
 
   tbody.innerHTML = list.map(d=>{
     const isOpen  = d.status==='open';
@@ -16867,20 +17238,49 @@ async function renderDeliveriesPage(){
     const statusHtml = isOpen
       ? '<span style="color:var(--a4);font-size:.68rem;border:1px solid var(--a4);border-radius:10px;padding:1px 8px">Open</span>'
       : '<span style="color:var(--a3);font-size:.68rem;border:1px solid var(--a3);border-radius:10px;padding:1px 8px">Finalised</span>';
-    const orderCodes = (_dlvItemsCache[d.id]||[]).map(n=>`<span style="font-family:monospace;font-size:.65rem;background:rgba(0,204,255,.08);border:1px solid rgba(0,204,255,.15);border-radius:3px;padding:1px 5px;color:var(--a)">${n}</span>`).join(' ');
+    const meta = _dlvItemsCache[d.id]||{};
+    const orderCounts = meta.orderCounts||{};
+    const totalSqm = meta.totalSqm||0;
+    const orderCodes = Object.entries(orderCounts).map(([n,cnt])=>`<span style="font-family:monospace;font-size:.65rem;background:rgba(0,204,255,.08);border:1px solid rgba(0,204,255,.15);border-radius:3px;padding:1px 5px;color:var(--a)">${n} <span style="color:var(--a4);font-weight:700">(${cnt})</span></span>`).join(' ');
     return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:.1s" onmouseover="this.style.background='var(--s1)'" onmouseout="this.style.background=''" onclick="dlvOpenDetail(${d.id})">
+      <td style="padding:8px 12px;color:var(--tx);font-size:.78rem;font-weight:700;font-family:monospace;white-space:nowrap">${date}</td>
       <td style="padding:8px 12px;font-family:'Cairo','DM Mono',monospace;font-weight:700;color:var(--a)">${d.serial}</td>
       <td style="padding:8px 12px">${d.customer_name||''} <span style="font-size:.68rem;color:var(--mu)">${d.customer_code?'('+d.customer_code+')':''}</span></td>
+      <td style="padding:8px 12px;font-size:.7rem;color:var(--tx2);max-width:160px">${(meta.glassSpecs&&meta.glassSpecs.length)?meta.glassSpecs.map(g=>`<span style="display:inline-block;background:rgba(255,255,255,.04);border-radius:3px;padding:1px 5px;margin:1px">${g}</span>`).join(' '):'<span style="color:var(--mu)">—</span>'}</td>
       <td style="padding:8px 12px;text-align:center;font-variant-numeric:tabular-nums">${d.piece_count||0}</td>
-      <td style="padding:8px 12px;max-width:180px">${orderCodes||'<span style="color:var(--mu)">—</span>'}</td>
+      <td style="padding:8px 12px;text-align:center;font-variant-numeric:tabular-nums;color:var(--a3);font-weight:600">${totalSqm.toFixed(2)}</td>
+      <td style="padding:8px 12px;max-width:200px">${orderCodes||'<span style="color:var(--mu)">—</span>'}</td>
       <td style="padding:8px 12px;color:var(--tx2)">${d.factory_name||'<span style="color:var(--mu)">—</span>'}</td>
       <td style="padding:8px 12px;color:var(--tx2)">${d.external_process_name||'<span style="color:var(--mu)">—</span>'}</td>
       <td style="padding:8px 12px;color:var(--tx2)">${d.receiver_name||'<span style="color:var(--mu)">—</span>'}</td>
       <td style="padding:8px 12px">${statusHtml}</td>
-      <td style="padding:8px 12px;color:var(--mu);font-size:.72rem;font-family:monospace">${date}</td>
       <td style="padding:8px 12px;color:var(--tx2);font-size:.72rem">${d.created_by_name||''}</td>
     </tr>`;
   }).join('');
+}
+
+// Load delivery items metadata: order piece counts + total SQM
+async function _loadDlvItemsMeta(dlvId){
+  try{
+    const full = await AGI.Deliveries.get(dlvId);
+    const items = full.items||[];
+    const orderCounts = {};
+    const glassSet = new Set();
+    let totalSqm = 0;
+    items.forEach(i=>{
+      const num = i.order_num||'';
+      if(num) orderCounts[num] = (orderCounts[num]||0)+1;
+      totalSqm += (+i.w||0)*(+i.h||0)/1e6;
+      // Build glass spec: thickness + type + color
+      const parts=[];
+      if(i.thickness) parts.push(i.thickness+'mm');
+      if(i.glass_type) parts.push(i.glass_type);
+      if(i.color) parts.push(i.color);
+      const spec = parts.join(' ');
+      if(spec) glassSet.add(spec);
+    });
+    _dlvItemsCache[dlvId] = { orderCounts, totalSqm, glassSpecs:[...glassSet] };
+  }catch(e){ _dlvItemsCache[dlvId] = { orderCounts:{}, totalSqm:0, glassSpecs:[] }; }
 }
 
 async function exportDeliveriesExcel(){
@@ -18040,9 +18440,9 @@ async function renderHROT(){
   const tbody=document.getElementById('hr-ot-body'); if(!tbody) return;
   if(!rows.length){ tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--mu);padding:16px">No overtime records</td></tr>'; return; }
   const statusColor={pending:'var(--a4)',approved:'var(--a3)',rejected:'#ff6464'};
-  tbody.innerHTML=rows.map(r=>`<tr>
+  tbody.innerHTML=rows.map(r=>`<tr${r.conflict?' style="background:rgba(255,100,100,.06)"':''}>
     <td class="mn">${r.date}</td>
-    <td>${r.worker_name}</td>
+    <td>${r.worker_name}${r.conflict?` <span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:.6rem;font-weight:700;background:rgba(255,100,100,.15);color:#ff6464;border:1px solid rgba(255,100,100,.3)" title="Auto and manual OT both exist for this day — pick which to keep">⚠ CONFLICT</span>`:''}</td>
     <td class="mn"><span class="bge bg-${r.type==='auto'?'done':'pend'}">${r.type}</span></td>
     <td class="mn">${r.start_time||'—'}</td>
     <td class="mn">${r.end_time||'—'}</td>
@@ -18052,18 +18452,83 @@ async function renderHROT(){
       <span style="padding:1px 7px;border-radius:3px;font-size:.65rem;font-weight:700;background:${r.status==='approved'?'rgba(54,255,138,.1)':r.status==='rejected'?'rgba(255,100,100,.1)':'rgba(255,200,0,.1)'};color:${statusColor[r.status]||'var(--tx)'}">${r.status}</span>
     </td>
     <td class="mn" style="font-size:.68rem;color:var(--mu)">${r.reviewed_by||'—'}</td>
-    <td style="white-space:nowrap">
+    <td style="white-space:nowrap;display:flex;gap:3px;align-items:center;flex-wrap:wrap">
+      ${r.conflict?`<button class="btn ba bsm" onclick="resolveConflict(${r.id})" title="Keep this record, reject the other" style="font-size:.62rem;background:var(--a3);color:#000">✓ Keep this</button>`:''}
       ${r.status==='pending'?`
         <button class="btn ba bsm" onclick="reviewOT(${r.id},'approved')" title="Approve">✓</button>
-        <button class="btn br bsm" onclick="reviewOT(${r.id},'rejected')" style="margin-left:3px" title="Reject">✕</button>
+        <button class="btn br bsm" onclick="reviewOT(${r.id},'rejected')" title="Reject">✕</button>
+      `:r.status==='rejected'?`
+        <button class="btn bg bsm" onclick="reviewOT(${r.id},'pending')" title="Reset to Pending" style="font-size:.6rem">↩ Reset</button>
       `:`<span style="font-size:.65rem;color:var(--mu)">${r.reviewed_at?r.reviewed_at.slice(0,10):'—'}</span>`}
+      <button class="btn bs bsm" onclick="editOT(${r.id})" title="Edit" style="font-size:.65rem">✎</button>
     </td>
   </tr>`).join('');
+}
+
+// Resolve a same-day conflict: keep the chosen OT (approved, conflict cleared),
+// reject the other OT(s) for the same worker+date, clear all conflict flags.
+async function resolveConflict(keepId){
+  try{
+    const all = await AGI.HR.overtime.list({});
+    const keep = all.find(o=>o.id===keepId);
+    if(!keep){ alert('Record not found'); return; }
+    const others = all.filter(o=>o.worker_id===keep.worker_id && o.date===keep.date && o.id!==keepId && o.conflict===1);
+    const otherDesc = others.map(o=>o.type+' '+(o.mins/60).toFixed(1)+'h').join(', ');
+    if(!confirm('Keep this '+keep.type+' OT ('+(keep.mins/60).toFixed(1)+'h) and REJECT: '+otherDesc+'?\n\nThis resolves the conflict.')) return;
+    const tk=localStorage.getItem('agi_token')||'';
+    const H={'Content-Type':'application/json','Authorization':'Bearer '+tk};
+    // Keep chosen: approved + clear conflict
+    await fetch('/api/hr/overtime/'+keepId,{method:'PUT',headers:H,body:JSON.stringify({date:keep.date,start_time:keep.start_time,end_time:keep.end_time,description:keep.description,status:'approved',conflict:0})});
+    // Reject others + clear conflict
+    for(const o of others){
+      await fetch('/api/hr/overtime/'+o.id,{method:'PUT',headers:H,body:JSON.stringify({date:o.date,start_time:o.start_time,end_time:o.end_time,description:o.description,status:'rejected',conflict:0})});
+    }
+    showToast('Conflict resolved');
+    renderHROT();
+  }catch(e){ alert('Error: '+e.message); }
 }
 
 async function reviewOT(id, status){
   try{ await AGI.HR.overtime.review(id,status); showToast('Overtime '+status); renderHROT(); }
   catch(e){ alert(e.message); }
+}
+
+let _otEditId=null, _otEditRows=[];
+async function editOT(id){
+  try{
+    if(!_otEditRows.length) _otEditRows=await AGI.HR.overtime.list({});
+    const r=_otEditRows.find(x=>x.id===id);
+    if(!r){ _otEditRows=await AGI.HR.overtime.list({}); return editOT(id); }
+    _otEditId=id;
+    document.getElementById('ot-edit-date').value=r.date||'';
+    document.getElementById('ot-edit-from').value=r.start_time||'';
+    document.getElementById('ot-edit-to').value=r.end_time||'';
+    document.getElementById('ot-edit-desc').value=r.description||'';
+    document.getElementById('ot-edit-status').value=r.status||'pending';
+    document.getElementById('ot-edit-info').textContent='Worker: '+r.worker_name+' | '+r.type+' | '+(r.mins||0)+'min'+(r.edited_by?' | Last edited by: '+r.edited_by+' on '+r.edited_at:'');
+    OM('m-ot-edit');
+  }catch(e){ alert(e.message); }
+}
+
+async function saveOTEdit(){
+  if(!_otEditId) return;
+  const date=document.getElementById('ot-edit-date').value;
+  const from=document.getElementById('ot-edit-from').value;
+  const to=document.getElementById('ot-edit-to').value;
+  const desc=document.getElementById('ot-edit-desc').value;
+  const status=document.getElementById('ot-edit-status').value;
+  if(!date||!from||!to){ alert('Date, From and To are required'); return; }
+  try{
+    await fetch('/api/hr/overtime/'+_otEditId,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},
+      body:JSON.stringify({date,start_time:from,end_time:to,description:desc,status})
+    }).then(async r=>{ if(!r.ok) throw new Error((await r.json()).error||'Error'); return r.json(); });
+    CM('m-ot-edit');
+    _otEditRows=[];
+    showToast('Overtime updated');
+    renderHROT();
+  }catch(e){ alert('Error: '+e.message); }
 }
 
 // ── LEAVE ─────────────────────────────────────────────────────────────────
@@ -19616,10 +20081,10 @@ async function renderAdjustments(){
   const qs = new URLSearchParams();
   if (wSel?.value)   qs.set('worker_id', wSel.value);
   if (monthEl?.value) qs.set('month', monthEl.value);
-  tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--mu);padding:12px">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--mu);padding:12px">Loading...</td></tr>';
   try {
     const rows = await fetch('/api/hr/payroll/adjustments?' + qs, {headers:{Authorization:'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json());
-    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--mu);padding:12px">No adjustments found</td></tr>'; return; }
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--mu);padding:12px">No adjustments found</td></tr>'; return; }
     tbody.innerHTML = rows.map(r => {
       const amt = +r.amount || 0;
       const isAdd = amt >= 0;
@@ -19639,7 +20104,7 @@ async function renderAdjustments(){
         <td><button class="btn bsm" onclick="openEditAdjustment(${r.id})" style="font-size:.6rem;padding:2px 6px">✎</button></td>
       </tr>`;
     }).join('');
-  } catch(e) { tbody.innerHTML = '<tr><td colspan="11" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
+  } catch(e) { tbody.innerHTML = '<tr><td colspan="12" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
 }
 
 let _adjTypes = [];
@@ -20500,12 +20965,32 @@ function openFinalProdModal(id=null){
       const fpColors=vals.map(v=>v.value);
       const allColors=[...new Set([...rawColors,...fpColors])].sort();
       sel.innerHTML='<option value="">—</option>'+
-        allColors.map(col=>`<option value="${col}">${col.charAt(0).toUpperCase()+col.slice(1)}</option>`).join('');
+        allColors.map(col=>`<option value="${col}">${col.charAt(0).toUpperCase()+col.slice(1)}</option>`).join('')+
+        `<option value="__add_new__" style="color:var(--a);font-style:italic">+ Add new…</option>`;
     } else {
       sel.innerHTML='<option value="">—</option>'+
-        vals.map(v=>`<option value="${v.value}">${v.value}</option>`).join('');
+        vals.map(v=>`<option value="${v.value}">${v.value}</option>`).join('')+
+        `<option value="__add_new__" style="color:var(--a);font-style:italic">+ Add new…</option>`;
     }
     sel.value=val;
+    // Listen for "+ Add new" selection
+    sel.addEventListener('change', async function fpAddNew(){
+      if(this.value!=='__add_new__') return;
+      const newVal=prompt('Enter new value for '+field+':');
+      if(!newVal||!newVal.trim()){ this.value=val; return; }
+      try{
+        await AGI.FpFields.add({field_name:field,value:newVal.trim()});
+        fpFieldValues=await AGI.FpFields.list();
+        // Re-populate this select
+        const updatedVals=(fpFieldValues[field]||[]).filter(v=>v.active!==0);
+        this.innerHTML='<option value="">—</option>'+
+          updatedVals.map(v=>`<option value="${v.value}">${v.value}</option>`).join('')+
+          `<option value="__add_new__" style="color:var(--a);font-style:italic">+ Add new…</option>`;
+        this.value=newVal.trim();
+        buildFpLabel();
+        showToast('Added: '+newVal.trim());
+      }catch(e){ alert('Error: '+e.message); this.value=val; }
+    },{once:false});
   });
 
   buildFpLabel();
@@ -20712,13 +21197,8 @@ function renderGlassFamList(){
   const filterActive=document.getElementById('gf-filter-active')?.value;
   const sortBy=document.getElementById('gf-sort-by')?.value||_gfSortBy;
 
-  // Deduplicate by thickness|type|color — keep lowest id
-  const seen=new Map();
-  glassFamilies.forEach(gf=>{
-    const key=gf.thickness+'|'+gf.type+'|'+gf.color;
-    if(!seen.has(key)||gf.id<seen.get(key).id) seen.set(key,gf);
-  });
-  let list=[...seen.values()];
+  // Show ALL families in settings — no deduplication here
+  let list=[...glassFamilies];
 
   // Filter
   if(search) list=list.filter(gf=>gf.label.toLowerCase().includes(search)||gf.color.toLowerCase().includes(search));
@@ -20939,8 +21419,57 @@ function printOptPNG(){
   w.document.close();
 }
 
+// Shown when the user tries to print labels on an unsaved optimization.
+// Offers to save-then-print so labels always correspond to a stored file.
+function showPrintSaveGuard(mode){
+  let el = document.getElementById('m-print-save-guard');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'm-print-save-guard';
+    el.className = 'mbg';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  el.innerHTML = `<div class="mdl" style="max-width:440px">
+    <div class="mh"><span class="mt">&#9888; Save Before Printing</span><button class="mx" onclick="document.getElementById('m-print-save-guard').style.display='none'">&times;</button></div>
+    <div class="mb">
+      <div style="font-size:.8rem;color:var(--tx);margin-bottom:8px">This optimization hasn't been saved yet.</div>
+      <div style="font-size:.72rem;color:var(--mu);line-height:1.5">Printing labels now would create labels with no record in the system. Save the optimization first so every printed label is tracked.</div>
+    </div>
+    <div class="mf" style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn bg" onclick="document.getElementById('m-print-save-guard').style.display='none'">Cancel</button>
+      <button class="btn bp" onclick="_saveThenPrint('${mode}')">&#128190; Save now &amp; print</button>
+    </div>
+  </div>`;
+}
+
+// Saves the optimization, then proceeds to print once a real activeOptId exists.
+async function _saveThenPrint(mode){
+  const btn = event&&event.target ? event.target : null;
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+  try{
+    await saveOptFile();           // existing save routine; sets activeOptId
+    if(activeOptId==null){
+      alert('Save did not complete — cannot print yet.');
+      return;
+    }
+    const g=document.getElementById('m-print-save-guard'); if(g) g.style.display='none';
+    printMode(mode);               // now passes the guard
+  }catch(e){
+    alert('Save failed: '+e.message);
+  }finally{
+    if(btn){ btn.disabled=false; btn.innerHTML='&#128190; Save now &amp; print'; }
+  }
+}
+
 function printMode(mode){
   const isLabels = (mode === 'labels' || mode === 'pieces-only');
+  // Guard: never print labels/pieces for an unsaved optimization. Printed-but-
+  // unsaved labels create pieces the system has no record of. Require a save first.
+  if(isLabels && activeOptId==null){
+    showPrintSaveGuard(mode);
+    return;
+  }
   // ═══════════════════════════════════════════════════════════════════
   // OPT MODE (cutting sheets) — unchanged: existing flow
   // ═══════════════════════════════════════════════════════════════════
@@ -21328,17 +21857,29 @@ async function bootApp(){
   document.getElementById('ph').addEventListener('keydown',e=>{if(e.key==='Enter')addCutPiece()});
 }
 
-// Auto-refresh data every 60 seconds
-setInterval(async()=>{
-  if(!AGI.getToken()) return;
+// Auto-refresh data — staggered to avoid flooding the server
+let _refreshBusy = false;
+async function _autoRefresh(){
+  if(!AGI.getToken() || _refreshBusy) return;
+  _refreshBusy = true;
   try{
-    customers       = await AGI.Customers.list();
-    orders          = await Promise.all((await AGI.Orders.list()).map(o=>AGI.Orders.get(o.id)));
-    labelItems      = await AGI.Labels.list();
-    rawSheetCatalog = await AGI.RawSheets.list();
-    optFiles        = await AGI.OptFiles.list();
+    // Fetch list-level data only (no per-order detail fetching)
+    const [newCustomers, newOrders, newLabels, newSheets, newOpts] = await Promise.allSettled([
+      AGI.Customers.list(),
+      AGI.Orders.list({include_items:1}),
+      AGI.Labels.list(),
+      AGI.RawSheets.list(),
+      AGI.OptFiles.list()
+    ]);
+    if(newCustomers.status==='fulfilled') customers       = newCustomers.value;
+    if(newOrders.status==='fulfilled')   orders          = newOrders.value;
+    if(newLabels.status==='fulfilled')   labelItems      = newLabels.value;
+    if(newSheets.status==='fulfilled')   rawSheetCatalog = newSheets.value;
+    if(newOpts.status==='fulfilled')     optFiles        = newOpts.value;
   }catch(e){ console.warn('[auto-refresh]',e.message); }
-}, 60000);
+  finally{ _refreshBusy = false; }
+}
+setInterval(_autoRefresh, 90000);
 
 window.addEventListener('agi:logout', showLoginOverlay);
 
@@ -21913,5 +22454,30 @@ function doLogout(){
     </div>
   </div>
 
+
+<!-- OT Edit Modal -->
+<div id="m-ot-edit" class="mbg" style="display:none">
+  <div class="mbox" style="max-width:440px">
+    <div class="mh"><span class="ct">Edit Overtime</span><button class="mx" onclick="CM('m-ot-edit')">&times;</button></div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div><label class="lbl">Date</label><input id="ot-edit-date" class="inp" type="date" style="width:100%"></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label class="lbl">From</label><input id="ot-edit-from" class="inp" type="time" style="width:100%"></div>
+        <div style="flex:1"><label class="lbl">To</label><input id="ot-edit-to" class="inp" type="time" style="width:100%"></div>
+      </div>
+      <div><label class="lbl">Description</label><input id="ot-edit-desc" class="inp" type="text" style="width:100%" placeholder="Description..."></div>
+      <div><label class="lbl">Status</label><select id="ot-edit-status" class="inp" style="width:100%">
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+      </select></div>
+      <div id="ot-edit-info" style="font-size:.7rem;color:var(--mu)"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn bs" onclick="CM('m-ot-edit')">Cancel</button>
+        <button class="btn ba" onclick="saveOTEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

@@ -222,8 +222,22 @@ router.get('/:uid', (req, res) => {
     const logs = db.prepare(
       'SELECT * FROM scan_log WHERE piece_uid=? ORDER BY ts'
     ).all(req.params.uid);
+    // Always fetch live processes from order_items (label may be stale if order was edited)
+    let liveProcesses = JSON.parse(label.processes||'[]');
+    try {
+      if (label.order_id && label.uid) {
+        // Find piece in order_items by matching piece_uid in the piece_uids JSON array
+        const orderItem = db.prepare(
+          "SELECT processes FROM order_items WHERE order_id=? AND piece_uids LIKE ?"
+        ).get(label.order_id, '%'+label.uid+'%');
+        if (orderItem && orderItem.processes) {
+          const parsed = JSON.parse(orderItem.processes);
+          if (Array.isArray(parsed) && parsed.length) liveProcesses = parsed;
+        }
+      }
+    } catch(e2) { /* fallback to label processes */ }
     res.json({ ...label,
-      processes: JSON.parse(label.processes||'[]'),
+      processes: liveProcesses,
       optFileId: label.opt_file_id,
       orderId: label.order_id,
       orderNum: label.order_num,
