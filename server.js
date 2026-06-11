@@ -17,6 +17,76 @@ app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
 
+// ── Audit logging (records every write + login; reads are not logged here) ──
+const auditDb = require('./db');
+auditDb.exec(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    source TEXT, user_id INTEGER, user_name TEXT, user_role TEXT,
+    action TEXT, section TEXT, table_name TEXT, record_id TEXT,
+    method TEXT, path TEXT, detail TEXT, status INTEGER, ip TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts);
+  CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_section ON audit_log(section);
+`);
+const _auditStmt = auditDb.prepare(`INSERT INTO audit_log
+  (source,user_id,user_name,user_role,action,section,table_name,record_id,method,path,detail,status,ip)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+const _AUDIT_SECTION = {
+  auth:'Auth', customers:'Customers', orders:'Orders', workers:'Workers', labels:'Labels',
+  rawsheets:'Raw Sheets', optfiles:'Optimizations', reports:'Reports', purchases:'Purchases',
+  attendance:'Attendance', hr:'HR', glassfamilies:'Glass Families', finalproducts:'Final Products',
+  fpfields:'FP Fields', remnants:'Remnants', deliveries:'Deliveries', slots:'Slots',
+  gsheets:'Google Sheets', layout:'Layout', purchasing:'Purchasing', holidays:'Holidays',
+  extprocesses:'Ext Processes', factories:'Factories', translations:'Translations',
+  config:'Config', piece:'QR Scan'
+};
+const _AUDIT_METHOD = { POST:'create', PUT:'update', PATCH:'update', DELETE:'delete' };
+function _auditRedact(b){
+  if(!b || typeof b!=='object') return b;
+  const c = Array.isArray(b) ? b.slice() : {...b};
+  for(const k of Object.keys(c)){ if(/pass|pwd|token|secret|hash/i.test(k)) c[k]='***'; }
+  return c;
+}
+app.use((req, res, next) => {
+  const p = req.path || '';
+  if(!(p.startsWith('/api/') || p.startsWith('/piece'))) return next(); // skip static assets
+  if(p.startsWith('/api/audit') || p === '/api/health')   return next(); // skip self + health
+  if(req.headers['x-internal-cron'])                      return next(); // skip gsheets cron
+  const _json = res.json.bind(res);
+  res.json = (body) => { try{ res.locals.__auditBody = body; }catch(e){} return _json(body); };
+  res.on('finish', () => {
+    try{
+      const method  = req.method;
+      const isLogin = (p === '/api/auth/login');
+      const action  = isLogin ? 'login' : _AUDIT_METHOD[method];
+      if(!action) return;                       // only writes (+ login); reads ignored
+      const u = req.user || {};
+      let uid = u.id ?? null, uname = u.name ?? null, urole = u.role ?? null;
+      const rb = res.locals.__auditBody;
+      if(isLogin){
+        if(res.statusCode < 400 && rb && rb.worker){ uid = rb.worker.id; uname = rb.worker.name; urole = rb.worker.role; }
+        else { uid = null; uname = (req.body && req.body.email) || null; urole = null; }
+      }
+      const seg = p.split('/').filter(Boolean);
+      const key = (seg[0]==='api') ? (seg[1]||'') : (seg[0]||'');
+      const section = _AUDIT_SECTION[key] || key;
+      let record_id = null;
+      const num = seg.find(s=>/^\d+$/.test(s));
+      if(num) record_id = num;
+      else if(rb && (rb.id || (rb.worker && rb.worker.id))) record_id = String(rb.id || rb.worker.id);
+      const source = ((req.headers['x-client']||'').toLowerCase())
+                     || (/worker/i.test(req.headers['referer']||'') ? 'worker' : 'portal');
+      const detail = (method==='DELETE' || isLogin) ? null : JSON.stringify(_auditRedact(req.body)||{});
+      _auditStmt.run(source, uid, uname, urole, action, section, key, record_id,
+                     method, p, detail, res.statusCode, (req.ip || (req.socket && req.socket.remoteAddress) || ''));
+    }catch(e){ /* logging must never break a request */ }
+  });
+  next();
+});
+
 // ── Static files (HTML apps served from /public) ─────────
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -48,6 +118,7 @@ app.use('/api/holidays',  require('./routes/holidays'));
 app.use('/api/extprocesses', require('./routes/external_processes'));
 app.use('/api/factories',    require('./routes/factories'));
 app.use('/api/translations', require('./routes/translations'));
+app.use('/api/audit',        require('./routes/audit'));
 
 // ── Config ────────────────────────────────────────────────
 const { requireAuth, requireAdmin } = require('./middleware/auth');

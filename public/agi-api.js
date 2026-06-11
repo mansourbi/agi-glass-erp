@@ -5,9 +5,10 @@
 const BASE = '';
 const TOK_KEY = 'agi_token';
 let _token = localStorage.getItem(TOK_KEY);
+const CLIENT = (location.pathname||'').toLowerCase().includes('worker') ? 'worker' : 'portal';
 
 async function api(path, opts={}){
-  const headers = {'Content-Type':'application/json'};
+  const headers = {'Content-Type':'application/json','X-Client':CLIENT};
   if(_token) headers['Authorization'] = 'Bearer '+_token;
   const res = await fetch(BASE+path, {...opts, headers:{...headers,...(opts.headers||{})}});
   const text = await res.text();
@@ -27,6 +28,7 @@ const DEL  = p     => api(p,{method:'DELETE'});
 function setToken(t){ _token=t; if(t) localStorage.setItem(TOK_KEY,t); else localStorage.removeItem(TOK_KEY); }
 function clearToken(){ setToken(null); }
 function getToken(){ return _token; }
+function logEvent(section, detail, action){ try{ if(!_token) return; POST('/api/audit/event', { section: section||'', path: location.pathname, detail: detail||null, action: action||'view' }).catch(function(){}); }catch(e){} }
 
 // Generate a stable device fingerprint stored in localStorage.
 // Uses a combination of user-agent + screen + timezone + a random UUID
@@ -61,7 +63,7 @@ const Auth = {
     return d.worker;
   },
   async me(){ return GET('/api/auth/me'); },
-  logout(){ clearToken(); },
+  logout(){ try{ logEvent('Auth', null, 'logout'); }catch(e){} clearToken(); },
   getDeviceId
 };
 
@@ -255,7 +257,7 @@ const Deliveries = {
 window.AGI = {
   Auth, Customers, Orders, Workers, Labels,
   RawSheets, OptFiles, Reports, Config, Purchases, Attendance, GlassFamilies, FinalProducts, FpFields, Remnants, HR, Deliveries, Holidays, health,
-  getToken, setToken, clearToken, api
+  getToken, setToken, clearToken, api, logEvent
 };
 
 console.log('[AGI] API client ready');

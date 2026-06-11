@@ -2328,6 +2328,56 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="rtab" onclick="showSettingsTab('extprocs')">&#9654; <span data-i18n="Ext. Processes">Ext. Processes</span></button>
     <button class="rtab" onclick="showSettingsTab('factories')">&#127981; <span data-i18n="Factories">Factories</span></button>
     <button class="rtab" onclick="showSettingsTab('translations')">&#127760; <span data-i18n="Translations">Translations</span></button>
+    <button class="rtab" onclick="showSettingsTab('logs')">&#128203; <span data-i18n="Logs">Logs</span></button>
+  </div>
+
+  <!-- Tab: Activity Logs -->
+  <div id="stab-logs" class="stab" style="display:none">
+    <div class="card">
+      <div class="ch" style="flex-wrap:wrap;gap:8px">
+        <span class="ct">&#128203; <span data-i18n="Activity Logs">Activity Logs</span></span>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input class="xinp" id="al-from" type="date" onchange="renderAuditLog(0)" title="From date" style="font-size:.65rem">
+          <input class="xinp" id="al-to" type="date" onchange="renderAuditLog(0)" title="To date" style="font-size:.65rem">
+          <select class="xinp" id="al-source" onchange="renderAuditLog(0)" style="font-size:.65rem">
+            <option value="">All sources</option><option value="portal">Portal</option><option value="worker">Worker</option>
+          </select>
+          <select class="xinp" id="al-action" onchange="renderAuditLog(0)" style="font-size:.65rem">
+            <option value="">All actions</option><option value="create">Create</option><option value="update">Update</option>
+            <option value="delete">Delete</option><option value="view">View</option><option value="login">Login</option><option value="logout">Logout</option>
+          </select>
+          <input class="xinp" id="al-user" placeholder="User..." oninput="_alDeb()" style="width:84px;font-size:.65rem">
+          <input class="xinp" id="al-section" placeholder="Section..." oninput="_alDeb()" style="width:84px;font-size:.65rem">
+          <input class="xinp" id="al-q" placeholder="Search change..." oninput="_alDeb()" style="width:120px;font-size:.65rem">
+          <button class="btn bg bsm" onclick="exportAuditLog()" style="font-size:.65rem">&#11015; <span data-i18n="Excel">Excel</span></button>
+        </div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr style="background:var(--s1);border-bottom:1px solid var(--border)">
+              <th style="padding:6px 10px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;white-space:nowrap">DATE / TIME</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">SOURCE</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">USER</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">ACTION</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">SECTION</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">TABLE</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">RECORD</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">CHANGE</th>
+              <th style="padding:6px 10px;text-align:center;color:var(--mu);font-size:.62rem;font-weight:600">STATUS</th>
+            </tr>
+          </thead>
+          <tbody id="audit-tbody"><tr><td colspan="9" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px">
+        <span id="al-count" style="font-size:.7rem;color:var(--mu)"></span>
+        <div style="display:flex;gap:6px">
+          <button class="btn bg bsm" id="al-prev" onclick="renderAuditLog(_auditOffset-_auditLimit)" style="font-size:.65rem">&#8249; Prev</button>
+          <button class="btn bg bsm" id="al-next" onclick="renderAuditLog(_auditOffset+_auditLimit)" style="font-size:.65rem">Next &#8250;</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Tab: Receivers -->
@@ -2552,6 +2602,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
                 <th style="padding:6px 8px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600">NOTES</th>
                 <th style="padding:6px 8px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('qty')">QTY <span id="lsa-qty"></span></th>
                 <th style="padding:6px 8px;text-align:right;color:var(--mu);font-size:.62rem;font-weight:600;cursor:pointer" onclick="ledgerSort('bal')">BALANCE <span id="lsa-bal"></span></th>
+                <th style="padding:6px 8px;text-align:left;color:var(--mu);font-size:.62rem;font-weight:600;white-space:nowrap">SLOT (qty)</th>
                 <th style="padding:6px 8px;text-align:center;color:var(--mu);font-size:.62rem;font-weight:600"></th>
               </tr>
               <tr style="background:var(--panel2);border-bottom:2px solid var(--border)">
@@ -2576,7 +2627,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               </tr>
             </thead>
             <tbody id="ledger-tbody">
-              <tr><td colspan="9" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>
+              <tr><td colspan="10" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>
             </tbody>
           </table>
         </div>
@@ -4291,6 +4342,7 @@ async function SP(id){
   document.querySelectorAll('.nt').forEach(t=>t.classList.remove('on'));
   document.getElementById('pg-'+id).classList.add('on');
   document.getElementById('nt-'+id).classList.add('on');
+  try{ AGI.logEvent && AGI.logEvent(id); }catch(e){}
   const r={dash:renderDash,crm:renderCust,orders:renderOrders,cutting:renderCutUI,
            track:renderTrack,labels:renderLabels,reports:renderReports,settings:renderSettings,aframes:renderAFrames,
            layout:renderFactoryLayout,purchasing:renderPurchasing};
@@ -6350,6 +6402,7 @@ async function renderSettingsRSCatalog(){
 
 // ── RAW SHEET SUB-TABS ─────────────────────────────────────────
 async function showRSTab(id){
+  try{ AGI.logEvent && AGI.logEvent('RawMaterials/'+id); }catch(e){}
   ['catalog','stock','usage','ledger','suppliers','manufacturers'].forEach(t=>{
     const el=document.getElementById('rstab-'+t); if(el) el.style.display=t===id?'':'none';
   });
@@ -9358,34 +9411,8 @@ async function markOptDone(id){
     f.completedAt=new Date().toISOString();
     try{ await AGI.OptFiles.update(id,f); }catch(e){ console.warn('opt status:',e.message); }
 
-    // Record raw sheet consumption
-    try {
-      const today = new Date().toISOString().slice(0,10);
-      if (Array.isArray(window._optDoneSplit) && window._optDoneSplit.length) {
-        // Same-size split chosen — record usage per raw sheet
-        for (const s of window._optDoneSplit) {
-          await AGI.RawSheets.recordOptimization({
-            sheet_id: s.sheet_id, opt_file_id: id, opt_name: f.name,
-            sheets_used: s.qty, date: today
-          });
-        }
-      } else {
-        const rsId = f.rawSheet?.id || f.raw_sheet_id || activeRawSheet?.id || null;
-        if (rsId) {
-          let sheetsUsed = 1;
-          try {
-            const res = f.results || window._lastOptResults;
-            const arr = Array.isArray(res) ? res : (res?.results || []);
-            sheetsUsed = arr.length || 1;
-          } catch(e) {}
-          await AGI.RawSheets.recordOptimization({
-            sheet_id: rsId, opt_file_id: id, opt_name: f.name,
-            sheets_used: sheetsUsed, date: today
-          });
-        }
-      }
-      window._optDoneSplit = null; // clear for next time
-    } catch(e) { console.warn('[opt stock record]', e.message); }
+    // Raw-sheet ledger consumption is recorded in afSaveDeduct (per sheet, mirroring the
+    // slot deductions) so ledger and slots always match — including multi-sheet jobs.
 
     // Record remnant usages from session
     const assignmentsForThisOpt=_sessionRemAssignments.filter(a=>true);
@@ -9486,101 +9513,9 @@ async function markOptDone(id){
   try{ if(!rawSheetCatalog.length) rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
   try{ optFiles = await AGI.OptFiles.list(); }catch(e){}
   showToast('⚠ Assign slot deductions to complete — saving locked until done');
-  // If the optimization mixed same-size candidate sheets (anchor + similar of
-  // identical size), the optimizer can't attribute sheets to a specific raw
-  // sheet. Ask the user to split the count first, then pre-fill slot deductions.
-  const split = await maybePromptSheetSplit(f);
-  if(split === '__cancelled__'){
-    // User backed out — nothing committed, optimization stays open
-    showToast('Mark Done cancelled');
-    return;
-  }
-  window._optDoneSplit = (Array.isArray(split) && split.length) ? split : null;
-  await afOpenDeduct(id, split || null);
+  await afOpenDeduct(id);
   // Note: if user closes modal without saving, _markOptDoneCallback is never called
   // and nothing is committed — optimization stays open
-}
-
-// Detect same-size sheet ambiguity and, if present, prompt for the per-sheet
-// split. Returns: null (no split needed), '__cancelled__' (user aborted), or
-// an array [{sheet_id, code, w, h, qty}] summing to the total sheets used.
-async function maybePromptSheetSplit(f){
-  // Candidate sheets = anchor + saved additional sheets for this file
-  const anchor = f.rawSheet || f.raw_sheet_snap || null;
-  const additional = f.additionalSheets || f.additional_sheets || [];
-  if(!anchor || !additional.length) return null; // single sheet → no ambiguity
-
-  // Total sheets actually used in results
-  const res = f.results || window._lastOptResults;
-  const arr = Array.isArray(res) ? res : (res && res.results || []);
-  const totalSheets = arr.length;
-  if(!totalSheets) return null;
-
-  // Group candidates by size. Only sizes shared by 2+ candidates are ambiguous.
-  const candidates = [anchor, ...additional].map(s => ({
-    sheet_id: s.id, code: s.code || s.notes || ('#'+s.id), w: +s.w, h: +s.h
-  }));
-  const sizeKey = (s)=> s.w+'x'+s.h;
-  const bySize = {};
-  candidates.forEach(s => { (bySize[sizeKey(s)] = bySize[sizeKey(s)] || []).push(s); });
-  const ambiguousGroups = Object.values(bySize).filter(g => g.length >= 2);
-  if(!ambiguousGroups.length) return null; // all different sizes → optimizer already knows
-
-  // For simplicity + the real-world case, offer ALL candidates that share an
-  // ambiguous size. (If multiple ambiguous size-groups exist, list them all.)
-  const ambiguous = ambiguousGroups.flat();
-
-  return await new Promise(resolve => {
-    let el = document.getElementById('m-sheet-split');
-    if(!el){ el=document.createElement('div'); el.id='m-sheet-split'; el.className='mbg'; document.body.appendChild(el); }
-    el.style.display='flex';
-    const rows = ambiguous.map((s,i)=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:.76rem;font-weight:600;color:var(--tx)">${s.code}</div>
-          <div style="font-size:.62rem;color:var(--mu)">${s.w}&times;${s.h} mm</div>
-        </div>
-        <input type="number" class="inp split-qty" data-sheet-id="${s.sheet_id}" data-code="${s.code}" data-w="${s.w}" data-h="${s.h}"
-          min="0" value="${i===0?totalSheets:0}" style="width:90px;font-size:.78rem;text-align:center">
-      </div>`).join('');
-    el.innerHTML = `<div class="mdl" style="max-width:520px">
-      <div class="mh"><span class="mt">&#9906; Sheets Used per Raw Sheet</span></div>
-      <div class="mb">
-        <div style="font-size:.72rem;color:var(--a3);margin-bottom:4px">This optimization used <strong>${totalSheets}</strong> sheets of the same size.</div>
-        <div style="font-size:.66rem;color:var(--mu);margin-bottom:12px">Enter how many sheets were physically cut from each raw sheet. The total must equal ${totalSheets}.</div>
-        ${rows}
-        <div id="split-total-note" style="font-size:.72rem;margin-top:8px;font-weight:600"></div>
-      </div>
-      <div class="mf" style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn bg" id="split-cancel">Cancel</button>
-        <button class="btn bp" id="split-confirm">Continue to Slots</button>
-      </div>
-    </div>`;
-
-    const inputs = [...el.querySelectorAll('.split-qty')];
-    const note = el.querySelector('#split-total-note');
-    const recalc = ()=>{
-      const sum = inputs.reduce((a,x)=>a+(+x.value||0),0);
-      const ok = sum === totalSheets;
-      note.textContent = 'Total entered: '+sum+' / '+totalSheets+(ok?' ✓':' — must equal '+totalSheets);
-      note.style.color = ok ? 'var(--a3)' : 'var(--a2)';
-      el.querySelector('#split-confirm').disabled = !ok;
-    };
-    inputs.forEach(inp=>inp.addEventListener('input',recalc));
-    recalc();
-
-    el.querySelector('#split-cancel').onclick = ()=>{ el.style.display='none'; resolve('__cancelled__'); };
-    el.querySelector('#split-confirm').onclick = ()=>{
-      const split = inputs.map(inp=>({
-        sheet_id: +inp.getAttribute('data-sheet-id'),
-        code: inp.getAttribute('data-code'),
-        w: +inp.getAttribute('data-w'), h: +inp.getAttribute('data-h'),
-        qty: +inp.value||0
-      })).filter(s=>s.qty>0);
-      el.style.display='none';
-      resolve(split);
-    };
-  });
 }
 
 async function deleteOptFile(id){
@@ -12236,7 +12171,8 @@ async function showSettingsTab(id){
        (id==='fpfields'&&t.textContent.includes('FP Field'))||
        (id==='finalprods'&&t.textContent.includes('Final Product'))||
        (id==='procs'&&t.textContent.includes('Processes'))||
-       (id==='system'&&t.textContent.includes('System')))
+       (id==='system'&&t.textContent.includes('System'))||
+       (id==='logs'&&t.textContent.includes('Logs')))
       t.classList.add('on');
   });
   if(id==='rawmat') await showRSTab('catalog');
@@ -12250,7 +12186,76 @@ async function showSettingsTab(id){
   if(id==='finalprods') renderFinalProdList();
   if(id==='procs') renderProcsSettings();
   if(id==='receivers')  await renderReceiverList();
+  if(id==='logs')       renderAuditLog(0);
+  try{ AGI.logEvent && AGI.logEvent('Settings/'+id); }catch(e){}
 }
+// ── Activity / Audit Log ──────────────────────────────────
+let _auditOffset = 0; const _auditLimit = 200; let _auditDebTimer = null;
+function _alDeb(){ clearTimeout(_auditDebTimer); _auditDebTimer = setTimeout(()=>renderAuditLog(0), 350); }
+function _alEsc(s){ return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function _alQuery(){
+  const g = id => (document.getElementById(id)?.value || '').trim();
+  const p = new URLSearchParams();
+  ['from','to','source','action','user','section','q'].forEach(k=>{ const v=g('al-'+k); if(v) p.set(k, v); });
+  return p;
+}
+async function renderAuditLog(offset){
+  if(typeof offset === 'number' && offset >= 0) _auditOffset = offset;
+  const tb = document.getElementById('audit-tbody'); if(!tb) return;
+  const p = _alQuery(); p.set('limit', _auditLimit); p.set('offset', _auditOffset);
+  tb.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+  let data;
+  try{ data = await AGI.api('/api/audit?'+p.toString()); }
+  catch(e){ tb.innerHTML = '<tr><td colspan="9" style="padding:16px;color:var(--a2)">'+_alEsc(e.message)+'</td></tr>'; return; }
+  const rows = data.rows || [];
+  const SRC = { portal:['Portal','var(--a)'], worker:['Worker','var(--a4)'] };
+  const ACT = { create:'var(--a3)', update:'var(--a4)', delete:'var(--a2)', view:'var(--mu)', login:'var(--a)', logout:'var(--mu)' };
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--mu)">No activity matches filters</td></tr>';
+  } else {
+    tb.innerHTML = rows.map(r=>{
+      const parts = (r.ts||' ').split(' '); const d = parts[0]||''; const t = (parts[1]||'').slice(0,5);
+      const src = SRC[r.source] || [r.source||'—','var(--mu)'];
+      let change = '—';
+      if(r.detail){ try{ const o = JSON.parse(r.detail); change = Object.entries(o).map(([k,v])=>k+': '+(v&&typeof v==='object'?JSON.stringify(v):String(v))).join(', '); }catch(e){ change = r.detail; } }
+      change = change || '—'; if(change.length > 160) change = change.slice(0,160)+'…';
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 10px;font-family:monospace;font-size:.68rem;white-space:nowrap"><div>${d}</div><div style="color:var(--mu)">${t}</div></td>
+        <td style="padding:6px 10px"><span style="background:${src[1]}22;color:${src[1]};padding:2px 7px;border-radius:3px;font-size:.6rem;font-weight:600">${src[0]}</span></td>
+        <td style="padding:6px 10px;font-size:.72rem"><div style="font-weight:600">${_alEsc(r.user_name||'—')}</div><div style="font-size:.6rem;color:var(--mu)">${_alEsc(r.user_role||'')}</div></td>
+        <td style="padding:6px 10px"><span style="color:${ACT[r.action]||'var(--tx2)'};font-weight:600;font-size:.66rem">${_alEsc((r.action||'').toUpperCase())}</span></td>
+        <td style="padding:6px 10px;font-size:.72rem">${_alEsc(r.section||'—')}</td>
+        <td style="padding:6px 10px;font-size:.66rem;font-family:monospace;color:var(--tx2)">${_alEsc(r.table_name||'—')}</td>
+        <td style="padding:6px 10px;font-size:.66rem;font-family:monospace;color:var(--mu)">${_alEsc(r.record_id||'—')}</td>
+        <td style="padding:6px 10px;font-size:.68rem;color:var(--tx2);max-width:340px;word-break:break-word">${_alEsc(change)}</td>
+        <td style="padding:6px 10px;text-align:center;font-size:.66rem;color:${(r.status>=400)?'var(--a2)':'var(--mu)'}">${r.status||''}</td>
+      </tr>`;
+    }).join('');
+  }
+  const total = data.total || 0;
+  const from = total ? _auditOffset+1 : 0;
+  const to = Math.min(_auditOffset + _auditLimit, total);
+  const cnt = document.getElementById('al-count'); if(cnt) cnt.textContent = total ? (from+'–'+to+' of '+total+' entries') : '0 entries';
+  const prev = document.getElementById('al-prev'), next = document.getElementById('al-next');
+  if(prev) prev.disabled = _auditOffset <= 0;
+  if(next) next.disabled = to >= total;
+}
+async function exportAuditLog(){
+  const p = _alQuery(); p.set('limit','5000'); p.set('offset','0');
+  let data; try{ data = await AGI.api('/api/audit?'+p.toString()); }catch(e){ alert(e.message); return; }
+  const rows = (data.rows||[]).map(r=>({
+    Date:r.ts, Source:r.source, User:r.user_name, Role:r.user_role, Action:r.action,
+    Section:r.section, Table:r.table_name, Record:r.record_id, Method:r.method, Path:r.path,
+    Change:r.detail||'', Status:r.status
+  }));
+  if(!rows.length){ alert('No activity to export.'); return; }
+  const fn = 'activity-log-'+new Date().toISOString().slice(0,10);
+  if(typeof downloadExcel === 'function'){ downloadExcel(rows, fn+'.xlsx', 'Activity Log'); return; }
+  const cols = Object.keys(rows[0]);
+  const csv = [cols.join(',')].concat(rows.map(r=>cols.map(c=>'"'+String(r[c]??'').replace(/"/g,'""')+'"').join(','))).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download = fn+'.csv'; a.click();
+}
+
 async function renderWorkerList(){
   const el=document.getElementById('worker-list');
   // Always fetch fresh from API
@@ -13544,6 +13549,13 @@ async function renderLedgerTab(){
   // Load all sheets if needed
   try{ rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
 
+  // Load slot movements once (for the SLOT column) — keep real slot rows only
+  let _slotMovs = [];
+  try{
+    const _mv = await fetch('/api/slots/movements',{headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json());
+    _slotMovs = (Array.isArray(_mv)?_mv:[]).filter(m=>m.source==='slot');
+  }catch(e){}
+
 
 
   const fSheet = (document.getElementById('lf-sheet')?.value||'').toLowerCase();
@@ -13554,7 +13566,7 @@ async function renderLedgerTab(){
   const fRef   = document.getElementById('lf-ref')?.value?.toLowerCase()||'';
   const fNotes  = document.getElementById('lf-notes')?.value?.toLowerCase()||'';
 
-  tbody.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--mu)">Loading...</td></tr>';
 
   // Fetch transactions for all sheets (or filtered sheet)
   // Raw Sheet filter searches Arabic description (notes) only — Code column has its own filter
@@ -13581,6 +13593,29 @@ async function renderLedgerTab(){
 
   // Sort by date desc, then id desc
   allRows.sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+
+  // Match each ledger tx to its slot movement(s) for the SLOT column.
+  // Priority: optimization by ref_id -> transaction by ref_id (future-linked entries)
+  //           -> same sheet + date + |qty| + direction heuristic (legacy manual entries).
+  const _txSlot = {};            // tx.id -> array of slot movements
+  const _slotUsed = new Set();   // consumed movement objects (avoid double-matching)
+  allRows.forEach(r=>{
+    const code = r._sheet.code;
+    let ms = null;
+    if(r.type==='optimization_use' && r.ref_id){
+      const o = _slotMovs.filter(m=>!_slotUsed.has(m) && m.sheet_code===code && m.ref_type==='optimization' && +m.ref_id===+r.ref_id);
+      if(o.length) ms = o;
+    }
+    if(!ms){
+      const t2 = _slotMovs.filter(m=>!_slotUsed.has(m) && m.sheet_code===code && m.ref_type==='transaction' && +m.ref_id===+r.id);
+      if(t2.length) ms = t2;
+    }
+    if(!ms){
+      const h = _slotMovs.find(m=>!_slotUsed.has(m) && m.sheet_code===code && m.date===r.date && Math.sign(+m.qty)===Math.sign(+r.qty) && Math.abs(+m.qty)===Math.abs(+r.qty));
+      if(h) ms = [h];
+    }
+    if(ms){ ms.forEach(m=>_slotUsed.add(m)); _txSlot[r.id] = ms; }
+  });
 
   // Apply filters
   let filtered = allRows;
@@ -13613,7 +13648,7 @@ async function renderLedgerTab(){
   window._ledgerExportData = { filtered, _sheetFinalBalance, TYPE_LABELS };
 
   if(!filtered.length){
-    tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--mu)">No transactions match filters</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--mu)">No transactions match filters</td></tr>';
     return;
   }
 
@@ -13623,6 +13658,10 @@ async function renderLedgerTab(){
     const sheetBal = _sheetFinalBalance[tx._sheet.id] ?? tx._running;
     const balColor = sheetBal <= 0 ? 'var(--a2)' : sheetBal <= 3 ? 'var(--a4)' : 'var(--a3)';
     const dot = COLOR_MAP[s.color]||'#888';
+    const _ms = _txSlot[tx.id];
+    const slotCell = (_ms&&_ms.length)
+      ? _ms.map(m=>`<span style="color:var(--a);font-weight:700">${m.slot_name||'?'}</span> <span style="color:var(--tx2)">(${m.qty>0?'+':''}${m.qty})</span>`).join(', ')
+      : (tx.qty<0 ? '<span style="color:var(--a2);font-weight:700" title="No slot deduction recorded for this stock movement">&#9888; no slot</span>' : '<span style="color:var(--mu)">&mdash;</span>');
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:7px 12px;font-family:monospace;font-size:.72rem;color:var(--mu);white-space:nowrap">${tx.date}</td>
       <td style="padding:7px 12px;font-size:.68rem;font-family:monospace;color:var(--tx2);white-space:nowrap">
@@ -13651,6 +13690,7 @@ async function renderLedgerTab(){
       <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:700;font-size:.82rem;color:${balColor}">
         ${sheetBal}
       </td>
+      <td style="padding:7px 12px;font-size:.7rem;font-family:monospace;white-space:nowrap">${slotCell}</td>
       <td style="padding:7px 12px;text-align:center;white-space:nowrap">
         ${['purchase','sale','adjustment','optimization_use'].includes(tx.type)?`
           <button class="btn bg bsm" onclick="ledgerOpenEditEntry(${tx.id},${s.id})" style="font-size:.6rem;margin-right:3px" title="Edit" data-i18n-title="Edit">&#9998;</button>
@@ -13796,9 +13836,8 @@ async function ledgerSaveEntry(){
 
   try{
     if(_ledgerEditTxId){
-      // Edit: delete old + create new (server has no PUT for transactions)
-      await AGI.RawSheets.deleteTransaction(_ledgerEditTxId);
-      await AGI.RawSheets.addTransaction(sheetId,{type,qty:signedQty,buyer,date,notes});
+      // Edit: update in place via existing PUT endpoint (no delete -> no data loss; avoids Invalid type 400)
+      await _afFetch('/api/rawsheets/transactions/'+_ledgerEditTxId, {method:'PUT', body:JSON.stringify({sheet_id:sheetId, qty:signedQty, date, notes})});
       showToast('Entry updated');
     } else {
       await AGI.RawSheets.addTransaction(sheetId,{type,qty:signedQty,buyer,date,notes});
@@ -14137,53 +14176,106 @@ async function renderAFSheets(){
       bySheet[r.sheet_id].slots.push({slot_name:r.slot_name, qty:r.qty});
     });
 
-    // Get live balance from rawSheetCatalog
-    const rows = Object.values(bySheet).sort((a,b)=>a.code.localeCompare(b.code));
+    // Enrich with computed fields used for sort/filter; balance from rawSheetCatalog
+    const rows = Object.values(bySheet).map(r=>{
+      const sheet = rawSheetCatalog.find(s=>s.id===r.sheet_id);
+      r.balance = sheet ? (+sheet.balance||0) : 0;
+      r.totalInSlots = r.slots.reduce((a,s)=>a+s.qty,0);
+      r.unassigned = r.balance - r.totalInSlots;
+      r.rawText = ((r.notes||r.code||'')+' '+r.thickness+'mm '+(r.color||'')).toLowerCase();
+      r.slotText = r.slots.map(s=>s.slot_name+' '+s.qty).join(' ').toLowerCase();
+      return r;
+    });
+    window._afSheetsData = rows;
+    if(!window._afSheetsSort) window._afSheetsSort = {col:'balance', dir:'desc'};
+    const S = window._afSheetsSort;
+    const arrow = c => S.col===c ? (S.dir==='asc'?' \u25B2':' \u25BC') : '';
+    const hS='padding:8px 12px;font-size:.62rem;color:var(--mu);font-weight:600;letter-spacing:.5px;cursor:pointer;user-select:none';
+    const fS='width:100%;padding:3px 6px;font-size:.66rem;background:var(--panel2);border:1px solid var(--border);border-radius:4px;color:var(--tx)';
 
     el.innerHTML = `
       <table style="width:100%;border-collapse:collapse">
         <thead>
           <tr style="background:var(--s1);border-bottom:2px solid var(--border)">
-            <th style="padding:8px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600;letter-spacing:.5px" data-i18n="CODE">CODE</th>
-            <th style="padding:8px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600" data-i18n="RAW SHEET">RAW SHEET</th>
-            <th style="padding:8px 12px;text-align:center;font-size:.62rem;color:var(--mu);font-weight:600" data-i18n="BALANCE">BALANCE</th>
-            <th style="padding:8px 12px;text-align:left;font-size:.62rem;color:var(--mu);font-weight:600" data-i18n="SLOTS &amp; QUANTITIES">SLOTS &amp; QUANTITIES</th>
+            <th style="${hS};text-align:left" onclick="_afSortSheets('code')" data-i18n="CODE">CODE<span class="af-sa" data-col="code">${arrow('code')}</span></th>
+            <th style="${hS};text-align:left" onclick="_afSortSheets('raw')" data-i18n="RAW SHEET">RAW SHEET<span class="af-sa" data-col="raw">${arrow('raw')}</span></th>
+            <th style="${hS};text-align:center" onclick="_afSortSheets('balance')" data-i18n="BALANCE">BALANCE<span class="af-sa" data-col="balance">${arrow('balance')}</span></th>
+            <th style="${hS};text-align:left" onclick="_afSortSheets('slots')" data-i18n="SLOTS &amp; QUANTITIES">SLOTS &amp; QUANTITIES<span class="af-sa" data-col="slots">${arrow('slots')}</span></th>
+          </tr>
+          <tr style="background:var(--s1);border-bottom:1px solid var(--border)">
+            <th style="padding:4px 10px"><input class="af-sf" id="af-f-code" oninput="_afRenderSheetsBody()" placeholder="filter\u2026" style="${fS}"></th>
+            <th style="padding:4px 10px"><input class="af-sf" id="af-f-raw" oninput="_afRenderSheetsBody()" placeholder="filter\u2026" style="${fS}"></th>
+            <th style="padding:4px 10px"><input class="af-sf" id="af-f-bal" oninput="_afRenderSheetsBody()" placeholder="e.g. &gt;10" style="${fS};text-align:center"></th>
+            <th style="padding:4px 10px"><input class="af-sf" id="af-f-slot" oninput="_afRenderSheetsBody()" placeholder="slot\u2026" style="${fS}"></th>
           </tr>
         </thead>
-        <tbody>
-          ${rows.map(r=>{
-            const sheet = rawSheetCatalog.find(s=>s.id===r.sheet_id);
-            const balance = sheet ? (+sheet.balance||0) : 0;
-            const balColor = balance<=0?'var(--a2)':balance<=3?'var(--a4)':'var(--a3)';
-            const totalInSlots = r.slots.reduce((a,s)=>a+s.qty,0);
-            const unassigned = balance - totalInSlots;
-            const slotBadges = r.slots.map(s=>
-              `<span style="background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-family:monospace;font-size:.7rem;white-space:nowrap">
+        <tbody id="af-sheets-tbody"></tbody>
+      </table>`;
+    _afRenderSheetsBody();
+  }catch(e){ el.innerHTML='<div style="color:var(--a2);padding:16px">Error: '+e.message+'</div>'; }
+}
+
+function _afSortSheets(col){
+  const S = window._afSheetsSort || (window._afSheetsSort={col:'balance',dir:'desc'});
+  if(S.col===col){ S.dir = S.dir==='asc'?'desc':'asc'; }
+  else { S.col=col; S.dir = (col==='balance'||col==='slots')?'desc':'asc'; }
+  document.querySelectorAll('#af-sheets-body .af-sa').forEach(sp=>{
+    sp.textContent = sp.getAttribute('data-col')===S.col ? (S.dir==='asc'?' \u25B2':' \u25BC') : '';
+  });
+  _afRenderSheetsBody();
+}
+
+function _afRenderSheetsBody(){
+  const tb = document.getElementById('af-sheets-tbody'); if(!tb) return;
+  const data = window._afSheetsData || [];
+  const S = window._afSheetsSort || {col:'balance',dir:'desc'};
+  const gv = id => { const e=document.getElementById(id); return e?e.value.trim().toLowerCase():''; };
+  const fCode=gv('af-f-code'), fRaw=gv('af-f-raw'), fBal=gv('af-f-bal'), fSlot=gv('af-f-slot');
+  const balMatch = b => {
+    if(!fBal) return true;
+    const m = fBal.match(/^(>=|<=|>|<|=)?\s*(-?\d+(?:\.\d+)?)$/);
+    if(m){ const op=m[1]||'=', n=parseFloat(m[2]);
+      if(op==='>') return b>n; if(op==='<') return b<n; if(op==='>=') return b>=n; if(op==='<=') return b<=n; return b===n; }
+    return String(b).includes(fBal);
+  };
+  let rows = data.filter(r=>
+    (!fCode || (r.code||'').toLowerCase().includes(fCode)) &&
+    (!fRaw  || r.rawText.includes(fRaw)) &&
+    balMatch(r.balance) &&
+    (!fSlot || r.slotText.includes(fSlot))
+  );
+  const dir = S.dir==='asc'?1:-1;
+  const key = r => S.col==='code' ? (r.code||'') : S.col==='raw' ? r.rawText : S.col==='slots' ? r.totalInSlots : r.balance;
+  rows.sort((a,b)=>{ const ka=key(a), kb=key(b); return (typeof ka==='string') ? dir*ka.localeCompare(kb) : dir*(ka-kb); });
+
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="4" style="padding:18px;text-align:center;color:var(--mu)">No sheets match the filters.</td></tr>'; return; }
+  tb.innerHTML = rows.map(r=>{
+    const balance=r.balance, totalInSlots=r.totalInSlots, unassigned=r.unassigned;
+    const balColor = balance<=0?'var(--a2)':balance<=3?'var(--a4)':'var(--a3)';
+    const slotBadges = r.slots.map(s=>
+      `<span style="background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-family:monospace;font-size:.7rem;white-space:nowrap">
                 <span style="color:var(--a);font-weight:700">${s.slot_name}</span>
                 <span style="color:var(--tx2);margin-left:4px">(${s.qty})</span>
               </span>`
-            ).join(' ');
-            return `<tr style="border-bottom:1px solid var(--border)">
+    ).join(' ');
+    return `<tr style="border-bottom:1px solid var(--border)">
               <td style="padding:10px 12px;font-family:monospace;font-size:.7rem;color:var(--a3);white-space:nowrap">${r.code}</td>
               <td style="padding:10px 12px">
                 <div style="font-size:.78rem;font-weight:600;color:var(--tx)">${r.notes||r.code}</div>
-                <div style="font-size:.62rem;color:var(--mu)">${r.thickness}mm · ${r.color}</div>
+                <div style="font-size:.62rem;color:var(--mu)">${r.thickness}mm \u00B7 ${r.color}</div>
               </td>
               <td style="padding:10px 12px;text-align:center">
                 <div style="font-size:1.1rem;font-weight:700;color:${balColor}">${balance}</div>
                 ${unassigned>0?`<div style="font-size:.58rem;color:var(--mu)">${unassigned} unassigned</div>`:''}
-                ${unassigned<0?`<div style="font-size:.58rem;color:var(--a2);cursor:pointer" onclick="afShowBalanceBreakdown(${r.sheet_id},${balance},${totalInSlots},${JSON.stringify(r.slots).replace(/"/g,'&quot;')})">⚠ over-assigned — click to see why</div>`:''}
-                ${unassigned>0&&balance>0?`<div style="font-size:.58rem;color:var(--mu);cursor:pointer" onclick="afShowBalanceBreakdown(${r.sheet_id},${balance},${totalInSlots},${JSON.stringify(r.slots).replace(/"/g,'&quot;')})">ℹ details</div>`:''}
+                ${unassigned<0?`<div style="font-size:.58rem;color:var(--a2);cursor:pointer" onclick="afShowBalanceBreakdown(${r.sheet_id},${balance},${totalInSlots},${JSON.stringify(r.slots).replace(/"/g,'&quot;')})">\u26A0 over-assigned \u2014 click to see why</div>`:''}
+                ${unassigned>0&&balance>0?`<div style="font-size:.58rem;color:var(--mu);cursor:pointer" onclick="afShowBalanceBreakdown(${r.sheet_id},${balance},${totalInSlots},${JSON.stringify(r.slots).replace(/"/g,'&quot;')})">\u2139 details</div>`:''}
               </td>
               <td style="padding:10px 12px">
                 <div style="display:flex;flex-wrap:wrap;gap:5px">${slotBadges}</div>
                 <div style="font-size:.62rem;color:var(--mu);margin-top:4px">Total in slots: ${totalInSlots}</div>
               </td>
             </tr>`;
-          }).join('')}
-        </tbody>
-      </table>`;
-  }catch(e){ el.innerHTML='<div style="color:var(--a2);padding:16px">Error: '+e.message+'</div>'; }
+  }).join('');
 }
 
 function printAFSheets(){
@@ -17051,7 +17143,7 @@ function afOpenEditDeductById(txId){
 async function afDeleteDeductById(txId,deductIdsStr){
   await afDeleteDeduct(txId,deductIdsStr);
 }
-async function afOpenDeduct(optId, presplit){
+async function afOpenDeduct(optId){
   const f=optFiles.find(x=>x.id===optId);
   const sheetId = f ? (f.raw_sheet_id||f.rawSheetId||null) : null;
   _afDeductOptData = {optId, sheetId};
@@ -17065,13 +17157,7 @@ async function afOpenDeduct(optId, presplit){
   info.innerHTML='<strong>Opt #'+optId+'</strong> — '+(f?f.name:'')+(sheetLabel?' | <span style="color:var(--a4)">'+sheetLabel+'</span>':'');
   document.getElementById('af-deduct-rows').innerHTML='';
   document.getElementById('af-deduct-warn').style.display='none';
-  // If a same-size split was provided, pre-fill one deduction row per sheet
-  // with its quantity (user just picks the slot). Otherwise a single blank row.
-  if(Array.isArray(presplit) && presplit.length){
-    presplit.forEach(s=> afAddDeductRow(s.sheet_id, s.qty));
-  } else {
-    afAddDeductRow(sheetId);
-  }
+  afAddDeductRow(sheetId);
   OM('m-af-deduct');
 }
 
@@ -17098,7 +17184,7 @@ function afUpdateDeductRowSlots(sheetSel){
   slotSel.innerHTML = afBuildSlotOpts(sid, curSlot);
 }
 
-function afAddDeductRow(preSheetId, preQty){
+function afAddDeductRow(preSheetId){
   const sid = preSheetId || (_afDeductOptData&&_afDeductOptData.sheetId) || null;
   const container=document.getElementById('af-deduct-rows');
   const div=document.createElement('div');
@@ -17107,10 +17193,9 @@ function afAddDeductRow(preSheetId, preQty){
   const sheetOpts='<option value="">Select sheet...</option>'+rawSheetCatalog.map(s=>
     '<option value="'+s.id+'"'+(sid&&s.id===sid?' selected':'')+'>'+( s.notes||s.code)+'</option>'
   ).join('');
-  const qtyVal = (preQty!=null && +preQty>0) ? (' value="'+(+preQty)+'"') : '';
   div.innerHTML='<select class="inp af-dr-sheet" style="flex:1.5;font-size:.72rem" onchange="afUpdateDeductRowSlots(this)">'+sheetOpts+'</select>'
     +'<select class="inp af-dr-slot" style="flex:1;font-size:.72rem">'+slotOpts+'</select>'
-    +'<input type="number" class="inp af-dr-qty" placeholder="Qty" data-i18n-placeholder="Qty" min="1"'+qtyVal+' style="width:70px;font-size:.72rem">'
+    +'<input type="number" class="inp af-dr-qty" placeholder="Qty" data-i18n-placeholder="Qty" min="1" style="width:70px;font-size:.72rem">'
     +'<button class="btn bd bsm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button>';
   container.appendChild(div);
 }
@@ -17126,6 +17211,16 @@ async function afSaveDeduct(){
 
   if(!deductions.length){ alert('Add at least one valid slot deduction'); return; }
   const f=optFiles.find(x=>x.id===_afDeductOptData.optId);
+  // Total check: deductions should sum to the number of sheets this optimization used
+  try{
+    const _res = f && (f.results||null);
+    const _arr = Array.isArray(_res) ? _res : (_res&&_res.results||[]);
+    const _expected = _arr.length;
+    const _got = deductions.reduce((a,d)=>a+d.qty,0);
+    if(_expected && _got!==_expected){
+      if(!_confirm('Slot deductions total '+_got+' sheet(s), but this optimization used '+_expected+'.\n\nThey should match so stock and slots stay correct. Continue anyway?')) return;
+    }
+  }catch(e){}
   try{
     await AF.deduct({
       deductions,
@@ -17133,6 +17228,15 @@ async function afSaveDeduct(){
       opt_name: f?.name||'Opt #'+_afDeductOptData.optId,
       date: f?.completed_at?.slice(0,10)||new Date().toISOString().slice(0,10)
     });
+    // Mirror the SAME deductions into the raw-sheet ledger, per sheet, so ledger == slots.
+    // record-optimization dedups per (opt_file_id, sheet_id), so this is idempotent.
+    const _bySheet={};
+    deductions.forEach(d=>{ _bySheet[d.sheet_id]=(_bySheet[d.sheet_id]||0)+d.qty; });
+    const _ldate = f?.completed_at?.slice(0,10)||new Date().toISOString().slice(0,10);
+    for(const _sid in _bySheet){
+      try{ await AGI.RawSheets.recordOptimization({ sheet_id:+_sid, opt_file_id:_afDeductOptData.optId, opt_name:f?.name||('Opt #'+_afDeductOptData.optId), sheets_used:_bySheet[_sid], date:_ldate }); }
+      catch(_e){ console.warn('[opt ledger record]', _e.message); }
+    }
     CM('m-af-deduct');
     afSlots=await AF.slots();
     showToast('Slot deductions saved');
@@ -21419,57 +21523,8 @@ function printOptPNG(){
   w.document.close();
 }
 
-// Shown when the user tries to print labels on an unsaved optimization.
-// Offers to save-then-print so labels always correspond to a stored file.
-function showPrintSaveGuard(mode){
-  let el = document.getElementById('m-print-save-guard');
-  if(!el){
-    el = document.createElement('div');
-    el.id = 'm-print-save-guard';
-    el.className = 'mbg';
-    document.body.appendChild(el);
-  }
-  el.style.display = 'flex';
-  el.innerHTML = `<div class="mdl" style="max-width:440px">
-    <div class="mh"><span class="mt">&#9888; Save Before Printing</span><button class="mx" onclick="document.getElementById('m-print-save-guard').style.display='none'">&times;</button></div>
-    <div class="mb">
-      <div style="font-size:.8rem;color:var(--tx);margin-bottom:8px">This optimization hasn't been saved yet.</div>
-      <div style="font-size:.72rem;color:var(--mu);line-height:1.5">Printing labels now would create labels with no record in the system. Save the optimization first so every printed label is tracked.</div>
-    </div>
-    <div class="mf" style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn bg" onclick="document.getElementById('m-print-save-guard').style.display='none'">Cancel</button>
-      <button class="btn bp" onclick="_saveThenPrint('${mode}')">&#128190; Save now &amp; print</button>
-    </div>
-  </div>`;
-}
-
-// Saves the optimization, then proceeds to print once a real activeOptId exists.
-async function _saveThenPrint(mode){
-  const btn = event&&event.target ? event.target : null;
-  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
-  try{
-    await saveOptFile();           // existing save routine; sets activeOptId
-    if(activeOptId==null){
-      alert('Save did not complete — cannot print yet.');
-      return;
-    }
-    const g=document.getElementById('m-print-save-guard'); if(g) g.style.display='none';
-    printMode(mode);               // now passes the guard
-  }catch(e){
-    alert('Save failed: '+e.message);
-  }finally{
-    if(btn){ btn.disabled=false; btn.innerHTML='&#128190; Save now &amp; print'; }
-  }
-}
-
 function printMode(mode){
   const isLabels = (mode === 'labels' || mode === 'pieces-only');
-  // Guard: never print labels/pieces for an unsaved optimization. Printed-but-
-  // unsaved labels create pieces the system has no record of. Require a save first.
-  if(isLabels && activeOptId==null){
-    showPrintSaveGuard(mode);
-    return;
-  }
   // ═══════════════════════════════════════════════════════════════════
   // OPT MODE (cutting sheets) — unchanged: existing flow
   // ═══════════════════════════════════════════════════════════════════
