@@ -3294,7 +3294,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <span id="fp-count" style="font-size:.68rem;color:var(--mu)"></span>
       </div>
       <div class="tw"><table>
-        <thead><tr><th data-i18n="Label">Label</th><th data-i18n="Category">Category</th><th data-i18n="Thickness">Thickness</th><th data-i18n="Type">Type</th><th data-i18n="Color">Color</th><th data-i18n="Tempered">Tempered</th><th data-i18n="Edge">Edge</th><th data-i18n="Process">Process</th><th data-i18n="Active">Active</th><th data-i18n="Actions">Actions</th></tr></thead>
+        <thead><tr><th data-i18n="Label">Label</th><th data-i18n="Serial">Serial</th><th data-i18n="Category">Category</th><th data-i18n="Thickness">Thickness</th><th data-i18n="Type">Type</th><th data-i18n="Color">Color</th><th data-i18n="Tempered">Tempered</th><th data-i18n="Edge">Edge</th><th data-i18n="Process">Process</th><th data-i18n="JOD/m²">JOD/m²</th><th data-i18n="Active">Active</th><th data-i18n="Actions">Actions</th></tr></thead>
         <tbody id="fp-body"></tbody>
       </table></div>
     </div>
@@ -21014,13 +21014,14 @@ function renderFinalProdList(){
   if(cnt) cnt.textContent=list.length+' product'+(list.length===1?'':'s');
 
   if(!list.length){
-    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--mu);padding:16px">'+(finalProducts.length?'No products match filters':'No final products yet. Add one or import from Excel.')+'</td></tr>';
+    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;color:var(--mu);padding:16px">'+(finalProducts.length?'No products match filters':'No final products yet. Add one or import from Excel.')+'</td></tr>';
     return;
   }
   const cap=s=>s?(s.charAt(0).toUpperCase()+s.slice(1)):'—';
   tbody.innerHTML=list.map(fp=>`
     <tr>
       <td><strong style="font-size:.8rem">${fp.label}</strong></td>
+      <td class="mn" style="font-size:.7rem;color:var(--mu)">${fp.serial||'—'}</td>
       <td class="mn">${fp.category||'—'}</td>
       <td class="mn">${fp.thickness||'—'}</td>
       <td class="mn">${fp.glass_type||'—'}</td>
@@ -21028,6 +21029,7 @@ function renderFinalProdList(){
       <td class="mn">${fp.tempered||'—'}</td>
       <td class="mn">${fp.edge||'—'}</td>
       <td class="mn" style="font-size:.65rem">${fp.process||'—'}</td>
+      <td class="mn" style="text-align:right;font-weight:600">${(fp.general_price_sqm>0)?Number(fp.general_price_sqm).toFixed(2):'<span style=\'color:var(--r,#e44)\'>—</span>'}</td>
       <td class="mn">
         <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
           <input type="checkbox" ${fp.active?'checked':''} onchange="toggleFinalProd(${fp.id},this.checked)">
@@ -21099,6 +21101,16 @@ function openFinalProdModal(id=null){
     },{once:false});
   });
 
+  // Populate serial (read-only display) + general price
+  const serLine=document.getElementById('fp-serial-line');
+  const serVal=document.getElementById('fp-serial-val');
+  if(serLine&&serVal){
+    if(fp.serial){ serVal.textContent=fp.serial; serLine.style.display=''; }
+    else { serLine.style.display='none'; }
+  }
+  const priceInp=document.getElementById('fp-price');
+  if(priceInp) priceInp.value=(fp.general_price_sqm!=null&&fp.general_price_sqm!=='')?fp.general_price_sqm:'';
+
   buildFpLabel();
   OM('m-finalproduct');
 }
@@ -21115,13 +21127,20 @@ function buildFpLabel(){
 
 async function saveFinalProd(){
   const get=id=>document.getElementById(id)?.value?.trim()||'';
+  const priceRaw=document.getElementById('fp-price')?.value?.trim()||'';
   const data={
     category:get('fp-cat'), subtype:get('fp-subtype'), thickness:get('fp-thick'),
     glass_type:get('fp-gtype'), color:get('fp-color'), tempered:get('fp-tempered'),
     edge:get('fp-edge'), process:get('fp-process'), paint_color:get('fp-paintcolor'),
-    brand:get('fp-brand'), origin:get('fp-origin'), active:1
+    brand:get('fp-brand'), origin:get('fp-origin'),
+    general_price_sqm:(priceRaw===''?null:Number(priceRaw)), active:1
   };
   if(!data.category){alert('Category is required');return}
+  if(priceRaw===''||isNaN(data.general_price_sqm)||data.general_price_sqm<0){
+    alert('General Price (JOD per m²) is required and must be 0 or greater');
+    document.getElementById('fp-price')?.focus();
+    return;
+  }
   try{
     if(_editFpId) await AGI.FinalProducts.update(_editFpId,data);
     else await AGI.FinalProducts.create(data);
@@ -21129,7 +21148,14 @@ async function saveFinalProd(){
     CM('m-finalproduct');
     renderFinalProdList();
     showToast(_editFpId?'Product updated':'Product added');
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){
+    if(e.status===409&&e.data&&e.data.existing){
+      const ex=e.data.existing;
+      alert('These exact specifications already exist:\n\n  '+(ex.label||'(no label)')+'  ['+(ex.serial||'?')+']\n\nEdit that product instead, or change one of the specs.');
+    } else {
+      alert('Error: '+e.message);
+    }
+  }
 }
 
 async function toggleFinalProd(id,active){
@@ -22027,6 +22053,11 @@ function doLogout(){
       <div style="background:rgba(0,204,255,.07);border:1px solid rgba(0,204,255,.2);border-radius:var(--r);padding:8px 12px;margin-bottom:12px">
         <div style="font-size:.62rem;color:var(--mu);margin-bottom:3px">AUTO-BUILT LABEL</div>
         <div id="fp-label-preview" style="font-size:.85rem;font-weight:600;color:var(--a);font-family:'Cairo','DM Mono',monospace">—</div>
+        <div id="fp-serial-line" style="font-size:.6rem;color:var(--mu);margin-top:4px;display:none">SERIAL <span id="fp-serial-val" style="color:var(--tx2);font-family:'DM Mono',monospace;letter-spacing:1px"></span></div>
+      </div>
+      <div class="fg" style="margin-bottom:10px;background:rgba(0,204,255,.05);border:1px solid rgba(0,204,255,.18);border-radius:var(--r);padding:8px 10px">
+        <label class="lbl" data-i18n="General Price (JOD per m²) *">General Price (JOD per m²) *</label>
+        <input type="number" id="fp-price" class="inp" min="0" step="0.01" placeholder="0.00" oninput="buildFpLabel()" style="font-weight:600">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="fg"><label class="lbl" data-i18n="Category (زجاج/مرايا)">Category (زجاج/مرايا)</label>
