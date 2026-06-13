@@ -254,9 +254,17 @@ const Deliveries = {
   }
 };
 
+const CustomerPrices = {
+  list(customerId){ return GET('/api/customerprices'+(customerId?('?customer_id='+customerId):'')); },
+  resolve(customerId, fpId){ return GET('/api/customerprices/resolve?customer_id='+customerId+'&final_product_id='+fpId); },
+  set(customerId, fpId, price){ return POST('/api/customerprices',{customer_id:customerId, final_product_id:fpId, price_sqm:price}); },
+  remove(customerId, fpId){ return DEL('/api/customerprices?customer_id='+customerId+'&final_product_id='+fpId); }
+};
+
 window.AGI = {
   Auth, Customers, Orders, Workers, Labels,
   RawSheets, OptFiles, Reports, Config, Purchases, Attendance, GlassFamilies, FinalProducts, FpFields, Remnants, HR, Deliveries, Holidays, health,
+  CustomerPrices,
   getToken, setToken, clearToken, api, logEvent
 };
 

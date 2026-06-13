@@ -855,6 +855,76 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   </div>
 </div>
 
+<div class="pg" id="pg-custdetail">
+  <style>
+    #pg-custdetail .cdtab{padding:6px 16px;border-radius:var(--r);font-family:'Cairo','DM Mono',monospace;font-size:.68rem;border:1px solid var(--border);background:none;color:var(--mu);cursor:pointer}
+    #pg-custdetail .cdtab:hover{color:var(--tx);border-color:var(--a)}
+    #pg-custdetail .cdtab.on{border-color:var(--a);color:var(--a);background:rgba(0,204,255,.07)}
+    #pg-custdetail .cdpane{display:none}
+    #pg-custdetail .cdpane.on{display:block}
+  </style>
+  <div class="ph">
+    <div>
+      <div class="pt"><span id="cd-name">Customer</span></div>
+      <div class="ps"><span id="cd-code" class="mn" style="color:var(--a3)"></span> &mdash; <span data-i18n="Customer Detail">Customer Detail</span></div>
+    </div>
+    <div class="acts">
+      <button class="btn bg bsm" onclick="backToCrm()">&#8592; <span data-i18n="Back to Customers">Back to Customers</span></button>
+      <button class="btn bp" onclick="editCustFromDetail()">&#9998; <span data-i18n="Edit Profile">Edit Profile</span></button>
+    </div>
+  </div>
+
+  <div class="rtabs" style="margin-bottom:16px">
+    <button class="cdtab on" data-cd="profile" onclick="custDetailTab('profile')">&#9786; <span data-i18n="Profile">Profile</span></button>
+    <button class="cdtab" data-cd="prices" onclick="custDetailTab('prices')">&#11045; <span data-i18n="Price List">Price List</span></button>
+    <button class="cdtab" data-cd="account" onclick="custDetailTab('account')">&#9783; <span data-i18n="Account">Account</span></button>
+  </div>
+
+  <div class="cdpane on" id="cd-profile">
+    <div class="card"><div class="ch"><span class="ct" data-i18n="Profile">Profile</span></div>
+      <div id="cd-profile-body" style="padding:4px 2px"></div>
+    </div>
+  </div>
+
+  <div class="cdpane" id="cd-prices">
+    <div class="card">
+      <div class="ch"><span class="ct" data-i18n="Customer Price List">Customer Price List</span></div>
+      <div style="padding:10px 2px">
+        <div style="font-size:.66rem;color:var(--mu);margin-bottom:10px" data-i18n="Set per-customer prices. Products not listed here use the General Price.">Set per-customer prices. Products not listed here use the General Price.</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;padding:10px;background:rgba(0,204,255,.05);border:1px solid rgba(0,204,255,.18);border-radius:var(--r)">
+          <div class="fg" style="flex:1;min-width:220px;margin:0">
+            <label class="lbl" data-i18n="Final Product">Final Product</label>
+            <select id="cd-fp-pick" class="inp"></select>
+          </div>
+          <div class="fg" style="width:150px;margin:0">
+            <label class="lbl" data-i18n="Price (JOD/m²)">Price (JOD/m²)</label>
+            <input type="number" id="cd-fp-price" class="inp" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <button class="btn bp" onclick="addCustOverride()" data-i18n="Add / Update">Add / Update</button>
+        </div>
+        <div class="tw"><table>
+          <thead><tr>
+            <th data-i18n="Label">Label</th><th data-i18n="Serial">Serial</th>
+            <th style="text-align:right" data-i18n="General">General</th>
+            <th style="text-align:right" data-i18n="Customer Price">Customer Price</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="cd-prices-body"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cdpane" id="cd-account">
+    <div class="card"><div class="ch"><span class="ct" data-i18n="Statement of Account">Statement of Account</span></div>
+      <div class="empty" style="padding:30px"><div class="empty-i">&#9783;</div>
+        <div class="empty-t" data-i18n="Accounting coming soon">Accounting coming soon</div>
+        <div style="font-size:.66rem;color:var(--mu);margin-top:6px" data-i18n="Invoices, payments and statement of account will appear here.">Invoices, payments and statement of account will appear here.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="pg" id="pg-orders">
   <div class="ph">
     <div><div class="pt" data-i18n="Orders">Orders</div><div class="ps" data-i18n="Glass Fabrication Orders">Glass Fabrication Orders</div></div>
@@ -4722,7 +4792,7 @@ async function saveCust(){
     sheet_id:document.getElementById('c-sheet-id').value.trim()||null};
   try{
     await apiSaveCustomer(data, _editCid||null);
-    CM('m-cust'); renderCust(); badges();
+    CM('m-cust'); renderCust(); badges(); if(window._cdCustId!=null) renderCustDetail();
     showToast(_editCid?'Customer updated':'Customer created');
   }catch(e){ alert('Error saving customer: '+e.message); }
 }
@@ -4742,7 +4812,7 @@ async function renderCust(){
   if(!list.length){tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="empty-i">&#9786;</div><div class="empty-t" data-i18n="No customers">No customers</div></div></td></tr>`;return}
   tbody.innerHTML=list.map(c=>{
     const cnt=orders.filter(o=>o.customerId===c.id).length;
-    return `<tr>
+    return `<tr style="cursor:pointer" onclick="openCustDetail(${c.id})" title="Open customer">
       <td class="mn" style="color:var(--a3)">${c.code}</td>
       <td><strong>${c.name}</strong></td>
       <td style="color:var(--tx2)">${c.company||'&#8212;'}</td>
@@ -4750,10 +4820,104 @@ async function renderCust(){
       <td style="color:var(--tx2)">${c.email||'&#8212;'}</td>
       <td><span class="bge bg-new">${cnt}</span></td>
       <td><div style="display:flex;gap:5px">
-        <button class="btn bg bsm" onclick="openCustModal(${c.id})" data-i18n="Edit">Edit</button>
-        <button class="btn bd bsm" onclick="delCust(${c.id})" data-i18n="Del">Del</button>
+        <button class="btn bg bsm" onclick="event.stopPropagation();openCustDetail(${c.id})" data-i18n="Open">Open</button>
+        <button class="btn bd bsm" onclick="event.stopPropagation();delCust(${c.id})" data-i18n="Del">Del</button>
       </div></td></tr>`;
   }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// CUSTOMER DETAIL PAGE  (Profile / Price List / Account)
+// ═══════════════════════════════════════════════════════
+var _cdCustId = null;
+
+function openCustDetail(id){
+  _cdCustId = id;
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  const pg=document.getElementById('pg-custdetail'); if(pg) pg.classList.add('on');
+  // keep the Customers nav tab highlighted (detail lives under CRM)
+  document.querySelectorAll('.nt').forEach(t=>t.classList.remove('on'));
+  const nt=document.getElementById('nt-crm'); if(nt) nt.classList.add('on');
+  try{ AGI.logEvent && AGI.logEvent('custdetail'); }catch(e){}
+  custDetailTab('profile');
+  renderCustDetail();
+  window.applyLang && window.applyLang();
+}
+
+function backToCrm(){ _cdCustId=null; SP('crm'); }
+
+function custDetailTab(name){
+  document.querySelectorAll('#pg-custdetail .cdtab').forEach(b=>b.classList.toggle('on', b.dataset.cd===name));
+  document.querySelectorAll('#pg-custdetail .cdpane').forEach(p=>p.classList.toggle('on', p.id==='cd-'+name));
+  if(name==='prices') renderCustPrices();
+}
+
+function renderCustDetail(){
+  const c = customers.find(x=>x.id===_cdCustId);
+  if(!c){ backToCrm(); return; }
+  const nm=document.getElementById('cd-name'); if(nm) nm.textContent=c.name||'Customer';
+  const cdc=document.getElementById('cd-code'); if(cdc) cdc.textContent=c.code||'';
+  const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const dash='<span style="color:var(--mu)">—</span>';
+  const row=(label,val)=>'<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">'+
+      '<div style="width:130px;font-size:.66rem;color:var(--mu);text-transform:uppercase;letter-spacing:1px">'+label+'</div>'+
+      '<div style="flex:1;font-size:.8rem;color:var(--tx)">'+(val||dash)+'</div></div>';
+  const cnt=orders.filter(o=>o.customerId===c.id).length;
+  const body=document.getElementById('cd-profile-body');
+  if(body) body.innerHTML =
+    row('Code', esc(c.code)) + row('Name', '<strong>'+esc(c.name)+'</strong>') +
+    row('Company', esc(c.company)) + row('Phone', esc(c.phone)) +
+    row('Email', esc(c.email)) + row('Address', esc(c.address)) +
+    row('Notes', esc(c.notes)) + row('Orders', '<span class="bge bg-new">'+cnt+'</span>');
+}
+
+function editCustFromDetail(){ if(_cdCustId!=null) openCustModal(_cdCustId); }
+
+async function renderCustPrices(){
+  const pick=document.getElementById('cd-fp-pick');
+  if(pick){
+    const act=(finalProducts||[]).filter(f=>f.active!==0);
+    pick.innerHTML = act.map(f=>'<option value="'+f.id+'">'+f.label+' ['+(f.serial||'—')+']'+((f.general_price_sqm>0)?(' · gen '+Number(f.general_price_sqm).toFixed(2)):'')+'</option>').join('');
+  }
+  let rows=[];
+  try{ rows = await AGI.CustomerPrices.list(_cdCustId); }catch(e){ console.warn('[custprices]',e.message); }
+  const tb=document.getElementById('cd-prices-body'); if(!tb) return;
+  if(!rows.length){
+    tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:18px" data-i18n="No custom prices — all products use the General Price.">No custom prices — all products use the General Price.</td></tr>';
+    window.applyLang && window.applyLang();
+    return;
+  }
+  tb.innerHTML=rows.map(r=>'<tr>'+
+    '<td><strong style="font-size:.78rem">'+(r.fp_label||'—')+'</strong></td>'+
+    '<td class="mn" style="font-size:.7rem;color:var(--mu)">'+(r.fp_serial||'—')+'</td>'+
+    '<td class="mn" style="text-align:right;color:var(--tx2)">'+((r.fp_general_price>0)?Number(r.fp_general_price).toFixed(2):'—')+'</td>'+
+    '<td class="mn" style="text-align:right;font-weight:600;color:var(--a)">'+Number(r.price_sqm).toFixed(2)+'</td>'+
+    '<td style="text-align:right"><button class="btn bd bsm" onclick="removeCustOverride('+r.final_product_id+')" data-i18n="Remove">Remove</button></td>'+
+  '</tr>').join('');
+  window.applyLang && window.applyLang();
+}
+
+async function addCustOverride(){
+  const fpId=+document.getElementById('cd-fp-pick').value;
+  const priceRaw=(document.getElementById('cd-fp-price').value||'').trim();
+  if(!fpId){ alert('Pick a final product'); return; }
+  const price=Number(priceRaw);
+  if(priceRaw===''||!isFinite(price)||price<0){ alert('Enter a valid price (0 or greater)'); document.getElementById('cd-fp-price').focus(); return; }
+  try{
+    await AGI.CustomerPrices.set(_cdCustId, fpId, price);
+    document.getElementById('cd-fp-price').value='';
+    await renderCustPrices();
+    showToast('Price saved');
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+async function removeCustOverride(fpId){
+  if(!_confirm('Remove this custom price? The product will fall back to the General Price.')) return;
+  try{
+    await AGI.CustomerPrices.remove(_cdCustId, fpId);
+    await renderCustPrices();
+    showToast('Custom price removed');
+  }catch(e){ alert('Error: '+e.message); }
 }
 
 // ═══════════════════════════════════════════════════════
