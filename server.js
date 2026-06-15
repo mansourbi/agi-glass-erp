@@ -1,4 +1,4 @@
-// server.js — AGI Glass Factory Management System
+// server.js Ã¢â‚¬â€ AGI Glass Factory Management System
 // env loaded from .env if present
 try { require('dotenv').config(); } catch(e) {}
 const express = require('express');
@@ -12,12 +12,12 @@ const http    = require('http');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── Middleware ────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Middleware Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
 
-// ── Audit logging (records every write + login; reads are not logged here) ──
+// Ã¢â€â‚¬Ã¢â€â‚¬ Audit logging (records every write + login; reads are not logged here) Ã¢â€â‚¬Ã¢â€â‚¬
 const auditDb = require('./db');
 auditDb.exec(`
   CREATE TABLE IF NOT EXISTS audit_log (
@@ -87,10 +87,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Static files (HTML apps served from /public) ─────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Static files (HTML apps served from /public) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── API Routes ────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ API Routes Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // Public QR scan page
 app.use('/piece', require('./routes/scan'));
 
@@ -108,6 +108,8 @@ app.use('/api/hr', require('./routes/hr'));
 app.use('/api/glassfamilies', require('./routes/glassfamilies'));
 app.use('/api/finalproducts', require('./routes/finalproducts'));
 app.use('/api/customerprices', require('./routes/customerprices'));
+app.use('/api/orderpricing', require('./routes/orderpricing'));
+app.use('/api/sheetowner', require('./routes/sheetowner'));
 app.use('/api/fpfields', require('./routes/fpfields'));
 app.use('/api/remnants', require('./routes/remnants'));
 app.use('/api/deliveries', require('./routes/deliveries'));
@@ -121,11 +123,11 @@ app.use('/api/factories',    require('./routes/factories'));
 app.use('/api/translations', require('./routes/translations'));
 app.use('/api/audit',        require('./routes/audit'));
 
-// ── Config ────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Config Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const { requireAuth, requireAdmin } = require('./middleware/auth');
 const db = require('./db');
 
-// ── DB Migrations (safe — ignore if column already exists) ──
+// Ã¢â€â‚¬Ã¢â€â‚¬ DB Migrations (safe Ã¢â‚¬â€ ignore if column already exists) Ã¢â€â‚¬Ã¢â€â‚¬
 const migrations = [
   "ALTER TABLE workers ADD COLUMN device_id TEXT",
   "ALTER TABLE workers ADD COLUMN device_status TEXT",
@@ -147,7 +149,7 @@ app.patch('/api/purchasing/:id/supplier', requireAuth, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Public config endpoint — only exposes non-sensitive display fields (logo, factory name)
+// Public config endpoint Ã¢â‚¬â€ only exposes non-sensitive display fields (logo, factory name)
 app.get('/api/config/public', (req, res) => {
   try {
     const rows = db.prepare("SELECT key,value FROM config WHERE key IN ('factory','factory_logo','factory_logo_dark')").all();
@@ -155,7 +157,7 @@ app.get('/api/config/public', (req, res) => {
   } catch(e) { res.json({}); }
 });
 
-// Serve logo publicly — writes base64 logo from config to a static file on save
+// Serve logo publicly Ã¢â‚¬â€ writes base64 logo from config to a static file on save
 app.get('/logo.png', (req, res) => {
   try {
     const row = db.prepare("SELECT value FROM config WHERE key='factory_logo'").get();
@@ -188,7 +190,7 @@ app.put('/api/config', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Health check ──────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Health check Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 app.get('/api/health', (req, res) => {
   try {
     db.prepare('SELECT 1').get();
@@ -198,7 +200,7 @@ app.get('/api/health', (req, res) => {
   }
 });
 
-// ── Google Sheets Auto-Sync (8am–5pm, top of every hour) ────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Google Sheets Auto-Sync (8amÃ¢â‚¬â€œ5pm, top of every hour) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 (function scheduleGSheetsSync() {
   function runSync() {
     const now = new Date();
@@ -257,22 +259,22 @@ app.get('/api/health', (req, res) => {
   setTimeout(scheduleNextHour, 5000); // small delay on startup
 })();
 
-// ── 404 ───────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ 404 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 app.use((req, res) => res.status(404).json({ error: 'Not found: ' + req.path }));
 
-// ── Error handler ─────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Error handler Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 app.use((err, req, res, _next) => {
   console.error('[ERROR]', err.message);
   res.status(500).json({ error: err.message });
 });
 
-// ── Start ─────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬ Start Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const HTTPS_PORT = process.env.HTTPS_PORT || 3444;
 const certFile = path.join(__dirname, '192.168.1.15+2.pem');
 const keyFile  = path.join(__dirname, '192.168.1.15+2-key.pem');
 
 if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
-  // HTTPS — required for camera access on mobile
+  // HTTPS Ã¢â‚¬â€ required for camera access on mobile
   const sslOptions = {
     cert: fs.readFileSync(certFile),
     key:  fs.readFileSync(keyFile)
@@ -280,11 +282,11 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
   const httpsServer = https.createServer(sslOptions, app);
   httpsServer.on('error', (e) => console.error('[HTTPS]', e.message));
   httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
-    console.log('\n  ╔═══════════════════════════════════════╗');
-    console.log(`  ║  AGI Glass — Server running           ║`);
-    console.log(`  ║  https://localhost:${HTTPS_PORT}            ║`);
-    console.log(`  ║  https://192.168.1.15:${HTTPS_PORT}   (LAN) ║`);
-    console.log('  ╚═══════════════════════════════════════╝\n');
+    console.log('\n  Ã¢â€¢â€Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢â€”');
+    console.log(`  Ã¢â€¢â€˜  AGI Glass Ã¢â‚¬â€ Server running           Ã¢â€¢â€˜`);
+    console.log(`  Ã¢â€¢â€˜  https://localhost:${HTTPS_PORT}            Ã¢â€¢â€˜`);
+    console.log(`  Ã¢â€¢â€˜  https://192.168.1.15:${HTTPS_PORT}   (LAN) Ã¢â€¢â€˜`);
+    console.log('  Ã¢â€¢Å¡Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â\n');
   });
   // Also keep HTTP for desktop
   const httpServer2 = http.createServer(app);
@@ -297,11 +299,11 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
   const httpFallback = http.createServer(app);
   httpFallback.on('error', (e) => console.error('[HTTP]', e.message));
   httpFallback.listen(PORT, '0.0.0.0', () => {
-    console.log('\n  ╔═══════════════════════════════════════╗');
-    console.log(`  ║  AGI Glass — Server running           ║`);
-    console.log(`  ║  http://localhost:${PORT}               ║`);
-    console.log(`  ║  http://0.0.0.0:${PORT}  (LAN)          ║`);
-    console.log(`  ║  NOTE: No SSL cert — camera blocked   ║`);
-    console.log('  ╚═══════════════════════════════════════╝\n');
+    console.log('\n  Ã¢â€¢â€Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢â€”');
+    console.log(`  Ã¢â€¢â€˜  AGI Glass Ã¢â‚¬â€ Server running           Ã¢â€¢â€˜`);
+    console.log(`  Ã¢â€¢â€˜  http://localhost:${PORT}               Ã¢â€¢â€˜`);
+    console.log(`  Ã¢â€¢â€˜  http://0.0.0.0:${PORT}  (LAN)          Ã¢â€¢â€˜`);
+    console.log(`  Ã¢â€¢â€˜  NOTE: No SSL cert Ã¢â‚¬â€ camera blocked   Ã¢â€¢â€˜`);
+    console.log('  Ã¢â€¢Å¡Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â\n');
   });
 }
