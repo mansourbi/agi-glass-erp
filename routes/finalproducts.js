@@ -32,17 +32,27 @@ try { db.prepare("ALTER TABLE final_products ADD COLUMN general_price_sqm REAL D
 try { db.prepare("ALTER TABLE final_products ADD COLUMN spec_key TEXT").run(); } catch(e){}
 try { db.prepare('ALTER TABLE orders ADD COLUMN final_product_id INTEGER').run(); } catch(e){}
 
-// Label from the 11 spec fields (same order the client uses)
+// أجور (labor-only) flag — true => raw material NOT included; label gets the أجور prefix.
+const fpCols = db.prepare("PRAGMA table_info(final_products)").all().map(c => c.name);
+const ujoorIsNew = !fpCols.includes('is_ujoor');
+if (ujoorIsNew) { try { db.prepare("ALTER TABLE final_products ADD COLUMN is_ujoor INTEGER DEFAULT 0").run(); } catch(e){ console.warn('[final_products] add is_ujoor', e.message); } }
+
+const isUjoor = d => (d && (d.is_ujoor === 1 || d.is_ujoor === true || d.is_ujoor === '1'));
+
+// Label from the 11 spec fields (same order the client uses); أجور prefix when labor-only
 function buildLabel(d) {
   const parts = [d.category, d.subtype, d.thickness, d.glass_type, d.color,
     d.tempered, d.edge, d.process, d.paint_color, d.brand, d.origin];
-  return parts.map(p => (p||'').trim()).filter(Boolean).join(' ');
+  const base = parts.map(p => (p||'').trim()).filter(Boolean).join(' ');
+  return (isUjoor(d) ? 'أجور ' : '') + base;
 }
-// Normalized uniqueness signature from the SAME 11 fields (empties included)
+// Normalized uniqueness signature: ujoor flag + the SAME 11 fields (empties included).
+// The ujoor flag is part of the key so an أجور product and its non-أجور twin coexist.
 function specKey(d) {
   const parts = [d.category, d.subtype, d.thickness, d.glass_type, d.color,
     d.tempered, d.edge, d.process, d.paint_color, d.brand, d.origin];
-  return parts.map(p => (p==null?'':String(p)).trim().toLowerCase()).join('|');
+  return (isUjoor(d) ? '1' : '0') + '|' +
+    parts.map(p => (p==null?'':String(p)).trim().toLowerCase()).join('|');
 }
 const serialOf = id => 'FP-' + String(id).padStart(5,'0');
 
@@ -50,13 +60,28 @@ const serialOf = id => 'FP-' + String(id).padStart(5,'0');
 try {
   const rows = db.prepare('SELECT * FROM final_products').all();
   const setSerial = db.prepare('UPDATE final_products SET serial=? WHERE id=?');
-  const setKey    = db.prepare('UPDATE final_products SET spec_key=? WHERE id=?');
-  db.transaction(() => {
-    for (const r of rows) {
-      if (!r.serial)         setSerial.run(serialOf(r.id), r.id);
-      if (r.spec_key == null) setKey.run(specKey(r), r.id);
-    }
-  })();
+  if (ujoorIsNew) {
+    // is_ujoor is brand-new => every existing product currently uses customer-owned
+    // (REF) glass, so all are أجور (labor). Mark them, re-prefix the label, and
+    // recompute spec_key to the new ujoor-aware format. Runs exactly once.
+    const updAll = db.prepare('UPDATE final_products SET is_ujoor=1, label=?, spec_key=? WHERE id=?');
+    db.transaction(() => {
+      for (const r of rows) {
+        if (!r.serial) setSerial.run(serialOf(r.id), r.id);
+        const d = { ...r, is_ujoor: 1 };
+        updAll.run(buildLabel(d), specKey(d), r.id);
+      }
+    })();
+    console.log('[final_products] marked ' + rows.length + ' existing products as أجور (labor)');
+  } else {
+    const setKey = db.prepare('UPDATE final_products SET spec_key=? WHERE id=?');
+    db.transaction(() => {
+      for (const r of rows) {
+        if (!r.serial)          setSerial.run(serialOf(r.id), r.id);
+        if (r.spec_key == null) setKey.run(specKey(r), r.id);
+      }
+    })();
+  }
   const dupes = db.prepare('SELECT spec_key, COUNT(*) c FROM final_products GROUP BY spec_key HAVING c>1').all();
   if (dupes.length) console.warn('[final_products] pre-existing duplicate spec_keys:', dupes.length, '(new dupes still blocked by route check)');
 } catch(e) { console.warn('[final_products backfill]', e.message); }
@@ -89,12 +114,12 @@ router.post('/', requireAdmin, (req, res) => {
       message: 'A final product with these exact specs already exists', existing: dup });
     const price = +d.general_price_sqm || 0;
     const r = db.prepare(`INSERT INTO final_products
-      (label,category,subtype,thickness,glass_type,color,tempered,edge,process,paint_color,brand,origin,sort_order,general_price_sqm,spec_key)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      (label,category,subtype,thickness,glass_type,color,tempered,edge,process,paint_color,brand,origin,sort_order,general_price_sqm,spec_key,is_ujoor)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       label, d.category||'زجاج', d.subtype||'', d.thickness||'',
       d.glass_type||'', d.color||'', d.tempered||'', d.edge||'',
       d.process||'', d.paint_color||'', d.brand||'', d.origin||'', d.sort_order||0,
-      price, key
+      price, key, isUjoor(d)?1:0
     );
     db.prepare('UPDATE final_products SET serial=? WHERE id=?').run(serialOf(r.lastInsertRowid), r.lastInsertRowid);
     res.status(201).json(db.prepare('SELECT * FROM final_products WHERE id=?').get(r.lastInsertRowid));
@@ -115,12 +140,12 @@ router.put('/:id', requireAdmin, (req, res) => {
       ? null : (+d.general_price_sqm||0);
     db.prepare(`UPDATE final_products SET
       label=?,category=?,subtype=?,thickness=?,glass_type=?,color=?,tempered=?,edge=?,
-      process=?,paint_color=?,brand=?,origin=?,active=?,sort_order=?,spec_key=?,
+      process=?,paint_color=?,brand=?,origin=?,active=?,sort_order=?,spec_key=?,is_ujoor=?,
       general_price_sqm=COALESCE(?,general_price_sqm) WHERE id=?`).run(
       label, d.category||'زجاج', d.subtype||'', d.thickness||'',
       d.glass_type||'', d.color||'', d.tempered||'', d.edge||'',
       d.process||'', d.paint_color||'', d.brand||'', d.origin||'',
-      d.active===false?0:1, d.sort_order||0, key, price, id
+      d.active===false?0:1, d.sort_order||0, key, isUjoor(d)?1:0, price, id
     );
     res.json(db.prepare('SELECT * FROM final_products WHERE id=?').get(id));
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -3364,7 +3364,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <span id="fp-count" style="font-size:.68rem;color:var(--mu)"></span>
       </div>
       <div class="tw"><table>
-        <thead><tr><th data-i18n="Label">Label</th><th data-i18n="Serial">Serial</th><th data-i18n="Category">Category</th><th data-i18n="Thickness">Thickness</th><th data-i18n="Type">Type</th><th data-i18n="Color">Color</th><th data-i18n="Tempered">Tempered</th><th data-i18n="Edge">Edge</th><th data-i18n="Process">Process</th><th data-i18n="JOD/m²">JOD/m²</th><th data-i18n="Active">Active</th><th data-i18n="Actions">Actions</th></tr></thead>
+        <thead><tr><th data-i18n="Label">Label</th><th data-i18n="Serial">Serial</th><th data-i18n="أجور">أجور</th><th data-i18n="Category">Category</th><th data-i18n="Thickness">Thickness</th><th data-i18n="Type">Type</th><th data-i18n="Color">Color</th><th data-i18n="Tempered">Tempered</th><th data-i18n="Edge">Edge</th><th data-i18n="Process">Process</th><th data-i18n="JOD/m²">JOD/m²</th><th data-i18n="Active">Active</th><th data-i18n="Actions">Actions</th></tr></thead>
         <tbody id="fp-body"></tbody>
       </table></div>
     </div>
@@ -21178,7 +21178,7 @@ function renderFinalProdList(){
   if(cnt) cnt.textContent=list.length+' product'+(list.length===1?'':'s');
 
   if(!list.length){
-    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;color:var(--mu);padding:16px">'+(finalProducts.length?'No products match filters':'No final products yet. Add one or import from Excel.')+'</td></tr>';
+    tbody.innerHTML='<tr><td colspan="13" style="text-align:center;color:var(--mu);padding:16px">'+(finalProducts.length?'No products match filters':'No final products yet. Add one or import from Excel.')+'</td></tr>';
     return;
   }
   const cap=s=>s?(s.charAt(0).toUpperCase()+s.slice(1)):'—';
@@ -21186,6 +21186,7 @@ function renderFinalProdList(){
     <tr>
       <td><strong style="font-size:.8rem">${fp.label}</strong></td>
       <td class="mn" style="font-size:.7rem;color:var(--mu)">${fp.serial||'—'}</td>
+      <td class="mn" style="text-align:center;font-size:.62rem;font-weight:700;color:${fp.is_ujoor?'#e0a000':'var(--mu)'}">${fp.is_ujoor?'أجور':'—'}</td>
       <td class="mn">${fp.category||'—'}</td>
       <td class="mn">${fp.thickness||'—'}</td>
       <td class="mn">${fp.glass_type||'—'}</td>
@@ -21274,6 +21275,8 @@ function openFinalProdModal(id=null){
   }
   const priceInp=document.getElementById('fp-price');
   if(priceInp) priceInp.value=(fp.general_price_sqm!=null&&fp.general_price_sqm!=='')?fp.general_price_sqm:'';
+  const ujInp=document.getElementById('fp-ujoor');
+  if(ujInp) ujInp.checked=(fp.is_ujoor===1||fp.is_ujoor===true||fp.is_ujoor==='1');
 
   buildFpLabel();
   OM('m-finalproduct');
@@ -21284,7 +21287,8 @@ function buildFpLabel(){
   const parts=[get('fp-cat'),get('fp-subtype'),get('fp-thick'),get('fp-gtype'),
     get('fp-color'),get('fp-tempered'),get('fp-edge'),get('fp-process'),
     get('fp-paintcolor'),get('fp-brand'),get('fp-origin')];
-  const label=parts.filter(Boolean).join(' ');
+  const uj=document.getElementById('fp-ujoor')?.checked;
+  const label=(uj?'أجور ':'')+parts.filter(Boolean).join(' ');
   const el=document.getElementById('fp-label-preview');
   if(el) el.textContent=label||'—';
 }
@@ -21297,6 +21301,7 @@ async function saveFinalProd(){
     glass_type:get('fp-gtype'), color:get('fp-color'), tempered:get('fp-tempered'),
     edge:get('fp-edge'), process:get('fp-process'), paint_color:get('fp-paintcolor'),
     brand:get('fp-brand'), origin:get('fp-origin'),
+    is_ujoor:(document.getElementById('fp-ujoor')?.checked?1:0),
     general_price_sqm:(priceRaw===''?null:Number(priceRaw)), active:1
   };
   if(!data.category){alert('Category is required');return}
@@ -22223,6 +22228,10 @@ function doLogout(){
         <label class="lbl" data-i18n="General Price (JOD per m²) *">General Price (JOD per m²) *</label>
         <input type="number" id="fp-price" class="inp" min="0" step="0.01" placeholder="0.00" oninput="buildFpLabel()" style="font-weight:600">
       </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:rgba(255,180,0,.07);border:1px solid rgba(255,180,0,.25);border-radius:var(--r);cursor:pointer">
+        <input type="checkbox" id="fp-ujoor" onchange="buildFpLabel()" style="width:16px;height:16px">
+        <span style="font-size:.78rem;font-weight:600;color:var(--tx)">أجور <span style="font-weight:400;color:var(--mu);font-size:.66rem" data-i18n="(labor only — customer raw material)">(labor only — customer raw material)</span></span>
+      </label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="fg"><label class="lbl" data-i18n="Category (زجاج/مرايا)">Category (زجاج/مرايا)</label>
           <select id="fp-cat" class="inp" onchange="buildFpLabel()"></select></div>
