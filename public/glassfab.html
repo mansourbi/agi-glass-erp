@@ -22783,6 +22783,76 @@ function doLogout(){
 </script>
 
 
-
+<!-- SALES_REPORT v1 -->
+<script>
+(function(){
+  if(window.__salesReport) return; window.__salesReport=true;
+  const el=id=>document.getElementById(id);
+  function panelHTML(){return ''
+   +'<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">'
+   +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">GRANULARITY</div>'
+   +'<div id="sr-gran" style="display:inline-flex;border:1px solid rgba(255,255,255,.15);border-radius:6px;overflow:hidden">'
+   +'<button type="button" class="sr-g" data-g="day" style="padding:6px 14px;background:transparent;border:0;color:var(--tx);cursor:pointer;font-size:.8rem">Daily</button>'
+   +'<button type="button" class="sr-g" data-g="week" style="padding:6px 14px;background:transparent;border:0;color:var(--tx);cursor:pointer;font-size:.8rem">Weekly</button>'
+   +'<button type="button" class="sr-g on" data-g="month" style="padding:6px 14px;background:var(--a);border:0;color:#001;cursor:pointer;font-size:.8rem">Monthly</button>'
+   +'</div></div>'
+   +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">FROM</div><input type="date" id="sr-from" class="inp" style="width:150px"></div>'
+   +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">TO</div><input type="date" id="sr-to" class="inp" style="width:150px"></div>'
+   +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">CUSTOMER</div><select id="sr-cust" class="inp" style="width:180px"><option value="">All customers</option></select></div>'
+   +'<button class="btn bsm" id="sr-csv" style="margin-left:auto">⇓ CSV</button>'
+   +'</div>'
+   +'<div id="sr-cards" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px"></div>'
+   +'<div class="tw"><table id="sr-tbl" style="width:100%"><thead><tr>'
+   +'<th>Period</th><th>Customer</th><th>Thickness</th><th style="text-align:right">Sales (JOD)</th><th style="text-align:right">SQM</th><th style="text-align:right">Pieces</th><th style="text-align:right">Orders</th>'
+   +'</tr></thead><tbody id="sr-body"></tbody></table></div>'
+   +'<div style="font-size:.6rem;color:var(--mu);margin-top:8px">Sales = order subtotal (resolved price × billed area). Cancelled orders excluded.</div>';
+  }
+  function ensureUI(){
+    const pg=el('pg-reports'); if(!pg) return false; const rtabs=pg.querySelector('.rtabs'); if(!rtabs) return false;
+    if(!el('rtab-sales')){ const b=document.createElement('button'); b.id='rtab-sales'; b.className='rtab'; b.textContent='Sales'; b.setAttribute('onclick','showSalesReport()'); rtabs.appendChild(b); }
+    if(!el('rpanel-sales-rep')){ const p=document.createElement('div'); p.id='rpanel-sales-rep'; p.className='rpanel'; p.style.display='none'; p.innerHTML=panelHTML(); rtabs.parentElement.appendChild(p);
+      p.querySelectorAll('.sr-g').forEach(g=>g.addEventListener('click',function(){ p.querySelectorAll('.sr-g').forEach(x=>{x.classList.remove('on');x.style.background='transparent';x.style.color='var(--tx)';}); this.classList.add('on');this.style.background='var(--a)';this.style.color='#001'; renderSales(); }));
+      ['sr-cust','sr-from','sr-to'].forEach(i=>el(i)&&el(i).addEventListener('change',renderSales));
+      el('sr-csv').addEventListener('click',exportSalesCSV);
+    }
+    return true;
+  }
+  let _last=[];
+  function bucket(ds,g){ if(!ds) return '—'; const d=new Date(ds); if(isNaN(d)) return String(ds).slice(0,10); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+    if(g==='month') return y+'-'+m; if(g==='day') return y+'-'+m+'-'+day;
+    const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const dn=(dt.getUTCDay()+6)%7; dt.setUTCDate(dt.getUTCDate()-dn+3); const ft=new Date(Date.UTC(dt.getUTCFullYear(),0,4)); const wk=1+Math.round(((dt-ft)/864e5-3+((ft.getUTCDay()+6)%7))/7); return dt.getUTCFullYear()+'-W'+String(wk).padStart(2,'0'); }
+  async function loadData(){ const tok=localStorage.getItem('agi_token'); const H={Authorization:'Bearer '+tok};
+    const [orders,fps]=await Promise.all([ fetch('/api/orders?include_items=1',{headers:H}).then(r=>r.json()), fetch('/api/finalproducts',{headers:H}).then(r=>r.json()) ]);
+    const oarr=Array.isArray(orders)?orders:(orders.orders||orders.data||[]); const tk={}; (fps||[]).forEach(f=>tk[f.id]=f.thickness||'—'); return {oarr,tk}; }
+  async function renderSales(){
+    const body=el('sr-body'); if(!body) return; body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:14px">Loading…</td></tr>';
+    const {oarr,tk}=await loadData();
+    const sel=el('sr-cust'); if(sel&&sel.options.length<=1){ const seen={}; oarr.forEach(o=>{ if(o.customer_id&&!seen[o.customer_id]){seen[o.customer_id]=1; const op=document.createElement('option'); op.value=o.customer_id; op.textContent=o.customer_name||o.customer_code||('#'+o.customer_id); sel.appendChild(op);} }); }
+    const gEl=document.querySelector('#rpanel-sales-rep .sr-g.on'); const g=(gEl&&gEl.dataset.g)||'month';
+    const from=el('sr-from').value, to=el('sr-to').value, cf=el('sr-cust').value;
+    const rows={}; let TS=0,TQ=0,TP=0,TO=0;
+    oarr.forEach(o=>{ if(o.subtotal==null) return; if(o.cancelled_at||o.status==='cancelled') return; const ds=(o.date||'').slice(0,10);
+      if(from&&ds<from) return; if(to&&ds>to) return; if(cf&&String(o.customer_id)!==String(cf)) return;
+      const period=bucket(o.date,g), cust=o.customer_name||o.customer_code||('#'+o.customer_id), thick=tk[o.final_product_id]||'—';
+      const key=period+'|'+cust+'|'+thick; if(!rows[key]) rows[key]={period,cust,thick,sales:0,sqm:0,pieces:0,orders:0};
+      const R=rows[key]; R.sales+=o.subtotal||0; R.sqm+=(o.area_sqm!=null?o.area_sqm:(o.total_sqm||0)); R.pieces+=o.total_pieces||0; R.orders+=1;
+      TS+=o.subtotal||0; TQ+=(o.area_sqm||0); TP+=o.total_pieces||0; TO+=1; });
+    const list=Object.values(rows).sort((a,b)=> b.period.localeCompare(a.period)||a.cust.localeCompare(b.cust)||String(a.thick).localeCompare(String(b.thick),undefined,{numeric:true}));
+    _last=list; const fmt=n=>Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    body.innerHTML = list.length? list.map(r=>'<tr><td class="mn">'+r.period+'</td><td>'+r.cust+'</td><td class="mn">'+r.thick+'</td><td class="mn" style="text-align:right;font-weight:600;color:var(--a3)">'+fmt(r.sales)+'</td><td class="mn" style="text-align:right">'+fmt(r.sqm)+'</td><td class="mn" style="text-align:right">'+r.pieces+'</td><td class="mn" style="text-align:right">'+r.orders+'</td></tr>').join('')
+      +'<tr style="border-top:2px solid var(--a)"><td colspan="3" style="font-weight:700">TOTAL ('+list.length+' groups)</td><td class="mn" style="text-align:right;font-weight:700;color:var(--a3)">'+fmt(TS)+'</td><td class="mn" style="text-align:right;font-weight:700">'+fmt(TQ)+'</td><td class="mn" style="text-align:right;font-weight:700">'+TP+'</td><td class="mn" style="text-align:right;font-weight:700">'+TO+'</td></tr>'
+      : '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:14px">No sales in range</td></tr>';
+    const card=(l,v)=>'<div style="background:rgba(0,204,255,.06);border:1px solid rgba(0,204,255,.2);border-radius:8px;padding:8px 16px"><div style="font-size:.58rem;color:var(--mu)">'+l+'</div><div style="font-size:1.15rem;font-weight:700;color:var(--a)">'+v+'</div></div>';
+    el('sr-cards').innerHTML=card('TOTAL SALES (JOD)',fmt(TS))+card('SQM',fmt(TQ))+card('PIECES',TP)+card('ORDERS',TO);
+  }
+  function exportSalesCSV(){ const rows=_last||[]; const NL=String.fromCharCode(10); const head=['Period','Customer','Thickness','Sales_JOD','SQM','Pieces','Orders'];
+    const lines=[head.join(',')].concat(rows.map(r=>[r.period,'"'+String(r.cust).replace(/"/g,'""')+'"',r.thick,r.sales.toFixed(2),r.sqm.toFixed(2),r.pieces,r.orders].join(',')));
+    const blob=new Blob([lines.join(NL)],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='sales-report.csv'; document.body.appendChild(a); a.click(); a.remove(); }
+  window.showSalesReport=function(){ if(!ensureUI()) return; const pg=el('pg-reports'); pg.querySelectorAll('.rtab').forEach(t=>t.classList.remove('on')); el('rtab-sales').classList.add('on'); pg.querySelectorAll('.rpanel').forEach(p=>p.style.display='none'); el('rpanel-sales-rep').style.display='block'; renderSales(); };
+  window.renderSales=renderSales; window.exportSalesCSV=exportSalesCSV;
+  if(typeof window.showReport==='function'){ const _sr=window.showReport; window.showReport=function(){ const r=_sr.apply(this,arguments); const sp=el('rpanel-sales-rep'),sb=el('rtab-sales'); if(sp)sp.style.display='none'; if(sb)sb.classList.remove('on'); return r; }; }
+  ensureUI();
+})();
+</script>
 </body>
 </html>
