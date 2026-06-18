@@ -710,8 +710,7 @@ router.get('/payroll', requireAdmin, (req, res) => {
         const dt = (a.day_type || 'normal').toLowerCase();
         if (a.punch_in) {
           workedDates.add(a.date);
-          lateMins += +a.late_mins || 0;
-          if (dt === 'normal') daysWorked++; // weekend/holiday paid via +50% line, not base
+          if (dt === 'normal') { lateMins += +a.late_mins || 0; daysWorked++; } // base + lateness on normal days only; holiday/weekend never carry a lateness hit
         }
         if (worked > 0) {
           // Weekend/holiday: whole worked day (minus break if >5h) at +50%. NOT overtime.
@@ -1120,8 +1119,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
           const dt = (a.day_type || 'normal').toLowerCase();
           if (a.punch_in) {
             workedDates.add(a.date);
-            lateMins += +a.late_mins || 0;
-            if (dt === 'normal') daysWorked++;
+            if (dt === 'normal') { lateMins += +a.late_mins || 0; daysWorked++; } // lateness on normal days only
           }
           if (worked > 0) {
             const netWorked = worked - (worked > 300 ? breakMins : 0);

@@ -32,6 +32,7 @@ router.post('/', requireAdmin, (req, res) => {
     const { date, name } = req.body;
     if (!date || !name) return res.status(400).json({ error: 'date and name required' });
     const r = db.prepare(`INSERT INTO holidays (date, name) VALUES (?, ?)`).run(date, name.trim());
+    db.prepare("UPDATE attendance SET day_type='holiday' WHERE date=? AND day_type<>'weekend'").run(date);
     res.status(201).json(db.prepare('SELECT * FROM holidays WHERE id=?').get(r.lastInsertRowid));
   } catch(e) {
     if (e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Holiday already exists for this date' });
@@ -52,7 +53,9 @@ router.put('/:id', requireAdmin, (req, res) => {
 // DELETE /:id
 router.delete('/:id', requireAdmin, (req, res) => {
   try {
+    const h = db.prepare('SELECT date FROM holidays WHERE id=?').get(+req.params.id);
     db.prepare('DELETE FROM holidays WHERE id=?').run(+req.params.id);
+    if (h && h.date) db.prepare("UPDATE attendance SET day_type='normal' WHERE date=? AND day_type='holiday'").run(h.date);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
