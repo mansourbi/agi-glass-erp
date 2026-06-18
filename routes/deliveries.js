@@ -158,10 +158,12 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { customer_id, customer_code, customer_name } = req.body;
+    const { customer_id, customer_code, customer_name, force_new } = req.body;
     if (!customer_id || !customer_code) return res.status(400).json({ error: 'customer_id and customer_code required' });
-    const open = db.prepare("SELECT * FROM deliveries WHERE customer_id=? AND status='open'").get(+customer_id);
-    if (open) return res.json(parseDelivery(open));
+    if (!force_new) {
+      const open = db.prepare("SELECT * FROM deliveries WHERE customer_id=? AND status='open'").get(+customer_id);
+      if (open) return res.json(parseDelivery(open));
+    }
     const serial = genSerial(+customer_id, customer_code);
     const r = db.prepare(`INSERT INTO deliveries (serial,customer_id,customer_code,customer_name,status,created_by,created_by_name) VALUES (?,?,?,?,?,?,?)`)
       .run(serial, +customer_id, customer_code, customer_name||'', 'open', req.user.id, req.user.name);

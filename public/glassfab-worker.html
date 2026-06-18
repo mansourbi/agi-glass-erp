@@ -2017,7 +2017,7 @@ async function dlvAddPiece(piece){
     }
   }
   if(!_dlvDelivery){
-    try{ _dlvDelivery=await AGI.Deliveries.create({customer_id:customerId,customer_code:customerCode,customer_name:customerName}); }
+    try{ _dlvDelivery=await AGI.Deliveries.create({customer_id:customerId,customer_code:customerCode,customer_name:customerName,force_new:true}); }
     catch(e){ showFlash('&#9888;','Error','Could not create delivery: '+e.message,'var(--a2)'); return; }
   }
   try{
