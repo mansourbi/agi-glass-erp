@@ -22740,5 +22740,49 @@ function doLogout(){
     </div>
   </div>
 </div>
+
+<!-- ORDER_PRICING_UI v1 -->
+<script>
+(function(){
+  if(window.__orderPricingUI) return; window.__orderPricingUI=true;
+  try{ if(window.AGI&&AGI.Orders){
+    const _c=AGI.Orders.create; AGI.Orders.create=async function(){const r=await _c.apply(this,arguments); try{window.__lastOrderId=r&&r.id;}catch(e){} return r;};
+    const _u=AGI.Orders.update; AGI.Orders.update=async function(id){const r=await _u.apply(this,arguments); window.__lastOrderId=id; return r;};
+  }}catch(e){}
+  function injectUI(){
+    const ex=document.getElementById('o-extref'); if(!ex) return;
+    if(!document.getElementById('o-cop')){ const grid=ex.parentElement&&ex.parentElement.parentElement;
+      if(grid){ try{grid.style.gridTemplateColumns='1.1fr 1fr 1fr 1fr 1fr';}catch(e){}
+        const fg=document.createElement('div'); fg.className='fg';
+        fg.innerHTML='<label class="lbl">Customer Order Price (JOD/m²)</label><input type="number" id="o-cop" class="inp" min="0" step="0.01" placeholder="— customer/general —">';
+        grid.appendChild(fg);
+      } }
+    const M=document.getElementById('m-order'); const mb=(M&&M.querySelector('.mb'))||M;
+    if(mb&&!document.getElementById('o-price-panel')){ const p=document.createElement('div'); p.id='o-price-panel';
+      p.style.cssText='margin-top:12px;padding:10px 14px;background:rgba(0,204,255,.06);border:1px solid rgba(0,204,255,.25);border-radius:8px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-family:DM Mono,monospace';
+      p.innerHTML='<div style="font-size:.62rem;color:var(--mu)">ORDER VALUE</div><div>Price <b id="opp-price" style="color:var(--a)">—</b> <span id="opp-src" style="font-size:.58rem;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,.08)"></span></div><div>Area <b id="opp-area">—</b> m²</div><div style="margin-left:auto;font-size:1.05rem">= <b id="opp-val" style="color:var(--a3)">—</b> JOD</div>';
+      mb.appendChild(p);
+    }
+  }
+  let cache={key:null,price:null,source:null};
+  async function resolveBase(){ const fpId=+(document.getElementById('o-final-product')||{}).value||0; const custId=+(document.getElementById('o-cust')||{}).value||0; const key=custId+'|'+fpId;
+    if(cache.key===key) return cache; if(!fpId){ cache={key,price:null,source:'none'}; return cache; }
+    try{ const tok=localStorage.getItem('agi_token'); const r=await fetch('/api/customerprices/resolve?customer_id='+custId+'&final_product_id='+fpId,{headers:{Authorization:'Bearer '+tok}}).then(x=>x.json());
+      cache={key,price:(r&&r.price_sqm!=null)?r.price_sqm:null,source:(r&&r.source)||'none'}; }catch(e){ cache={key,price:null,source:'none'}; } return cache; }
+  function area(){ let a=0; document.querySelectorAll('#m-order [id^="oiw-"]').forEach(function(w){ var n=w.id.split('-')[1]; var W=+(document.getElementById('oiw-'+n)||{}).value||0,H=+(document.getElementById('oih-'+n)||{}).value||0,Q=+(document.getElementById('oiq-'+n)||{}).value||0; a+=(W/1000)*(H/1000)*Q; }); return Math.ceil(a*100)/100; }
+  async function recompute(){ injectUI(); var pe=document.getElementById('opp-price'); if(!pe) return; const base=await resolveBase(); const cop=parseFloat((document.getElementById('o-cop')||{}).value); var price,src;
+    if(!isNaN(cop)&&cop>0){price=cop;src='order';} else {price=base.price;src=base.source;} const A=area(); const val=(price!=null)?Math.round(price*A*100)/100:null;
+    pe.textContent=(price!=null)?price:'—'; document.getElementById('opp-src').textContent=src||''; document.getElementById('opp-area').textContent=A.toFixed(2); document.getElementById('opp-val').textContent=(val!=null)?val.toFixed(2):'—'; }
+  window.__recomputeOrderValue=recompute;
+  document.addEventListener('input',function(e){ var id=e.target&&e.target.id; if(id==='o-cop'||/^oi[whq]-/.test(id)) recompute(); });
+  document.addEventListener('change',function(e){ var id=e.target&&e.target.id; if(id==='o-cust'||id==='o-final-product'){cache.key=null;recompute();} });
+  if(typeof window.openOrderModal==='function'){ const _o=window.openOrderModal; window.openOrderModal=function(id){ const r=_o.apply(this,arguments); window.__ordEditId=(id!=null&&id!=='')?id:null; setTimeout(async function(){ injectUI(); try{ const ci=document.getElementById('o-cop'); if(window.__ordEditId&&ci){ const tok=localStorage.getItem('agi_token'); const s=await fetch('/api/orderpricing/'+window.__ordEditId,{headers:{Authorization:'Bearer '+tok}}).then(x=>x.json()); ci.value=(s&&s.customer_order_price!=null)?s.customer_order_price:''; } else if(ci){ ci.value=''; } }catch(e){} recompute(); },80); return r; }; }
+  if(typeof window.addOI==='function'){ const _a=window.addOI; window.addOI=function(){ const r=_a.apply(this,arguments); setTimeout(recompute,30); return r; }; }
+  if(typeof window.saveOrder==='function'){ const _s=window.saveOrder; window.saveOrder=async function(){ const r=await _s.apply(this,arguments); try{ const cop=parseFloat((document.getElementById('o-cop')||{}).value); const copVal=(!isNaN(cop)&&cop>0)?cop:null; const oid=window.__lastOrderId; if(oid){ const tok=localStorage.getItem('agi_token'); await fetch('/api/orderpricing/'+oid,{method:'POST',headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({customer_order_price:copVal})}); } }catch(e){ console.warn('[orderPricing] persist skipped:',e); } return r; }; }
+})();
+</script>
+
+
+
 </body>
 </html>
