@@ -22760,7 +22760,7 @@ function doLogout(){
     const M=document.getElementById('m-order'); const mb=(M&&M.querySelector('.mb'))||M;
     if(mb&&!document.getElementById('o-price-panel')){ const p=document.createElement('div'); p.id='o-price-panel';
       p.style.cssText='margin-top:12px;padding:10px 14px;background:rgba(0,204,255,.06);border:1px solid rgba(0,204,255,.25);border-radius:8px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-family:DM Mono,monospace';
-      p.innerHTML='<div style="font-size:.62rem;color:var(--mu)">ORDER VALUE</div><div>Price <b id="opp-price" style="color:var(--a)">—</b> <span id="opp-src" style="font-size:.58rem;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,.08)"></span></div><div>Area <b id="opp-area">—</b> m²</div><div style="margin-left:auto;font-size:1.05rem">= <b id="opp-val" style="color:var(--a3)">—</b> JOD</div>';
+      p.innerHTML='<div style="font-size:.62rem;color:var(--mu)">ORDER SUMMARY</div><div>Pieces <b id="opp-pcs">-</b></div><div>Area <b id="opp-area">-</b> m&sup2;</div><div>Linear <b id="opp-lin">-</b> m</div><div>Price <b id="opp-price" style="color:var(--a)">-</b> <span id="opp-src" style="font-size:.58rem;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,.08)"></span> /m&sup2;</div><div style="margin-left:auto;font-size:1.05rem">= <b id="opp-val" style="color:var(--a3)">-</b> JOD</div>';
       mb.appendChild(p);
     }
   }
@@ -22772,7 +22772,7 @@ function doLogout(){
   function area(){ let a=0; document.querySelectorAll('#m-order [id^="oiw-"]').forEach(function(w){ var n=w.id.split('-')[1]; var W=+(document.getElementById('oiw-'+n)||{}).value||0,H=+(document.getElementById('oih-'+n)||{}).value||0,Q=+(document.getElementById('oiq-'+n)||{}).value||0; a+=(W/1000)*(H/1000)*Q; }); return Math.ceil(a*100)/100; }
   async function recompute(){ injectUI(); var pe=document.getElementById('opp-price'); if(!pe) return; const base=await resolveBase(); const cop=parseFloat((document.getElementById('o-cop')||{}).value); var price,src;
     if(!isNaN(cop)&&cop>0){price=cop;src='order';} else {price=base.price;src=base.source;} const A=area(); const val=(price!=null)?Math.round(price*A*100)/100:null;
-    pe.textContent=(price!=null)?price:'—'; document.getElementById('opp-src').textContent=src||''; document.getElementById('opp-area').textContent=A.toFixed(2); document.getElementById('opp-val').textContent=(val!=null)?val.toFixed(2):'—'; }
+    pe.textContent=(price!=null)?price:'—'; document.getElementById('opp-src').textContent=src||''; document.getElementById('opp-area').textContent=A.toFixed(2); var __pcs=0; document.querySelectorAll('#m-order [id^="oiq-"]').forEach(function(q){ __pcs+=+q.value||0; }); var __lin=0; document.querySelectorAll('#m-order [id^="oiw-"]').forEach(function(w){ var n=w.id.split('-')[1]; var W=+(document.getElementById('oiw-'+n)||{}).value||0,H=+(document.getElementById('oih-'+n)||{}).value||0,Q=+(document.getElementById('oiq-'+n)||{}).value||0; __lin+=(2*(W+H)/1000)*Q; }); var __pe2=document.getElementById('opp-pcs'); if(__pe2)__pe2.textContent=__pcs; var __le=document.getElementById('opp-lin'); if(__le)__le.textContent=__lin.toFixed(2); document.getElementById('opp-val').textContent=(val!=null)?val.toFixed(2):'—'; }
   window.__recomputeOrderValue=recompute;
   document.addEventListener('input',function(e){ var id=e.target&&e.target.id; if(id==='o-cop'||/^oi[whq]-/.test(id)) recompute(); });
   document.addEventListener('change',function(e){ var id=e.target&&e.target.id; if(id==='o-cust'||id==='o-final-product'){cache.key=null;recompute();} });
@@ -22854,5 +22854,131 @@ function doLogout(){
   ensureUI();
 })();
 </script>
+
+<!-- ORDER_INPUT_GUARD v1 -->
+<script>
+(function(){
+  if(window.__ordInputGuard) return; window.__ordInputGuard=true;
+  var M='#m-order';
+  document.addEventListener('wheel',function(e){
+    var t=e.target;
+    if(!t||t.tagName!=='INPUT'||t.type!=='number') return;
+    if(t!==document.activeElement) return;
+    if(!t.closest||!t.closest(M)) return;
+    t.blur();
+  },{passive:true,capture:true});
+  function guarded(t){
+    if(!t||!t.closest||!t.closest(M)) return false;
+    if(t.tagName==='TEXTAREA') return true;
+    if(t.tagName==='INPUT'&&t.type!=='file') return true;
+    return false;
+  }
+  document.addEventListener('dragover',function(e){
+    if(!guarded(e.target)) return;
+    if(e.dataTransfer) e.dataTransfer.dropEffect='none';
+  },true);
+  document.addEventListener('drop',function(e){
+    if(!guarded(e.target)) return;
+    e.preventDefault(); e.stopPropagation();
+  },true);
+})();
+</script>
+
+<!-- ORDER_KBD_ENH v3 -->
+<script>
+(function(){
+  if(window.__ordKbdEnh) return; window.__ordKbdEnh=true;
+  function makeSearchable(selectId, opts){
+    opts = opts || {};
+    var sel = document.getElementById(selectId);
+    if(!sel || sel.__ss) return;
+    sel.__ss = true; sel.style.display='none';
+    var wrap=document.createElement('div'); wrap.style.position='relative';
+    var inp=document.createElement('input');
+    inp.type='text'; inp.autocomplete='off'; inp.id=selectId+'-search';
+    inp.className=sel.className||'inp';
+    inp.style.cssText='font-size:.76rem;width:100%;cursor:pointer;'+(opts.borderColor?('border-color:'+opts.borderColor+';'):'');
+    inp.placeholder=opts.placeholder||'Type to search...';
+    var list=document.createElement('div');
+    list.style.cssText='display:none;position:absolute;z-index:9999;left:0;right:0;top:100%;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);max-height:240px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.appendChild(sel); wrap.appendChild(inp); wrap.appendChild(list);
+    var hi=-1;
+    function curText(){ var o=sel.options[sel.selectedIndex]; return (o&&o.value)?o.textContent:''; }
+    function items(){ return list.querySelectorAll('.__ssopt'); }
+    function paint(){
+      var els=items(),j;
+      for(j=0;j<els.length;j++){
+        if(j===hi){ els[j].style.background='rgba(0,204,255,.22)'; els[j].style.color='var(--a)'; }
+        else if(els[j].getAttribute('data-val')===sel.value){ els[j].style.background='rgba(0,204,255,.10)'; els[j].style.color=''; }
+        else { els[j].style.background=''; els[j].style.color=''; }
+      }
+    }
+    function highlight(n){ var els=items(); if(!els.length){ hi=-1; return; } hi=Math.max(0,Math.min(n,els.length-1)); paint(); if(els[hi].scrollIntoView) els[hi].scrollIntoView({block:'nearest'}); }
+    function render(){
+      var q=(inp.value||'').toLowerCase(), html='', i, o;
+      for(i=0;i<sel.options.length;i++){
+        o=sel.options[i];
+        if(!o.value && !opts.includeEmpty) continue;
+        if(q && o.textContent.toLowerCase().indexOf(q)<0) continue;
+        html+='<div class="__ssopt" data-val="'+String(o.value).replace(/"/g,'&quot;')+'" style="padding:7px 14px;font-size:.76rem;cursor:pointer">'+o.textContent+'</div>';
+      }
+      if(!html) html='<div style="padding:10px 14px;font-size:.75rem;color:var(--mu)">No match</div>';
+      list.innerHTML=html;
+      var els=items(),k;
+      for(k=0;k<els.length;k++){ (function(el,ki){
+        el.onmouseover=function(){ hi=ki; paint(); };
+        el.onmousedown=function(e){ e.preventDefault(); choose(el.getAttribute('data-val')); };
+      })(els[k],k); }
+    }
+    function open(){ render(); list.style.display=''; highlight(0); }
+    function close(){ list.style.display='none'; inp.value=curText(); }
+    function choose(val){ sel.value=val; inp.value=curText(); list.style.display='none'; sel.dispatchEvent(new Event('change',{bubbles:true})); }
+    inp.addEventListener('focus', open);
+    inp.addEventListener('input', open);
+    inp.addEventListener('blur', function(){ setTimeout(close,180); });
+    inp.addEventListener('keydown', function(e){
+      var k=e.key, kc=e.keyCode;
+      if(k==='ArrowDown'||kc===40){ e.preventDefault(); if(list.style.display==='none'){ open(); } else { highlight(hi+1); } }
+      else if(k==='ArrowUp'||kc===38){ e.preventDefault(); if(list.style.display==='none'){ open(); } else { highlight(hi-1); } }
+      else if(k==='Enter'||kc===13){ var els=items(); if(list.style.display!=='none' && els.length){ e.preventDefault(); var pick=(hi>=0&&hi<els.length)?els[hi]:els[0]; choose(pick.getAttribute('data-val')); } }
+      else if(k==='Escape'||kc===27){ close(); }
+    });
+    sel.__ssSync=function(){ inp.value=curText(); };
+  }
+  function setGridEntry(){ var first=document.querySelector('#oi-list>div[id^="oi-"] input[type="text"]'); if(first) first.setAttribute('tabindex','0'); }
+  function enhance(){
+    try{
+      makeSearchable('o-cust', {placeholder:'Search customer...', borderColor:'var(--a)'});
+      makeSearchable('o-ext-process', {placeholder:'Search external process...', includeEmpty:true});
+      var cs=document.getElementById('o-cust'); if(cs&&cs.__ssSync) cs.__ssSync();
+      var es=document.getElementById('o-ext-process'); if(es&&es.__ssSync) es.__ssSync();
+      var chips=document.querySelectorAll('#bulk-procs .chip'), i;
+      for(i=0;i<chips.length;i++){ (function(ch){
+        ch.setAttribute('tabindex','0');
+        if(!ch.__kbd){ ch.__kbd=true; ch.addEventListener('keydown', function(e){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); ch.click(); } }); }
+      })(chips[i]); }
+      setGridEntry();
+      var ci=document.getElementById('o-cust-search'); if(ci) setTimeout(function(){ try{ ci.focus(); if(ci.select) ci.select(); }catch(e){} }, 60);
+    }catch(e){ if(window.console) console.warn('[ordKbdEnh]', e); }
+  }
+  function wrapFn(name, after){
+    if(typeof window[name]==='function' && !window['__wrap_'+name]){
+      window['__wrap_'+name]=true;
+      var orig=window[name];
+      window[name]=function(){ var r=orig.apply(this,arguments); try{ after(); }catch(e){} return r; };
+    }
+  }
+  wrapFn('addOI', function(){ setTimeout(setGridEntry,0); });
+  wrapFn('removeOIRow', function(){ setTimeout(setGridEntry,0); });
+  wrapFn('openOrderModal', function(){ setTimeout(enhance,120); });
+})();
+</script>
+
+<!-- ORDER_MODAL_LAYOUT v1 -->
+<style>
+#m-order .mdl{ max-width:1100px; }
+#m-order .mb > .frow:first-child{ align-items:end; }
+</style>
 </body>
 </html>
