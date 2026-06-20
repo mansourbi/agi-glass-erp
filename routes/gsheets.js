@@ -138,7 +138,7 @@ async function writeToSheet(sheets, spreadsheetId, rows) {
     await sheets.spreadsheets.batchUpdate({ spreadsheetId, resource:{ requests:deleteRequests } });
   }
 
-  await sheets.spreadsheets.values.clear({ spreadsheetId, range: TAB_NAME+'!A:ZZ' });
+  await sheets.spreadsheets.values.clear({ spreadsheetId, range: TAB_NAME+'!A:Q' });
   await sheets.spreadsheets.values.update({
     spreadsheetId, range: TAB_NAME+'!A1',
     valueInputOption: 'RAW', resource: { values: rows }
