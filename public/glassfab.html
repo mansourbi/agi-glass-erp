@@ -10688,6 +10688,9 @@ function renderCutLabels(){
     const ord = (typeof orders!=='undefined'&&orderId) ? orders.find(o=>o.id===orderId)||{} : {};
     const cut_w = item.cutW||item.cut_w||item.w, cut_h=item.cutH||item.cut_h||item.h;
     const hasComp = cut_w!=item.w || cut_h!=item.h;
+    const _ep = (typeof extProcesses!=='undefined' && ord.external_process_id) ? (extProcesses.find(function(p){return p.id===ord.external_process_id;})||null) : null;
+    const epName = _ep ? _ep.name : '';
+    const epHtml = epName ? ('<div class="lbl-procs lbl-ext" style="font-weight:700;border-top:1px solid #ccc;margin-top:0.3mm;padding-top:0.3mm">EXT: '+epName+'</div>') : '';
     let qrText = '';
     qrText += 'PIECE ID:' + item.uid + '\n';
     if(ord.extref) qrText += 'REF:' + ord.extref + '\n';
@@ -10736,6 +10739,7 @@ function renderCutLabels(){
           ${ord.notes?`<div class="lbl-procs" style="border-top:1px solid #eee;margin-top:0.3mm;padding-top:0.3mm">${ord.notes}</div>`:''}
           ${ord.extref?`<div class="lbl-procs">${ord.extref}</div>`:''}
           ${descHtml}
+          ${epHtml}
         </div>
       </div>`;
     if(returnCard){
@@ -11399,7 +11403,8 @@ let _prodV2From = null;       // ISO date 'YYYY-MM-DD'
 let _prodV2To   = null;
 
 function _prodV2FormatDate(d){
-  return d.toISOString().slice(0,10);
+  const y=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return y+'-'+mm+'-'+dd;
 }
 function _prodV2MondayOf(d){
   const date = new Date(d);
@@ -11741,7 +11746,7 @@ let _hourlyChart = null;     // Chart.js instance
 let _hourlyRawData = null;   // cached fetch for current period
 let _hourlyWorkers = [];     // unique workers seen in current data
 
-function _hourlyFormatDate(d){ return d.toISOString().slice(0,10); }
+function _hourlyFormatDate(d){ const y=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'); return y+'-'+mm+'-'+dd; }
 function _hourlyMondayOf(d){
   const date = new Date(d);
   const day = date.getDay();
@@ -12647,7 +12652,7 @@ function exportTableCSV(type){
   if(baseType==='orders'){
     const header=['Order #','Customer','Customer Code','Ext Ref','Date','Status',
       'Classification','Final Product','Ext. Process','Thickness','Type','Color',
-      'SQM','Pieces','Lin m (m)','Delivery Orders','Completed At','Completed By','Cancelled At','Cancelled By','Cancel Reason','Notes'];
+      'SQM','Pieces','Lin m (m)','Price/m2 (JOD)','Price Source','Cust. Order Price','Total Price (JOD)','Delivery Orders','Completed At','Completed By','Cancelled At','Cancelled By','Cancel Reason','Notes'];
     const rows=[header,...orders.map(o=>{
       const cu=cMap[o.customerId]||{};
       const m=getOrderMetrics(o);
@@ -12668,9 +12673,12 @@ function exportTableCSV(type){
       const _doSet=new Set();
       _pUids.forEach(uid=>{ const _dm=_pieceDeliveryMap[uid]; if(_dm&&_dm.serial) _doSet.add(_dm.serial); });
       const doList=[..._doSet].join(', ');
+      const _px=(o.price_sqm!=null&&o.price_sqm!=='')?+o.price_sqm:((+o.area_sqm>0&&o.subtotal!=null)?o.subtotal/o.area_sqm:null);
+      const _tot=(o.subtotal!=null&&o.subtotal!=='')?+o.subtotal:((_px!=null)?_px*m.sqm:null);
+      const _cop=(o.customer_order_price!=null&&o.customer_order_price!=='')?+o.customer_order_price:'';
       return [o.num,cu.name||'',cu.code||'',o.extref||'',o.date,o.status,
         cls,fpLabel,epName,m.thicks,m.types,m.colors,
-        +m.sqm.toFixed(3),m.pcs,+m.lm.toFixed(2),
+        +m.sqm.toFixed(3),m.pcs,+m.lm.toFixed(2),(_px!=null)?+_px.toFixed(3):'',o.price_source||'',_cop,(_tot!=null)?+_tot.toFixed(2):'',
         doList,compAt,compBy,cancAt,cancBy,cancReason,o.notes||''];
     })];
     if(isExcel) downloadExcel(rows,`orders-${dt}.xlsx`,'Orders');
@@ -12690,7 +12698,7 @@ function exportTableCSV(type){
   else if(baseType==='pieces'){
     // All pieces across all orders — one row per piece UID
     const header=['Piece UID','Order #','Ext Ref','Customer','Final Product','Ext. Process',
-      'Description','Width','Height','Thickness','Type','Color','SQM',
+      'Description','Width','Height','Thickness','Type','Color','SQM','Price/m2 (JOD)','Piece Value (JOD)',
       'Processes','Bevel cm','Drills','Cut-outs','Order Status','Delivery Order'];
     const pieceRows=[];
     orders.forEach(o=>{
@@ -12700,6 +12708,7 @@ function exportTableCSV(type){
       const epId=o.external_process_id||o.externalProcessId||null;
       const epObj=(extProcesses||[]).find(p=>p.id===epId);
       const epName=epObj?epObj.name:'';
+      const _opx=(o.price_sqm!=null&&o.price_sqm!=='')?+o.price_sqm:((+o.area_sqm>0&&o.subtotal!=null)?o.subtotal/o.area_sqm:null);
       (o.items||[]).forEach(item=>{
         const pieceSqm=+(item.w*item.h/1e6).toFixed(4);
         (item.pieceUIDs||item.piece_uids||[]).forEach(uid=>{
@@ -12707,7 +12716,7 @@ function exportTableCSV(type){
           const doSerial=_dm?_dm.serial:'';
           pieceRows.push([uid,o.num,o.extref||'',cu.name||'',fpLabel,epName,
             item.code||'',item.w,item.h,item.thickness,
-            item.glassType||'glass',item.color||'clear',pieceSqm,
+            item.glassType||'glass',item.color||'clear',pieceSqm,(_opx!=null)?+_opx.toFixed(3):'',(_opx!=null)?+(_opx*pieceSqm).toFixed(3):'',
             (item.processes||[]).join(', '),item.bevelMM||0,
             item.drillCount||0,item.cutoutCount||0,o.status,doSerial]);
         });
