@@ -22792,10 +22792,10 @@ function doLogout(){
 </script>
 
 
-<!-- SALES_REPORT v1 -->
+<!-- SALES_REPORT v2 (classification filter) -->
 <script>
 (function(){
-  if(window.__salesReport) return; window.__salesReport=true;
+  if(window.__salesReport) return; window.__salesReport=true; const SR_CLASSES=['normal','remake_agi','remake_cust','sample','warranty'], SR_DEFAULT_OFF=['remake_agi','sample'];
   const el=id=>document.getElementById(id);
   function panelHTML(){return ''
    +'<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">'
@@ -22808,6 +22808,7 @@ function doLogout(){
    +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">FROM</div><input type="date" id="sr-from" class="inp" style="width:150px"></div>'
    +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">TO</div><input type="date" id="sr-to" class="inp" style="width:150px"></div>'
    +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">CUSTOMER</div><select id="sr-cust" class="inp" style="width:180px"><option value="">All customers</option></select></div>'
+   +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">CLASSIFICATION</div><div id="sr-cls-wrap" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:5px 8px;border:1px solid rgba(255,255,255,.15);border-radius:6px;max-width:440px">'+SR_CLASSES.map(function(k){var meta=(window.ORDER_TYPE_META&&window.ORDER_TYPE_META[k])||{};var lbl=meta.label||k;var off=SR_DEFAULT_OFF.indexOf(k)>=0;return '<label style="display:inline-flex;align-items:center;gap:3px;font-size:.7rem;color:var(--tx);cursor:pointer"><input type="checkbox" class="sr-cls" id="sr-cls-'+k+'" value="'+k+'"'+(off?'':' checked')+'>'+lbl+'</label>';}).join('')+'</div></div>'
    +'<button class="btn bsm" id="sr-csv" style="margin-left:auto">⇓ CSV</button>'
    +'</div>'
    +'<div id="sr-cards" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px"></div>'
@@ -22822,6 +22823,7 @@ function doLogout(){
     if(!el('rpanel-sales-rep')){ const p=document.createElement('div'); p.id='rpanel-sales-rep'; p.className='rpanel'; p.style.display='none'; p.innerHTML=panelHTML(); rtabs.parentElement.appendChild(p);
       p.querySelectorAll('.sr-g').forEach(g=>g.addEventListener('click',function(){ p.querySelectorAll('.sr-g').forEach(x=>{x.classList.remove('on');x.style.background='transparent';x.style.color='var(--tx)';}); this.classList.add('on');this.style.background='var(--a)';this.style.color='#001'; renderSales(); }));
       ['sr-cust','sr-from','sr-to'].forEach(i=>el(i)&&el(i).addEventListener('change',renderSales));
+      p.querySelectorAll('.sr-cls').forEach(c=>c.addEventListener('change',renderSales));
       el('sr-csv').addEventListener('click',exportSalesCSV);
     }
     return true;
@@ -22840,7 +22842,7 @@ function doLogout(){
     const gEl=document.querySelector('#rpanel-sales-rep .sr-g.on'); const g=(gEl&&gEl.dataset.g)||'month';
     const from=el('sr-from').value, to=el('sr-to').value, cf=el('sr-cust').value;
     const rows={}; let TS=0,TQ=0,TP=0,TO=0;
-    oarr.forEach(o=>{ if(o.subtotal==null) return; if(o.cancelled_at||o.status==='cancelled') return; const ds=(o.date||'').slice(0,10);
+    oarr.forEach(o=>{ if(o.subtotal==null) return; if(o.cancelled_at||o.status==='cancelled') return; var _ot=o.order_type||o.orderType||'normal'; var _cb=document.getElementById('sr-cls-'+_ot); if(_cb&&!_cb.checked) return; const ds=(o.date||'').slice(0,10);
       if(from&&ds<from) return; if(to&&ds>to) return; if(cf&&String(o.customer_id)!==String(cf)) return;
       const period=bucket(o.date,g), cust=o.customer_name||o.customer_code||('#'+o.customer_id), thick=tk[o.final_product_id]||'—';
       const key=period+'|'+cust+'|'+thick; if(!rows[key]) rows[key]={period,cust,thick,sales:0,sqm:0,pieces:0,orders:0};
