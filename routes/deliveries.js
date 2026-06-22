@@ -62,8 +62,12 @@ try { db.prepare('ALTER TABLE deliveries ADD COLUMN external_process_name TEXT')
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function genSerial(customerId, customerCode) {
-  const n = db.prepare("SELECT COUNT(*) AS c FROM deliveries WHERE customer_id=?").get(customerId).c + 1;
-  return customerCode + '-D' + n;
+  const rows = db.prepare("SELECT serial FROM deliveries WHERE customer_id=?").all(customerId);
+  let max = 0;
+  for (const r of rows){ const m = /-D(\d+)$/.exec(r.serial||''); if (m){ const v = +m[1]; if (v > max) max = v; } }
+  let n = max + 1, serial = customerCode + '-D' + n;
+  while (db.prepare("SELECT 1 FROM deliveries WHERE serial=?").get(serial)){ n++; serial = customerCode + '-D' + n; }
+  return serial;
 }
 function genPieceCode(deliveryId, deliverySerial) {
   const n = db.prepare("SELECT COUNT(*) AS c FROM delivery_items WHERE delivery_id=?").get(deliveryId).c + 1;
