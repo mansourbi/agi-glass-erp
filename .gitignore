@@ -14,3 +14,13 @@ scripts/seed-translations-tracking.js
 scripts/seed-translations-editor.js
 scripts/seed-translations-v2.js
 scripts/seed-translations-v3.js
+
+# Archived one-time ops/diagnostic scripts
+_archive/
+
+# Local backups and one-time ops scripts
+_db_backups/
+_public_backups/
+_route_backups/
+move_opt100.js
+public/patch_label_*.js
