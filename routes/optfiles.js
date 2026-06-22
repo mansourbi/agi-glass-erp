@@ -147,6 +147,13 @@ router.delete('/:id', (req, res) => {
       // 3. raw_sheet_transactions — return stock to inventory
       db.prepare(`DELETE FROM raw_sheet_transactions WHERE ref_id=? AND type='optimization_use'`).run(id);
 
+      // 3b. slot_inventory -- return slotted stock (previously leaked on opt delete)
+      db.prepare("DELETE FROM slot_inventory WHERE ref_type='optimization' AND ref_id=?").run(id);
+
+      // 3c. cutting movements + their slot lines for this opt
+      db.prepare('DELETE FROM cutting_movement_slots WHERE movement_id IN (SELECT id FROM cutting_movements WHERE opt_file_id=?)').run(id);
+      db.prepare('DELETE FROM cutting_movements WHERE opt_file_id=?').run(id);
+
       // 4. Finally, the opt_files row itself
       db.prepare('DELETE FROM opt_files WHERE id=?').run(id);
     });
