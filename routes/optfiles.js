@@ -73,6 +73,18 @@ router.put('/:id', (req, res) => {
       JSON.stringify(order_ids||[]),
       status||'pending', +req.params.id
     );
+    // Decision B: re-evaluate cutting status vs recorded movements (only if movements exist)
+    try{
+      const _mv = db.prepare("SELECT COALESCE(SUM(sheets_total),0) AS done, COUNT(*) AS c FROM cutting_movements WHERE opt_file_id=? AND kind='cut'").get(+req.params.id);
+      if(_mv && _mv.c > 0){
+        const _cur = db.prepare("SELECT total_sheets, results FROM opt_files WHERE id=?").get(+req.params.id);
+        let _tgt = _cur.total_sheets;
+        if(_tgt==null){ try{ const _rr=_cur.results?JSON.parse(_cur.results):null; const _arr=Array.isArray(_rr)?_rr:(_rr&&_rr.results)||[]; _tgt=_arr.length||0; }catch(e){ _tgt=0; } }
+        let _st; if(_tgt>0 && _mv.done>=_tgt) _st='done'; else if(_mv.done>0) _st='in_progress'; else _st='pending';
+        if(_st==='done') db.prepare("UPDATE opt_files SET status='done', completed_at=COALESCE(completed_at, datetime('now','localtime')) WHERE id=?").run(+req.params.id);
+        else db.prepare("UPDATE opt_files SET status=?, completed_at=NULL WHERE id=?").run(_st, +req.params.id);
+      }
+    }catch(e){ console.warn('[opt cut-reeval]', e.message); }
     const r2 = db.prepare('SELECT * FROM opt_files WHERE id=?').get(+req.params.id);
     res.json({
       ...r2,

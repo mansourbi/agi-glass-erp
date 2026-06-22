@@ -1374,6 +1374,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="rtab" onclick="showReport('workers-rep')" data-i18n="Workers">Workers</button>
     <button class="rtab" onclick="showReport('attendance-rep')" data-i18n="Attendance">Attendance</button>
     <button class="rtab" onclick="showReport('fp-rep')" data-i18n="Final Products">Final Products</button>
+    <button class="rtab" onclick="showReport('cutting-rep')">&#9986; Cutting</button>
     <button class="rtab" onclick="showReport('vac-rep')">&#9956; Vacation Balances</button>
   </div>
   <div id="rpanel-productivity" class="rpanel on">
@@ -1544,6 +1545,25 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <thead><tr><th data-i18n="Final Product">Final Product</th><th data-i18n="Category">Category</th><th data-i18n="Orders">Orders</th><th data-i18n="Total Pieces">Total Pieces</th><th data-i18n="Total SQM">Total SQM</th></tr></thead>
         <tbody id="rep-fp-body"></tbody>
       </table></div>
+    </div>
+  </div>
+  <div id="rpanel-cutting-rep" class="rpanel">
+    <div class="card">
+      <div style="padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn bg bsm" onclick="cutRepSetPeriod('week')" style="font-size:.66rem">This Week</button>
+        <button class="btn bg bsm" onclick="cutRepSetPeriod('month')" style="font-size:.66rem">This Month</button>
+        <button class="btn bg bsm" onclick="cutRepSetPeriod('lastmonth')" style="font-size:.66rem">Last Month</button>
+        <button class="btn bg bsm" onclick="cutRepSetPeriod('all')" style="font-size:.66rem">All</button>
+        <span style="font-size:.65rem;color:var(--mu);letter-spacing:1px">FROM</span>
+        <input type="date" id="cutrep-from" class="inp" style="padding:4px 8px;font-size:.72rem;width:140px" onchange="renderCuttingReport()">
+        <span style="font-size:.65rem;color:var(--mu)">TO</span>
+        <input type="date" id="cutrep-to" class="inp" style="padding:4px 8px;font-size:.72rem;width:140px" onchange="renderCuttingReport()">
+        <button class="btn ba bsm" onclick="renderCuttingReport()">&#9654; Generate</button>
+        <button class="btn bg bsm" onclick="exportCuttingReportExcel()">&#11015; CSV</button>
+      </div>
+      <div id="cutrep-totals" style="padding:0 14px 10px;display:flex;gap:18px;flex-wrap:wrap"></div>
+      <div id="cutrep-chart" style="padding:0 14px 8px"></div>
+      <div id="cutrep-body" style="overflow:auto;max-height:calc(100vh - 380px);padding:0 14px 14px"></div>
     </div>
   </div>
   <div id="rpanel-vac-rep" class="rpanel">
@@ -9556,6 +9576,187 @@ async function loadOptFile(id){
   showOptToast('Loaded: '+f.name);
 }
 
+async function runOptCompletion(id, opts){
+  opts = opts||{};
+  const createRemnants = !!opts.createRemnants;
+  const f = optFiles.find(x=>x.id===id);
+  if(!f) return;
+  const assignmentsForThisOpt = _sessionRemAssignments.filter(a=>true);
+  for(const a of assignmentsForThisOpt){
+    try{ await AGI.Remnants.use(a.remId,{order_num:a.orderNum||null,piece_uid:a.pieceUid,used_at:new Date().toISOString().slice(0,10)}); }
+    catch(e){ console.warn('remnant use record:',e.message); }
+  }
+  if(assignmentsForThisOpt.length) _sessionRemAssignments=[];
+  if(createRemnants){
+    try{
+      let results = f.results||null;
+      let rawSheetData = f.rawSheet||f.raw_sheet_snap||null;
+      if(!results){
+        const fresh = await AGI.OptFiles.get(id);
+        results = fresh&&fresh.results ? fresh.results : null;
+        rawSheetData = fresh&&(fresh.rawSheet||fresh.raw_sheet_snap) ? (fresh.rawSheet||fresh.raw_sheet_snap) : rawSheetData;
+      }
+      if(!results){
+        showToast('No optimization data -- open and re-save this file first');
+      } else {
+        if(!remnantSlots.length) remnantSlots = await AGI.Remnants.slots.list().catch(()=>[]);
+        const rs = rawSheetData||activeRawSheet||{};
+        const thickness = rs.thickness||0;
+        const glass_type = rs.type||rs.glass_type||'glass';
+        const color = rs.color||'clear';
+        const raw_sheet_label = [(rs.company||rs.label||''), thickness+'mm', color].filter(Boolean).join(' ');
+        let added = 0; const errors = [];
+        let freshData = null;
+        try{ freshData = await AGI.OptFiles.get(id); }catch(e){ console.warn('fetch fresh:',e); }
+        const freshResults = (freshData&&freshData.results) || results;
+        const sheets = Array.isArray(freshResults) ? freshResults : (freshResults&&freshResults.results||[]);
+        for(const sheet of sheets){
+          for(const fr of (sheet.free||[])){
+            if(fr.w<200||fr.h<150) continue;
+            try{
+              await AGI.Remnants.create({ w:Math.round(fr.w), h:Math.round(fr.h), thickness, glass_type, color,
+                brand: rs.company||rs.brand||'', origin: rs.origin||rs.country||'',
+                opt_file_id:id, opt_file_name:f.name, raw_sheet_label,
+                notes:'Free area sheet '+(sheet.idx!=null?sheet.idx+1:'?') });
+              added++;
+            }catch(e){ errors.push('free area: '+e.message); }
+          }
+        }
+        const cutPcs = f.cutPieces||f.cut_pieces||[];
+        for(const p of cutPcs.filter(p=>!p.orderId&&!p.orderNum)){
+          try{
+            await AGI.Remnants.create({ w:p.w, h:p.h, thickness:p.thickness||thickness, glass_type, color,
+              opt_file_id:id, opt_file_name:f.name, raw_sheet_label, notes:'Manual piece (no order)' });
+            added++;
+          }catch(e){ errors.push('manual piece: '+e.message); }
+        }
+        if(errors.length) console.warn('[remnants errors]', errors);
+        if(added) showToast('✓ '+added+' remnant plate'+(added!==1?'s':'')+' added to Remnants');
+        else showToast('Completed -- no free areas ≥200×150mm found');
+      }
+    }catch(e){ console.error('[runOptCompletion]', e); showToast('Error: '+e.message); }
+  }
+  renderOptFiles();
+  try{ renderSettingsRSCatalog(); }catch(e){}
+}
+
+/* ===== CUTTING MOVEMENT MODAL (Phase 4 Edit 3) ===== */
+let _cmData = null;
+function _cmEnsureModal(){
+  if(document.getElementById('m-cut-move')) return;
+  const div=document.createElement('div');
+  div.className='mbg'; div.id='m-cut-move'; div.style.display='none';
+  div.innerHTML=
+    '<div class="md" style="max-width:540px">'+
+      '<div class="mh">'+
+        '<span class="mt" id="cm-title">Record Cutting Movement</span>'+
+        '<button class="mx" onclick="CM(\'m-cut-move\')">&times;</button>'+
+      '</div>'+
+      '<div style="padding:16px">'+
+        '<div id="cm-info" style="font-size:.75rem;color:var(--tx2);margin-bottom:10px;padding:8px 12px;background:var(--surf);border-radius:var(--r);border:1px solid var(--border)"></div>'+
+        '<div style="margin-bottom:12px">'+
+          '<div style="height:8px;background:var(--surf);border-radius:4px;overflow:hidden;border:1px solid var(--border)"><div id="cm-progbar" style="height:100%;width:0%;background:var(--a4);transition:width .2s"></div></div>'+
+          '<div id="cm-prog-label" style="font-size:.7rem;color:var(--tx2);margin-top:4px"></div>'+
+        '</div>'+
+        '<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">'+
+          '<label style="font-size:.72rem;color:var(--tx2)">Date</label>'+
+          '<input type="date" id="cm-date" class="inp" style="font-size:.72rem;width:160px">'+
+        '</div>'+
+        '<div id="cm-rows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>'+
+        '<button class="btn bg bsm" onclick="cmAddRow()">+ Add Slot</button>'+
+        '<div id="cm-warn" style="font-size:.7rem;color:var(--a2);margin-top:8px;display:none"></div>'+
+      '</div>'+
+      '<div class="mf">'+
+        '<button class="btn bg" onclick="CM(\'m-cut-move\')">Cancel</button>'+
+        '<button class="btn bp" id="cm-save-btn" onclick="saveMovement()">&#10003; Record Cut</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+async function openMovementModal(id){
+  const f = optFiles.find(x=>x.id===id);
+  if(!f){ showToast('Optimization not found'); return; }
+  _cmEnsureModal();
+  try{ if(!afSlots.length) afSlots = await AF.slots(); }catch(e){}
+  try{ if(!rawSheetCatalog.length) rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){}
+  try{ window._afAllInv = await AF.allInventory(); }catch(e){ window._afAllInv=[]; }
+  let prog = {target:0,done:0,planned:0,status:f.status};
+  try{ prog = await CUT.optProgress(id); }catch(e){}
+  const target = +prog.target||0, done = +prog.done||0;
+  const remaining = Math.max(0, target-done);
+  const sheetId = f.raw_sheet_id||f.rawSheetId||null;
+  _cmData = {optId:id, target:target, done:done, sheetId:sheetId, name:f.name};
+  document.getElementById('cm-title').textContent='Record Cut -- Opt #'+id;
+  const sheet = sheetId ? rawSheetCatalog.find(s=>s.id===sheetId) : null;
+  const sheetLabel = sheet ? (sheet.notes||sheet.code) : '';
+  document.getElementById('cm-info').innerHTML='<strong>Opt #'+id+'</strong> -- '+(f.name||'')+(sheetLabel?' | <span style="color:var(--a4)">'+sheetLabel+'</span>':'');
+  const pct = target>0 ? Math.min(100, Math.round(done/target*100)) : 0;
+  document.getElementById('cm-progbar').style.width=pct+'%';
+  document.getElementById('cm-prog-label').textContent=done+' / '+target+' sheets cut'+(remaining>0?(' -- '+remaining+' remaining'):' -- complete');
+  document.getElementById('cm-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('cm-rows').innerHTML='';
+  document.getElementById('cm-warn').style.display='none';
+  cmAddRow(sheetId, remaining>0?remaining:null);
+  OM('m-cut-move');
+}
+function cmAddRow(preSheetId, preQty){
+  _cmEnsureModal();
+  const sid = preSheetId || (_cmData&&_cmData.sheetId) || null;
+  const container=document.getElementById('cm-rows');
+  const div=document.createElement('div');
+  div.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:6px';
+  const slotOpts = afBuildSlotOpts(sid, null);
+  const sheetOpts='<option value="">Select sheet...</option>'+rawSheetCatalog.map(s=>
+    '<option value="'+s.id+'"'+(sid&&s.id===sid?' selected':'')+'>'+(s.notes||s.code)+'</option>'
+  ).join('');
+  div.innerHTML='<select class="inp cm-dr-sheet" style="flex:1.5;font-size:.72rem" onchange="cmUpdateRowSlots(this)">'+sheetOpts+'</select>'
+    +'<select class="inp cm-dr-slot" style="flex:1;font-size:.72rem">'+slotOpts+'</select>'
+    +'<input type="number" class="inp cm-dr-qty" placeholder="Sheets" min="1" value="'+(preQty!=null?preQty:'')+'" style="width:80px;font-size:.72rem">'
+    +'<button class="btn bd bsm" onclick="this.parentElement.remove()" style="flex-shrink:0">&times;</button>';
+  container.appendChild(div);
+}
+function cmUpdateRowSlots(sheetSel){
+  const row = sheetSel.parentElement;
+  const sid = +sheetSel.value||null;
+  const slotSel = row.querySelector('.cm-dr-slot');
+  const curSlot = +slotSel.value||null;
+  slotSel.innerHTML = afBuildSlotOpts(sid, curSlot);
+}
+async function saveMovement(){
+  if(!_cmData) return;
+  const rows=[...document.querySelectorAll('#cm-rows > div')];
+  const slots=rows.map(row=>({
+    slot_id:+row.querySelector('.cm-dr-slot').value,
+    sheet_id:+row.querySelector('.cm-dr-sheet').value,
+    sheets:+row.querySelector('.cm-dr-qty').value
+  })).filter(d=>d.slot_id&&d.sheet_id&&d.sheets>0);
+  if(!slots.length){ alert('Add at least one slot with a sheet count'); return; }
+  const date=document.getElementById('cm-date').value||new Date().toISOString().slice(0,10);
+  const totalNow=slots.reduce((a,s)=>a+s.sheets,0);
+  const remaining=Math.max(0,(_cmData.target||0)-(_cmData.done||0));
+  if(remaining>0 && totalNow>remaining){
+    if(!_confirm('This records '+totalNow+' sheet(s) but only '+remaining+' remain ('+_cmData.done+'/'+_cmData.target+' already cut). Record anyway?')) return;
+  }
+  const btn=document.getElementById('cm-save-btn'); if(btn) btn.disabled=true;
+  try{
+    const res=await CUT.recordMovement({ opt_file_id:_cmData.optId, movement_date:date, slots:slots });
+    const prog = (res&&res.progress)||{};
+    CM('m-cut-move');
+    try{ afSlots=await AF.slots(); }catch(e){}
+    try{ optFiles = await AGI.OptFiles.list(); }catch(e){}
+    if(prog.justClosed){
+      const createRemnants=_confirm('Final cut recorded -- optimization is now complete.\n\nCreate remnant plates from the leftover offcuts?\n\nOK to create, Cancel to skip.');
+      await runOptCompletion(_cmData.optId, {createRemnants:createRemnants});
+      showToast('\u2713 Optimization complete ('+prog.done+'/'+prog.target+' sheets)');
+    } else {
+      showToast('\u2713 Movement recorded -- '+(prog.done!=null?prog.done:'?')+'/'+(prog.target!=null?prog.target:'?')+' sheets');
+      renderOptFiles();
+    }
+  }catch(e){ alert('Error: '+e.message); }
+  finally{ const b=document.getElementById('cm-save-btn'); if(b) b.disabled=false; }
+}
+/* ===== END CUTTING MOVEMENT MODAL ===== */
+
 async function markOptDone(id){
   const f=optFiles.find(x=>x.id===id); if(!f) return;
   if(f.status==='done'){
@@ -9958,9 +10159,14 @@ async function renderOptFiles(){
     return;
   }
   const sorted=list;
+  let _cutProg={}; try{ _cutProg=await CUT.progress(); }catch(e){ _cutProg={}; }
   el.innerHTML=sorted.map((f,idx)=>{
     const serial=f.id;
     const isDone=f.status==='done';
+    const _target=(f.total_sheets!=null)?+f.total_sheets:(f.results?(f.results.results||[]).length:0);
+    const _done=+(_cutProg[f.id]||0);
+    const _inProg=!isDone&&_done>0;
+    const _pct=_target>0?Math.min(100,Math.round(_done/_target*100)):0;
     const cutArr=Array.isArray(f.cutPieces)?f.cutPieces:(Array.isArray(f.cut_pieces)?f.cut_pieces:[]);
     const manArr=Array.isArray(f.manualPieces)?f.manualPieces:(Array.isArray(f.manual_pieces)?f.manual_pieces:[]);
     const pcsCount=(typeof f.cut_pieces==='number'?f.cut_pieces:cutArr.length)+(typeof f.manual_pieces==='number'?f.manual_pieces:manArr.length);
@@ -9976,7 +10182,7 @@ async function renderOptFiles(){
       // Clickable main area — opens workspace
       '<div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px" onclick="loadOptFile('+f.id+')">'+
         // Status dot
-        '<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(isDone?'var(--a3)':'var(--a4)')+';box-shadow:0 0 6px '+(isDone?'var(--a3)':'var(--a4)')+'" title="'+(isDone?'Done':'Pending')+'"></div>'+
+        '<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(isDone?'var(--a3)':(_inProg?'var(--a)':'var(--a4)'))+';box-shadow:0 0 6px '+(isDone?'var(--a3)':(_inProg?'var(--a)':'var(--a4)'))+'" title="'+(isDone?'Done':(_inProg?(_done+'/'+_target+' cut'):'Pending'))+'"></div>'+
         // Name + meta
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+'<span style="font-family:DM Mono,monospace;font-size:.7rem;color:var(--mu);margin-right:8px;opacity:.7">#'+serial+'</span>'+f.name+'</div>'+
@@ -9986,7 +10192,7 @@ async function renderOptFiles(){
               (rs.code&&rs.notes?'<span style="color:var(--mu);margin-left:4px">'+rs.code+'</span>':'')+'</span>':'')+
             '<span style="color:var(--a4)">'+pcsCount+' pcs'+(manCount?' <span style="color:var(--mu)">('+manCount+' manual)</span>':'')+'</span>'+
             (orderNums.length?'<span style="color:var(--a)">'+orderNums.join(', ')+'</span>':'')+
-            '<span>'+sheetsUsed+' sheets &bull; '+eff+' eff</span>'+
+            '<span>'+sheetsUsed+' sheets &bull; '+eff+' eff</span>'+(_inProg?'<span style="color:var(--a);font-weight:600;margin-left:2px">'+_done+'/'+_target+' cut</span>':'')+
             '<span style="color:var(--mu)">'+( f.createdAt||'').slice(0,10)+'</span>'+
             (isDone&&f.completedAt?'<span style="color:var(--a3)">Done: '+f.completedAt.slice(0,10)+'</span>':'')+
           '</div>'+
@@ -9996,7 +10202,7 @@ async function renderOptFiles(){
       '</div>'+
       // Action buttons (don't propagate click)
       '<div style="display:flex;gap:5px;flex-shrink:0" onclick="event.stopPropagation()">'+
-        '<button class="btn '+(isDone?'ba':'bs')+' bsm" onclick="markOptDone('+f.id+')" title="'+(isDone?'Completed — locked':'Mark as Done')+'" style="'+(isDone?'opacity:.5;cursor:default':'')+'">'+(isDone?'&#10003; Done':'&#10003;')+'</button>'+
+        '<button class="btn '+(isDone?'ba':(_inProg?'bp':'bs'))+' bsm" onclick="'+(isDone?'void(0)':'openMovementModal('+f.id+')')+'" title="'+(isDone?'Completed — locked':'Mark as Done')+'" style="'+(isDone?'opacity:.5;cursor:default':'')+'">'+(isDone?'&#10003; Done':(_inProg?('&#9986; '+_done+'/'+_target):'&#9986; Cut'))+'</button>'+
         '<button class="btn bd bsm" onclick="deleteOptFile('+f.id+')" data-i18n="Del">Del</button>'+
       '</div>'+
     '</div>';
@@ -11070,6 +11276,74 @@ async function renderLabels(){
 // ═══════════════════════════════════════════════════════
 // REPORTS
 // ═══════════════════════════════════════════════════════
+/* CUTREP START */
+let _cutRepDays=null;
+function _cutRepFmt(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function cutRepSetPeriod(preset){
+  const now=new Date(); let from, to=new Date(now);
+  if(preset==='week'){ from=new Date(now); from.setDate(from.getDate()-((from.getDay()+1)%7)); }
+  else if(preset==='month'){ from=new Date(now.getFullYear(),now.getMonth(),1); }
+  else if(preset==='lastmonth'){ from=new Date(now.getFullYear(),now.getMonth()-1,1); to=new Date(now.getFullYear(),now.getMonth(),0); }
+  else if(preset==='all'){ from=new Date(2026,3,1); }
+  else { from=new Date(now.getFullYear(),now.getMonth(),1); }
+  document.getElementById('cutrep-from').value=_cutRepFmt(from);
+  document.getElementById('cutrep-to').value=_cutRepFmt(to);
+  renderCuttingReport();
+}
+async function renderCuttingReport(){
+  const fromEl=document.getElementById('cutrep-from'), toEl=document.getElementById('cutrep-to');
+  if(fromEl && !fromEl.value){ cutRepSetPeriod('month'); return; }
+  const from=fromEl?fromEl.value:'', to=toEl?toEl.value:'';
+  let rows=[];
+  try{ rows=await CUT.daily(from,to); }catch(e){ const b=document.getElementById('cutrep-body'); if(b) b.innerHTML='<div style="color:var(--a2);padding:12px">Error: '+e.message+'</div>'; return; }
+  const map={}; rows.forEach(r=>{ map[r.date]={sheets:+r.sheets||0, sqm:+r.sqm||0, movements:+r.movements||0}; });
+  const days=[];
+  if(from&&to){ const f=from.split('-').map(Number), t=to.split('-').map(Number); let c=new Date(f[0],f[1]-1,f[2]); const end=new Date(t[0],t[1]-1,t[2]);
+    while(c<=end){ const k=_cutRepFmt(c); days.push(Object.assign({date:k,sheets:0,sqm:0,movements:0}, map[k]||{})); c.setDate(c.getDate()+1); } }
+  else { Object.keys(map).sort().forEach(k=>days.push(Object.assign({date:k}, map[k]))); }
+  const totSheets=days.reduce((a,d)=>a+d.sheets,0), totSqm=days.reduce((a,d)=>a+d.sqm,0);
+  const nDays=days.filter(d=>d.sheets>0).length;
+  const tEl=document.getElementById('cutrep-totals');
+  if(tEl) tEl.innerHTML=
+    '<div><div style="font-size:.6rem;color:var(--mu);letter-spacing:1px">SHEETS CUT</div><div style="font-size:1.3rem;font-weight:800;color:var(--a)">'+totSheets.toFixed(0)+'</div></div>'+
+    '<div><div style="font-size:.6rem;color:var(--mu);letter-spacing:1px">AREA</div><div style="font-size:1.3rem;font-weight:800;color:var(--a3)">'+totSqm.toFixed(1)+' m&sup2;</div></div>'+
+    '<div><div style="font-size:.6rem;color:var(--mu);letter-spacing:1px">ACTIVE DAYS</div><div style="font-size:1.3rem;font-weight:800;color:var(--tx2)">'+nDays+'</div></div>'+
+    '<div><div style="font-size:.6rem;color:var(--mu);letter-spacing:1px">AVG/DAY</div><div style="font-size:1.3rem;font-weight:800;color:var(--tx2)">'+(nDays?(totSheets/nDays).toFixed(1):'0')+' sh</div></div>';
+  _cutRepRenderChart(days);
+  const body=document.getElementById('cutrep-body');
+  if(body) body.innerHTML=
+    '<table style="width:100%;border-collapse:collapse;font-size:.72rem"><thead><tr style="text-align:left;color:var(--mu)"><th style="padding:6px 8px">Date</th><th style="padding:6px 8px">Sheets</th><th style="padding:6px 8px">m&sup2;</th><th style="padding:6px 8px">Moves</th></tr></thead><tbody>'+
+    days.filter(d=>d.sheets>0||d.movements>0).map(d=>'<tr style="border-top:1px solid var(--border)"><td style="padding:6px 8px;font-family:DM Mono,monospace">'+d.date+'</td><td style="padding:6px 8px">'+d.sheets.toFixed(2)+'</td><td style="padding:6px 8px">'+d.sqm.toFixed(1)+'</td><td style="padding:6px 8px;color:var(--mu)">'+d.movements+'</td></tr>').join('')+
+    '</tbody></table>';
+  _cutRepDays=days;
+}
+function _cutRepRenderChart(days){
+  const el=document.getElementById('cutrep-chart'); if(!el) return;
+  if(!days.length){ el.innerHTML='<div style="color:var(--mu);padding:12px">No data in range</div>'; return; }
+  const maxSheets=Math.max(1,...days.map(d=>d.sheets));
+  const chartH=130;
+  const barW=Math.max(8,Math.min(40,Math.floor((el.offsetWidth-20)/Math.max(days.length,1))-3));
+  el.innerHTML='<div style="display:flex;align-items:flex-end;gap:2px;padding:6px 4px;overflow-x:auto;height:'+(chartH+46)+'px">'+
+    days.map(d=>{
+      const h=d.sheets>0?Math.max(2,Math.round(d.sheets/maxSheets*chartH)):0;
+      const tip=d.date+': '+d.sheets.toFixed(1)+' sheets, '+d.sqm.toFixed(1)+' m2';
+      const lbl=d.date.slice(5);
+      return '<div style="display:flex;flex-direction:column;align-items:center;min-width:'+barW+'px" title="'+tip+'">'+
+        '<div style="height:13px;font-size:.52rem;color:var(--a);font-weight:700">'+(d.sheets>0?d.sheets.toFixed(0):'')+'</div>'+
+        '<div style="width:'+(barW-2)+'px;height:'+h+'px;background:var(--a4);opacity:.85;border-radius:2px 2px 0 0"></div>'+
+        '<div style="font-size:.5rem;color:var(--tx2);margin-top:3px;white-space:nowrap">'+lbl+'</div>'+
+      '</div>';
+    }).join('')+'</div>';
+}
+function exportCuttingReportExcel(){
+  const days=_cutRepDays||[];
+  if(!days.length){ alert('Generate the report first'); return; }
+  let csv='Date,Sheets,SQM,Movements\n';
+  days.forEach(d=>{ csv+=d.date+','+d.sheets+','+(+d.sqm).toFixed(2)+','+d.movements+'\n'; });
+  const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='cutting-report.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+/* CUTREP END */
 async function showReport(id){
   document.querySelectorAll('.rpanel').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.rtab').forEach(t=>t.classList.remove('on'));
@@ -11082,6 +11356,7 @@ async function showReport(id){
   if(id==='attendance-rep') await renderAttendanceReport();
   if(id==='fp-rep') await renderFpReport();
   if(id==='vac-rep') initVacReport();
+  if(id==='cutting-rep') await renderCuttingReport();
 }
 // ── Orders Report ────────────────────────────────────────────────────────
 function renderOrdersReport(){
@@ -14199,6 +14474,14 @@ function _afFetch(path, opts={}){
     return d;
   });
 }
+const CUT = {
+  progress:       () => _afFetch('/api/cutting/progress'),
+  optProgress:    id => _afFetch('/api/cutting/opt/'+id+'/progress'),
+  movements:      optId => _afFetch('/api/cutting/movements?opt_file_id='+optId),
+  recordMovement: d => _afFetch('/api/cutting/movements', {method:'POST',body:JSON.stringify(d)}),
+  delMovement:    id => _afFetch('/api/cutting/movements/'+id, {method:'DELETE'}),
+  daily:          (from,to) => { const q=[from?'from='+from:'',to?'to='+to:''].filter(Boolean).join('&'); return _afFetch('/api/cutting/daily'+(q?'?'+q:'')); }
+};
 const AF = {
   slots:       () => _afFetch('/api/slots'),
   addSlot:     d  => _afFetch('/api/slots', {method:'POST',body:JSON.stringify(d)}),

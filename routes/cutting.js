@@ -191,4 +191,13 @@ router.get('/daily', (req,res)=>{
   }catch(e){ res.status(500).json({error:e.message}); }
 });
 
+// GET /api/cutting/progress -- bulk { opt_file_id: sheets_cut } for opts with cut movements
+router.get('/progress', (req,res)=>{
+  try{
+    const rows=db.prepare("SELECT opt_file_id, COALESCE(SUM(sheets_total),0) AS done FROM cutting_movements WHERE kind='cut' AND opt_file_id IS NOT NULL GROUP BY opt_file_id").all();
+    const map={}; for(const r of rows) map[r.opt_file_id]=r.done;
+    res.json(map);
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+
 module.exports = router;
