@@ -10896,7 +10896,7 @@ function renderCutLabels(){
     const hasComp = cut_w!=item.w || cut_h!=item.h;
     const _ep = (typeof extProcesses!=='undefined' && ord.external_process_id) ? (extProcesses.find(function(p){return p.id===ord.external_process_id;})||null) : null;
     const epName = _ep ? _ep.name : '';
-    const epHtml = epName ? ('<div class="lbl-procs lbl-ext" style="font-weight:700;border-top:1px solid #ccc;margin-top:0.3mm;padding-top:0.3mm">EXT: '+epName+'</div>') : '';
+    const epHtml = epName ? ('<div class="lbl-procs lbl-ext" style="font-weight:700;border-top:1px solid #ccc;margin-top:0.3mm;padding-top:0.3mm">'+epName+'</div>') : '';
     let qrText = '';
     qrText += 'PIECE ID:' + item.uid + '\n';
     if(ord.extref) qrText += 'REF:' + ord.extref + '\n';
