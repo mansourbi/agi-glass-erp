@@ -10836,37 +10836,40 @@ function renderCutLabels(){
     if(_qrBusy || !_qrQueue.length) return;
     _qrBusy = true;
     const {el, qrText, size} = _qrQueue.shift();
-    const _tryQR = (text, level) => {
+    const _advance = function(){ _qrBusy=false; _qrNext(); };
+    const _build = function(text, level){
       try{
         el.innerHTML='';
         new QRCode(el,{text:text,width:size,height:size,colorDark:'#000000',colorLight:'#ffffff',correctLevel:level});
-        setTimeout(()=>{
-          try{
-            const cv=el.querySelector('canvas');
-            if(cv){
-              const img=document.createElement('img');
-              img.src=cv.toDataURL('image/png');
-              img.style.cssText='display:block;width:100%;height:100%;object-fit:contain';
-              el.innerHTML=''; el.appendChild(img);
-            }
-          }catch(e2){ console.warn('QR canvas error:',e2.message); }
-          _qrBusy=false;
-          _qrNext();
-        }, 100);
         return true;
-      }catch(e){
-        return false;
-      }
+      }catch(e){ return false; }
     };
-    // Try M level first, fall back to L if too much data
-    if(!_tryQR(qrText, QRCode.CorrectLevel.M)){
-      if(!_tryQR(qrText, QRCode.CorrectLevel.L)){
-        // Last resort: strip notes line and retry
-        const stripped = qrText.replace(/---\nNotes.*?\nAGI/, 'AGI').replace(/Notes.*?\n/,'');
-        if(!_tryQR(stripped, QRCode.CorrectLevel.M)){
-          _tryQR(stripped, QRCode.CorrectLevel.L);
-        }
-      }
+    var _minimal='';
+    try{
+      var _parts=(qrText||'').split('\n');
+      _minimal=(_parts.find(function(l){ return /PIECE ID/i.test(l); }) || _parts[0] || qrText || '').trim();
+    }catch(e){ _minimal=(qrText||'').slice(0,40); }
+    var ok = _build(qrText, QRCode.CorrectLevel.M)
+          || _build(qrText, QRCode.CorrectLevel.L)
+          || _build(_minimal, QRCode.CorrectLevel.M)
+          || _build(_minimal, QRCode.CorrectLevel.L);
+    if(ok){
+      setTimeout(function(){
+        try{
+          var cv=el.querySelector('canvas');
+          if(cv){
+            var img=document.createElement('img');
+            img.src=cv.toDataURL('image/png');
+            img.style.cssText='display:block;width:100%;height:100%;object-fit:contain';
+            el.innerHTML=''; el.appendChild(img);
+          }
+        }catch(e2){ console.warn('QR canvas error:',e2.message); }
+        _advance();
+      }, 100);
+    } else {
+      console.error('QR ERROR: could not encode payload for', (qrText||'').slice(0,60));
+      el.innerHTML='<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font:bold 10px sans-serif;color:#b00;text-align:center;border:1px dashed #b00;box-sizing:border-box;padding:2px">QR ERROR</div>';
+      _advance();
     }
   }
 
@@ -10899,7 +10902,6 @@ function renderCutLabels(){
     const epHtml = epName ? ('<div class="lbl-procs lbl-ext" style="font-weight:700;border-top:1px solid #ccc;margin-top:0.3mm;padding-top:0.3mm">'+epName+'</div>') : '';
     let qrText = '';
     qrText += 'PIECE ID:' + item.uid + '\n';
-    if(ord.extref) qrText += 'REF:' + ord.extref + '\n';
     if(ord.date||item.date) qrText += 'DATE:' + (ord.date||item.date||'') + '\n';
     qrText += 'SIZE:' + item.w + 'x' + item.h + 'mm\n';
     if(hasComp) qrText += 'CUT:' + cut_w + 'x' + cut_h + 'mm\n';
