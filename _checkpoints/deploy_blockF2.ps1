@@ -1,0 +1,438 @@
+# ============================================================================
+#  BLOCK F-2  -  Pricing admin page (static). Writes public\pricing.html.
+#  No service restart needed (static file). Backs up any existing copy.
+#  Open it at:  https://127.0.0.1:3444/pricing.html   (sign in to the portal first)
+# ============================================================================
+$ts  = Get-Date -Format 'yyyyMMdd-HHmmss'
+$pub = 'C:\agi-server\public'
+$bk  = 'C:\agi-server\_public_backups'
+New-Item -ItemType Directory -Force -Path $bk | Out-Null
+$dest = Join-Path $pub 'pricing.html'
+if (Test-Path $dest) { Copy-Item $dest (Join-Path $bk "pricing.html.$ts.bak") }
+
+$html = @'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing &#8212; AGI Glass</title>
+<style>
+  :root{
+    --ink:#16202e; --muted:#64748b; --bg:#eef2f5; --surface:#ffffff;
+    --line:#dce3ea; --line2:#eef2f6;
+    --teal:#0d9488; --teal-d:#0f766e; --teal-bg:#e6f5f3;
+    --amber:#b45309; --amber-bg:#fef3e2; --red:#b91c1c; --red-bg:#fdeaea;
+    --shadow:0 1px 2px rgba(16,32,46,.06),0 4px 16px rgba(16,32,46,.05);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--teal-d);text-decoration:none}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px 80px}
+  /* header */
+  header{position:sticky;top:0;z-index:20;backdrop-filter:saturate(1.4) blur(8px);
+    background:rgba(255,255,255,.82);border-bottom:1px solid var(--line)}
+  .hbar{max-width:1180px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;gap:16px}
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .brand b{font-size:18px;letter-spacing:-.01em}
+  .brand .sub{color:var(--muted);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+  .glass{width:13px;height:13px;border-radius:3px;background:linear-gradient(135deg,#7dd3cd,#0d9488 60%);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.5);display:inline-block;transform:translateY(1px)}
+  .hbar .back{margin-left:auto;font-size:13px;color:var(--muted)}
+  .hbar .back:hover{color:var(--teal-d)}
+  /* tabs */
+  .tabs{display:flex;gap:2px;margin:26px 0 18px;border-bottom:1px solid var(--line)}
+  .tab{appearance:none;border:0;background:none;padding:10px 16px;font:inherit;font-weight:600;color:var(--muted);
+    cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.on{color:var(--ink);border-bottom-color:var(--teal)}
+  .tab:hover{color:var(--ink)}
+  /* panels */
+  .panel{display:none}
+  .panel.on{display:block;animation:fade .2s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  .ptitle{display:flex;align-items:center;gap:12px;margin:4px 0 16px}
+  .ptitle h2{font-size:16px;margin:0;font-weight:700;letter-spacing:-.01em}
+  .ptitle p{margin:0;color:var(--muted);font-size:13px}
+  .spacer{flex:1}
+  /* card / table */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700;
+    text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);background:#f8fafb}
+  td{padding:10px 14px;border-bottom:1px solid var(--line2);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  tr.prow:hover{background:#f9fbfc}
+  .name{font-weight:600}
+  .sub2{color:var(--muted);font-size:12px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+    background:var(--teal-bg);color:var(--teal-d)}
+  .pill.gray{background:#eef1f4;color:var(--muted)}
+  .pill.amber{background:var(--amber-bg);color:var(--amber)}
+  .num{font-variant-numeric:tabular-nums}
+  /* inline inputs */
+  input,select{font:inherit;color:var(--ink)}
+  .cell-inp{width:78px;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;text-align:right;
+    font-variant-numeric:tabular-nums}
+  .cell-inp:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-bg)}
+  .cell-inp.dirty{border-color:var(--amber);background:#fffdf7}
+  select.cell-sel{padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:#fff;max-width:230px}
+  select.cell-sel:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-bg)}
+  /* buttons */
+  .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-weight:600;
+    padding:8px 14px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{border-color:#c3ccd6;background:#fbfcfd}
+  .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+  .btn.primary:hover{background:var(--teal-d);border-color:var(--teal-d)}
+  .btn.sm{padding:5px 10px;font-size:12.5px;border-radius:8px}
+  .btn.ghost{border-color:transparent;background:none;color:var(--muted);padding:5px 8px}
+  .btn.ghost:hover{color:var(--ink);background:#f1f4f7}
+  .btn.danger{color:var(--red)}
+  .btn.danger:hover{background:var(--red-bg);border-color:#f1c7c7}
+  .actions{display:flex;gap:4px;justify-content:flex-end}
+  /* rules drawer */
+  .rules{background:#f8fafb;border-top:1px solid var(--line)}
+  .rules-in{padding:14px 18px}
+  .rules h4{margin:0 0 10px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .rule-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-bottom:1px dashed var(--line)}
+  .rule-row:last-child{border-bottom:0}
+  .rule-row .if,.rule-row .then{font-weight:700;color:var(--muted);font-size:12px}
+  .mini{width:84px;padding:5px 7px;border:1px solid var(--line);border-radius:7px}
+  /* forms / modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(16,32,46,.45);display:none;align-items:flex-start;
+    justify-content:center;z-index:50;padding:60px 16px;overflow:auto}
+  .modal-bg.on{display:flex}
+  .modal{background:#fff;border-radius:14px;width:100%;max-width:460px;box-shadow:0 24px 60px rgba(16,32,46,.3);
+    overflow:hidden;animation:pop .18s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}
+  .modal h3{margin:0;padding:18px 20px;font-size:15px;border-bottom:1px solid var(--line)}
+  .mbody{padding:18px 20px;display:grid;gap:13px}
+  .fld{display:grid;gap:5px}
+  .fld label{font-size:12px;font-weight:600;color:var(--muted)}
+  .fld input,.fld select{padding:9px 11px;border:1px solid var(--line);border-radius:9px;width:100%}
+  .fld input:focus,.fld select:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-bg)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .mfoot{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:#fafbfc}
+  /* misc */
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  .saved{color:var(--teal-d);font-size:12px;font-weight:600;opacity:0;transition:opacity .2s}
+  .saved.show{opacity:1}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);
+    color:#fff;padding:11px 18px;border-radius:10px;font-weight:600;font-size:13px;opacity:0;pointer-events:none;
+    transition:all .25s;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.err{background:var(--red)}
+  .gate{max-width:440px;margin:80px auto;text-align:center;background:#fff;border:1px solid var(--line);
+    border-radius:14px;padding:40px 30px;box-shadow:var(--shadow)}
+  .hint{font-size:12px;color:var(--muted);margin-top:3px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <span class="brand"><span class="glass"></span><b>Pricing</b><span class="sub">AGI Glass</span></span>
+    <a class="back" href="/glassfab.html">&larr; Back to portal</a>
+  </div>
+</header>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="tabs">
+    <button class="tab on" data-tab="profiles">Price profiles</button>
+    <button class="tab" data-tab="products">Product defaults</button>
+    <button class="tab" data-tab="cats">Charge categories</button>
+  </div>
+
+  <!-- PROFILES -->
+  <section class="panel on" id="p-profiles">
+    <div class="ptitle">
+      <div><h2>Price profiles</h2><p>Set the base rate and minimum per piece. A profile is reusable across products.</p></div>
+      <div class="spacer"></div>
+      <button class="btn primary" onclick="openProfile()">+ New profile</button>
+    </div>
+    <div class="card"><table>
+      <thead><tr><th>Name</th><th>Basis</th><th style="text-align:right">Base rate</th><th style="text-align:right">Min / piece</th><th>Rules</th><th>Used by</th><th></th></tr></thead>
+      <tbody id="profileRows"><tr><td colspan="7" class="empty">Loading&#8230;</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <!-- PRODUCTS -->
+  <section class="panel" id="p-products">
+    <div class="ptitle"><div><h2>Product defaults</h2><p>Pick the default price profile each product uses on a new order. You can still override per order.</p></div></div>
+    <div class="card"><table>
+      <thead><tr><th>Product</th><th>FP&nbsp;id</th><th>Default profile</th></tr></thead>
+      <tbody id="productRows"><tr><td colspan="3" class="empty">Loading&#8230;</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section class="panel" id="p-cats">
+    <div class="ptitle">
+      <div><h2>Charge categories</h2><p>The manual extras you can add to an order &#8212; unique cut-outs, special polish, rush, and so on.</p></div>
+      <div class="spacer"></div>
+      <button class="btn primary" onclick="openCat()">+ New category</button>
+    </div>
+    <div class="card"><table>
+      <thead><tr><th>Label</th><th>Code</th><th>Description</th><th></th></tr></thead>
+      <tbody id="catRows"><tr><td colspan="4" class="empty">Loading&#8230;</td></tr></tbody>
+    </table></div>
+  </section>
+</div>
+
+<!-- gate -->
+<div class="wrap"><div class="gate" id="gate" style="display:none">
+  <span class="glass" style="width:22px;height:22px"></span>
+  <h2 style="margin:14px 0 6px">Not signed in</h2>
+  <p class="sub2">Open the main portal and sign in first, then return here.</p>
+  <p><a class="btn primary" href="/glassfab.html" style="margin-top:10px">Go to portal</a></p>
+</div></div>
+
+<!-- profile modal -->
+<div class="modal-bg" id="profileModal">
+  <div class="modal">
+    <h3 id="pmTitle">New profile</h3>
+    <div class="mbody">
+      <div class="fld"><label>Name</label><input id="pm-name" placeholder="e.g. 6mm Mir 1cm 5-2">
+        <span class="hint">Your own label &#8212; name it however you like.</span></div>
+      <div class="row2">
+        <div class="fld"><label>Basis</label><select id="pm-basis">
+          <option value="per_sqm">Per m&sup2;</option><option value="per_linear_meter">Per linear meter</option></select></div>
+        <div class="fld"><label>Base rate (JD)</label><input id="pm-rate" type="number" step="0.01" placeholder="0"></div>
+      </div>
+      <div class="fld"><label>Minimum per piece (JD)</label><input id="pm-min" type="number" step="0.01" placeholder="0">
+        <span class="hint">Charged when a piece is too small to reach this on rate alone. Leave 0 for none.</span></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeProfile()">Cancel</button>
+      <button class="btn primary" id="pm-save" onclick="saveProfile()">Create profile</button></div>
+  </div>
+</div>
+
+<!-- category modal -->
+<div class="modal-bg" id="catModal">
+  <div class="modal">
+    <h3 id="cmTitle">New category</h3>
+    <div class="mbody">
+      <div class="fld"><label>Label</label><input id="cm-label" placeholder="e.g. Unique Cut-out"></div>
+      <div class="fld"><label>Code (optional)</label><input id="cm-code" placeholder="e.g. UNIQUE_CUTOUT"></div>
+      <div class="fld"><label>Description</label><input id="cm-desc" placeholder="When to use this charge"></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeCat()">Cancel</button>
+      <button class="btn primary" id="cm-save" onclick="saveCat()">Create category</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API='/api/pricing_admin';
+const TOKEN=localStorage.getItem('agi_token');
+let META={condition_types:[],action_types:[],bases:[],condition_help:{},action_help:{}};
+let PROFILES=[], CATS=[];
+
+function toast(msg,err){const t=document.getElementById('toast');t.textContent=msg;t.className='show'+(err?' err':'');setTimeout(()=>t.className='',2200);}
+async function api(method,path,body){
+  const r=await fetch(API+path,{method,headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:body?JSON.stringify(body):undefined});
+  if(r.status===401){throw new Error('Session expired &#8212; sign in again on the portal.');}
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>(n==null||n==='')?'&#8212;':(Math.round(n*100)/100);
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t===b));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.tab));
+});
+
+/* ---------- profiles ---------- */
+async function loadProfiles(){
+  PROFILES=await api('GET','/profiles');
+  const tb=document.getElementById('profileRows');
+  if(!PROFILES.length){tb.innerHTML='<tr><td colspan="7" class="empty">No profiles yet. Create your first one.</td></tr>';return;}
+  tb.innerHTML='';
+  for(const p of PROFILES){
+    const tr=document.createElement('tr');tr.className='prow';
+    tr.innerHTML=`
+      <td><div class="name">${esc(p.name)}</div>${p.active?'':'<span class="pill amber">inactive</span>'}</td>
+      <td><span class="pill gray">${p.basis==='per_linear_meter'?'per LM':'per m&#178;'}</span></td>
+      <td style="text-align:right"><input class="cell-inp num" value="${p.base_rate}" data-f="base_rate" data-id="${p.id}"></td>
+      <td style="text-align:right"><input class="cell-inp num" value="${p.min_per_piece}" data-f="min_per_piece" data-id="${p.id}"></td>
+      <td><a href="#" onclick="toggleRules(${p.id},this);return false">${p.rule_count} rule${p.rule_count==1?'':'s'} &#9662;</a></td>
+      <td>${p.default_count?`<span class="pill">${p.default_count} product${p.default_count==1?'':'s'}</span>`:'<span class="sub2">&#8212;</span>'}</td>
+      <td><div class="actions">
+        <button class="btn ghost sm" onclick="openProfile(${p.id})">Edit</button>
+        <button class="btn ghost sm danger" onclick="delProfile(${p.id},${p.default_count})">Delete</button>
+      </div></td>`;
+    tb.appendChild(tr);
+  }
+  tb.querySelectorAll('.cell-inp').forEach(inp=>{
+    inp.addEventListener('input',()=>inp.classList.add('dirty'));
+    inp.addEventListener('blur',()=>saveCell(inp));
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();});
+  });
+}
+async function saveCell(inp){
+  if(!inp.classList.contains('dirty'))return;
+  try{await api('PUT','/profiles/'+inp.dataset.id,{[inp.dataset.f]:inp.value});
+    inp.classList.remove('dirty');toast('Saved');}
+  catch(e){toast(e.message,true);}
+}
+let PMID=null;
+function openProfile(id){
+  PMID=id||null;const p=id?PROFILES.find(x=>x.id===id):null;
+  document.getElementById('pmTitle').textContent=p?'Edit profile':'New profile';
+  document.getElementById('pm-save').textContent=p?'Save changes':'Create profile';
+  document.getElementById('pm-name').value=p?p.name:'';
+  document.getElementById('pm-basis').value=p?p.basis:'per_sqm';
+  document.getElementById('pm-rate').value=p?p.base_rate:'';
+  document.getElementById('pm-min').value=p?p.min_per_piece:'';
+  document.getElementById('profileModal').classList.add('on');
+  document.getElementById('pm-name').focus();
+}
+function closeProfile(){document.getElementById('profileModal').classList.remove('on');}
+async function saveProfile(){
+  const body={name:document.getElementById('pm-name').value.trim(),basis:document.getElementById('pm-basis').value,
+    base_rate:document.getElementById('pm-rate').value||0,min_per_piece:document.getElementById('pm-min').value||0};
+  if(!body.name){toast('Name is required',true);return;}
+  try{await api(PMID?'PUT':'POST',PMID?'/profiles/'+PMID:'/profiles',body);
+    closeProfile();toast(PMID?'Profile saved':'Profile created');loadProfiles();}
+  catch(e){toast(e.message,true);}
+}
+async function delProfile(id,defs){
+  let q='';if(defs){if(!confirm('This profile is the default on '+defs+' product(s). Delete it and clear those defaults?'))return;q='?force=1';}
+  else if(!confirm('Delete this profile and its rules?'))return;
+  try{await api('DELETE','/profiles/'+id+q);toast('Profile deleted');loadProfiles();}
+  catch(e){toast(e.message,true);}
+}
+
+/* ---------- rules drawer ---------- */
+async function toggleRules(pid,link){
+  const tr=link.closest('tr'); const nx=tr.nextElementSibling;
+  if(nx&&nx.classList.contains('rules')){nx.remove();return;}
+  const p=await api('GET','/profiles/'+pid);
+  const drawer=document.createElement('tr');drawer.className='rules';
+  const condOpts=META.condition_types.map(c=>`<option value="${c}">${c.replace('_gt','')} &gt;</option>`).join('');
+  const actOpts=META.action_types.map(a=>`<option value="${a}">${a.replace('_',' ')}</option>`).join('');
+  let body=`<td colspan="7"><div class="rules-in"><h4>Rules &#8212; applied on top of base, all matching rules stack</h4><div id="rl-${pid}">`;
+  if(!p.rules.length) body+='<div class="sub2" style="padding:4px 0">No rules. Add one below &#8212; e.g. area &gt; 5 &#8594; +20%.</div>';
+  for(const r of p.rules) body+=ruleRowHtml(r);
+  body+=`</div><div class="rule-row" style="margin-top:8px">
+      <span class="if">IF</span>
+      <select class="cell-sel" id="nc-${pid}">${condOpts}</select>
+      <input class="mini num" id="nv-${pid}" placeholder="value">
+      <span class="then">THEN</span>
+      <select class="cell-sel" id="na-${pid}">${actOpts}</select>
+      <input class="mini num" id="nav-${pid}" placeholder="amount">
+      <button class="btn sm primary" onclick="addRule(${pid})">Add rule</button>
+    </div></div></td>`;
+  drawer.innerHTML=body;tr.after(drawer);
+}
+function ruleRowHtml(r){
+  return `<div class="rule-row" data-rule="${r.id}">
+    <span class="if">IF</span><b>${r.condition_type.replace('_gt','')} &gt; ${r.condition_value}</b>
+    <span class="then">THEN</span><b>${r.action_type.replace('_',' ')} ${r.action_value}${r.action_type==='pct_uplift'?'%':''}</b>
+    ${r.notes?`<span class="sub2">&#8212; ${esc(r.notes)}</span>`:''}
+    <span class="spacer" style="flex:1"></span>
+    <button class="btn ghost sm danger" onclick="delRule(${r.id},this)">Remove</button></div>`;
+}
+async function addRule(pid){
+  const body={condition_type:document.getElementById('nc-'+pid).value,condition_value:document.getElementById('nv-'+pid).value||0,
+    action_type:document.getElementById('na-'+pid).value,action_value:document.getElementById('nav-'+pid).value||0};
+  try{const r=await api('POST','/profiles/'+pid+'/rules',body);
+    const cont=document.getElementById('rl-'+pid);
+    const sub=cont.querySelector('.sub2');if(sub)sub.remove();
+    cont.insertAdjacentHTML('beforeend',ruleRowHtml(r));
+    document.getElementById('nv-'+pid).value='';document.getElementById('nav-'+pid).value='';
+    toast('Rule added');loadProfiles();}
+  catch(e){toast(e.message,true);}
+}
+async function delRule(id,btn){
+  try{await api('DELETE','/rules/'+id);btn.closest('.rule-row').remove();toast('Rule removed');loadProfiles();}
+  catch(e){toast(e.message,true);}
+}
+
+/* ---------- products ---------- */
+async function loadProducts(){
+  const rows=await api('GET','/products');
+  const opts=`<option value="">&#8212; none &#8212;</option>`+PROFILES.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  const tb=document.getElementById('productRows');tb.innerHTML='';
+  for(const r of rows){
+    const tr=document.createElement('tr');tr.className='prow';
+    tr.innerHTML=`<td><div class="name" dir="auto">${esc(r.label)||'<span class=sub2>(no label)</span>'}</div></td>
+      <td class="sub2 num">${r.legacy_fp_id??'&#8212;'}</td>
+      <td><select class="cell-sel" data-pid="${r.product_id}">${opts}</select></td>`;
+    const sel=tr.querySelector('select');sel.value=r.default_profile_id||'';
+    sel.onchange=()=>setDefault(r.product_id,sel.value);
+    tb.appendChild(tr);
+  }
+}
+async function setDefault(pid,profileId){
+  try{await api('PUT','/products/'+pid+'/default',{profile_id:profileId||null});
+    toast('Default set');loadProfiles();}
+  catch(e){toast(e.message,true);}
+}
+
+/* ---------- categories ---------- */
+async function loadCats(){
+  CATS=await api('GET','/categories');
+  const tb=document.getElementById('catRows');
+  if(!CATS.length){tb.innerHTML='<tr><td colspan="4" class="empty">No categories yet.</td></tr>';return;}
+  tb.innerHTML='';
+  for(const c of CATS){
+    const tr=document.createElement('tr');tr.className='prow';
+    tr.innerHTML=`<td class="name">${esc(c.label)}</td><td class="sub2">${esc(c.code)||'&#8212;'}</td>
+      <td class="sub2">${esc(c.description)||'&#8212;'}</td>
+      <td><div class="actions">
+        <button class="btn ghost sm" onclick="openCat(${c.id})">Edit</button>
+        <button class="btn ghost sm danger" onclick="delCat(${c.id})">Delete</button></div></td>`;
+    tb.appendChild(tr);
+  }
+}
+let CMID=null;
+function openCat(id){CMID=id||null;const c=id?CATS.find(x=>x.id===id):null;
+  document.getElementById('cmTitle').textContent=c?'Edit category':'New category';
+  document.getElementById('cm-save').textContent=c?'Save changes':'Create category';
+  document.getElementById('cm-label').value=c?c.label:'';
+  document.getElementById('cm-code').value=c?(c.code||''):'';
+  document.getElementById('cm-desc').value=c?(c.description||''):'';
+  document.getElementById('catModal').classList.add('on');document.getElementById('cm-label').focus();}
+function closeCat(){document.getElementById('catModal').classList.remove('on');}
+async function saveCat(){
+  const body={label:document.getElementById('cm-label').value.trim(),code:document.getElementById('cm-code').value.trim(),description:document.getElementById('cm-desc').value.trim()};
+  if(!body.label){toast('Label is required',true);return;}
+  try{await api(CMID?'PUT':'POST',CMID?'/categories/'+CMID:'/categories',body);
+    closeCat();toast(CMID?'Category saved':'Category created');loadCats();}
+  catch(e){toast(e.message,true);}
+}
+async function delCat(id){if(!confirm('Delete this category?'))return;
+  try{await api('DELETE','/categories/'+id);toast('Category deleted');loadCats();}catch(e){toast(e.message,true);}}
+
+/* close modals on backdrop / esc */
+document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('on');}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-bg').forEach(m=>m.classList.remove('on'));});
+
+/* ---------- boot ---------- */
+(async()=>{
+  if(!TOKEN){document.getElementById('gate').style.display='block';return;}
+  try{
+    META=await api('GET','/meta');
+    document.getElementById('app').style.display='block';
+    await loadProfiles();
+    await loadProducts();
+    await loadCats();
+  }catch(e){
+    document.getElementById('gate').style.display='block';
+    document.querySelector('#gate h2').textContent=e.message.includes('expired')?'Session expired':'Could not load';
+    document.querySelector('#gate .sub2').textContent=e.message;
+  }
+})();
+</script>
+</body>
+</html>
+
+'@
+Set-Content -Path $dest -Value $html -Encoding ascii
+Write-Host ('Wrote ' + $dest + '  (' + (Get-Item $dest).Length + ' bytes)')
+Write-Host 'Open: https://127.0.0.1:3444/pricing.html   (or http://127.0.0.1:3000/pricing.html)'
+Write-Host 'Static page - no restart needed.'
