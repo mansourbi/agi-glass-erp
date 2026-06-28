@@ -109,6 +109,7 @@ app.use('/api/glassfamilies', require('./routes/glassfamilies'));
 app.use('/api/finalproducts', require('./routes/finalproducts'));
 app.use('/api/customerprices', require('./routes/customerprices'));
 app.use('/api/orderpricing', require('./routes/orderpricing'));
+app.use('/api/pricing2', require('./routes/pricing2'));
 app.use('/api/sheetowner', require('./routes/sheetowner'));
 app.use('/api/fpfields', require('./routes/fpfields'));
 app.use('/api/remnants', require('./routes/remnants'));
