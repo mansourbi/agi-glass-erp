@@ -1,0 +1,211 @@
+=== FINAL_PRODUCTS spec columns (24 products) ===
+-- category --
+   [زجاج]  x15
+   [مرايا]  x9
+-- subtype --
+   []  x24
+-- thickness --
+   [6]  x11
+   [8]  x4
+   [10]  x3
+   [5.5]  x2
+   [12]  x2
+   [5]  x1
+   [15]  x1
+-- glass_type --
+   []  x21
+   [فلوتد]  x2
+   [فيميه]  x1
+-- color --
+   [سادة]  x10
+   [كرستال]  x5
+   [برونز]  x2
+   [انتيك]  x2
+   [اسود]  x2
+   []  x2
+   [انتيك S201]  x1
+-- tempered --
+   []  x24
+-- edge --
+   [مربع]  x18
+   [شطف 1سم]  x3
+   [شطف1سم+مربع]  x1
+   [شطف 2سم]  x1
+   [شطف 2.5]  x1
+-- process --
+   []  x24
+-- paint_color --
+   []  x24
+-- brand --
+   []  x24
+-- origin --
+   []  x24
+-- is_ujoor --
+   [1]  x22
+   [0]  x2
+
+=== FP_FIELD_VALUES (dropdown lists) ===
+   brand : [AGC]  sort=0 active=1
+   brand : [عبيكان]  sort=0 active=1
+   brand : [سان جوبان]  sort=1 active=1
+   category : [زجاج]  sort=0 active=1
+   category : [مرايا]  sort=1 active=1
+   color : [clear]  sort=0 active=1
+   color : [اسود]  sort=0 active=1
+   color : [انتيك]  sort=0 active=1
+   color : [انتيك S201]  sort=0 active=1
+   color : [سادة]  sort=0 active=1
+   color : [low-iron]  sort=1 active=1
+   color : [برونز]  sort=1 active=1
+   color : [bronze]  sort=2 active=1
+   color : [كرستال]  sort=2 active=1
+   color : [grey]  sort=3 active=1
+   color : [رمادي]  sort=3 active=1
+   color : [green]  sort=4 active=1
+   color : [blue]  sort=5 active=1
+   color : [black]  sort=6 active=1
+   color : [white]  sort=7 active=1
+   color : [antique]  sort=8 active=1
+   color : [crystal]  sort=9 active=1
+   edge : [شطف 1سم]  sort=0 active=1
+   edge : [شطف 2.5]  sort=0 active=1
+   edge : [شطف 2سم]  sort=0 active=1
+   edge : [شطف1سم+مربع]  sort=0 active=1
+   edge : [مربع]  sort=0 active=1
+   edge : [مبروم]  sort=1 active=1
+   edge : [حف]  sort=2 active=1
+   glass_type : [فلوتد]  sort=0 active=1
+   glass_type : [مبزر]  sort=1 active=1
+   glass_type : [فيميه]  sort=2 active=1
+   origin : [بلجيكي]  sort=0 active=1
+   origin : [صيني]  sort=1 active=1
+   paint_color : [اسود]  sort=0 active=1
+   paint_color : [ابيض]  sort=1 active=1
+   paint_color : [رمادي]  sort=2 active=1
+   paint_color : [حليبي]  sort=3 active=1
+   process : [مدهون سيراميك]  sort=0 active=1
+   process : [مدهون بارد]  sort=1 active=1
+   process : [مغشى رمل]  sort=2 active=1
+   process : [فيلم]  sort=3 active=1
+   process : [فروستيد سيراميك]  sort=4 active=1
+   subtype : [لمينتد]  sort=0 active=1
+   tempered : [سيكوريت]  sort=0 active=1
+   tempered : [بدون سيكوريت]  sort=1 active=1
+   thickness : [4]  sort=0 active=1
+   thickness : [8+8]  sort=0 active=1
+   thickness : [5]  sort=1 active=1
+   thickness : [5.5]  sort=1.5 active=1
+   thickness : [5.5+5.5]  sort=2 active=1
+   thickness : [6]  sort=3 active=1
+   thickness : [8]  sort=4 active=1
+   thickness : [10]  sort=5 active=1
+   thickness : [12]  sort=6 active=1
+   thickness : [15]  sort=7 active=1
+   thickness : [6+0.76+6]  sort=8 active=1
+   thickness : [8+1.14+8]  sort=9 active=1
+   thickness : [10+1.52+10]  sort=10 active=1
+
+=== RAW_SHEETS taxonomy ===
+-- glass_type --
+   [glass]  x37
+   [mirror]  x18
+-- color --
+   [low-iron]  x19
+   [clear]  x17
+   [antique]  x9
+   [black]  x5
+   [bronze]  x3
+   [silver]  x2
+-- thickness --
+   [6]  x19
+   [10]  x9
+   [12]  x8
+   [8]  x8
+   [15]  x5
+   [5]  x4
+   [5.5]  x2
+-- company --
+   [QIN]  x11
+   [NULL]  x9
+   [Jingrun]  x6
+   [XYG]  x5
+   [Obeikan]  x5
+   [JIN]  x5
+   [Qingdao Jinjing]  x3
+   [Majed Yacoub]  x3
+   [Guardian]  x3
+   [Majdi Yacoub]  x2
+   [AGC]  x2
+   [OBK]  x1
+-- origin --
+   [China]  x32
+   [KSA]  x9
+   [NULL]  x8
+   [Jordan]  x4
+   [Belgium]  x2
+-- distinct (thickness | glass_type | color) combos --
+   5mm | glass | clear   x3
+   5mm | mirror | antique   x1
+   5.5mm | glass | clear   x2
+   6mm | glass | low-iron   x2
+   6mm | mirror | antique   x8
+   6mm | mirror | black   x4
+   6mm | mirror | bronze   x2
+   6mm | mirror | clear   x1
+   6mm | mirror | silver   x2
+   8mm | glass | black   x1
+   8mm | glass | bronze   x1
+   8mm | glass | clear   x3
+   8mm | glass | low-iron   x3
+   10mm | glass | clear   x4
+   10mm | glass | low-iron   x5
+   12mm | glass | clear   x4
+   12mm | glass | low-iron   x4
+   15mm | glass | low-iron   x5
+
+=== ORDER_ITEMS actual usage (943 items) ===
+-- glass_type --
+   [glass]  x750
+   [mirror]  x193
+-- color --
+   [clear]  x394
+   [low-iron]  x353
+   [silver]  x95
+   [antique]  x65
+   [bronze]  x26
+   [black]  x10
+-- thickness --
+   [10]  x286
+   [12]  x263
+   [6]  x250
+   [15]  x75
+   [8]  x39
+   [5.5]  x21
+   [5]  x9
+
+=== GLASS_FAMILIES (order quick-pick) ===
+   5mm | glass | clear | "5mm Clear Glass" active=1
+   5mm | glass | clear | "5mm Clear Fluted Glass" active=1
+   5.5mm | glass | clear | "5.5 mm Clear Glass" active=1
+   6mm | glass | low-iron | "6mm Low Iron Glass" active=1
+   6mm | mirror | black | "6mm Black Mirror" active=1
+   6mm | mirror | silver | "6mm Silver Mirror" active=1
+   8mm | glass | low-iron | "8mm Low Iron Glass" active=1
+   8mm | glass | bronze | "8mm Bronze Glass" active=1
+   8mm | glass | black | "8mm Black Glass" active=1
+   8mm | glass | black | "8mm Black Glass" active=1
+   10mm | glass | low-iron | "10mm Low Iron Glass" active=1
+   10mm | glass | clear | "10mm Clear Fluted Glass" active=1
+   12mm | glass | low-iron | "12mm Low Iron Glass" active=1
+   15mm | glass | low-iron | "15mm Low Iron Glass" active=1
+   5mm | mirror | antique | "5mm Antique Mirror" active=1
+   15mm | glass | clear | "15mm Clear Glass" active=1
+   6mm | mirror | antique | "6mm Antique Mirror" active=1
+   10mm | glass | clear | "10mm Clear Glass" active=1
+   6mm | glass | clear | "6mm Clear Glass" active=1
+   8mm | glass | clear | "8mm Clear Glass" active=1
+   6mm | mirror | bronze | "6mm Bronze Mirror" active=1
+   6mm | glass | clear | "6mm Clear Glass" active=1
+   8mm | glass | clear | "8mm Clear Glass" active=1
+   5mm | mirror | antique | "5mm Antique Mirror" active=1
+   12mm | glass | clear | "12mm Clear Glass" active=1
