@@ -152,6 +152,14 @@
   }
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function toast(m,e){ if(window.showToast){showToast(m,e?'err':'ok');return;} console.log(m); }
+  async function api2(path,method,body){
+    var r=await fetch('/api/pricing2'+path,{method:method||'GET',headers:{'Authorization':'Bearer '+tok(),'Content-Type':'application/json','Accept':'application/json'},body:body?JSON.stringify(body):undefined});
+    if(r.status===401) throw new Error('Session expired - sign in again.');
+    var j=await r.json().catch(function(){return{};});
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    return j;
+  }
+  function jd(n){ return (Math.round((+n||0)*100)/100).toFixed(2); }
 
   /* ---- render ---- */
   async function renderPricing(){
@@ -436,7 +444,32 @@
       ".ord-tab:hover{color:var(--tx,#cfe3f2)}"+
       ".ord-pane{display:none}.ord-pane.on{display:block}"+
       ".od-minisum{display:flex;gap:20px;align-items:center;margin-right:auto;font-size:.8rem;color:var(--muted,#7c93a8)}"+
-      ".od-minisum b{color:var(--a,#00ccff);font-family:'DM Mono',monospace;font-size:1rem;margin-left:6px}";
+      ".od-minisum b{color:var(--a,#00ccff);font-family:'DM Mono',monospace;font-size:1rem;margin-left:6px}"+
+      ".op-empty{padding:34px;text-align:center;color:var(--muted,#7c93a8)}"+
+      ".op-sum{background:var(--panel,#111f2e);border:1px solid var(--border,#1b3a5a);border-radius:12px;padding:16px 18px;margin:14px 0}"+
+      ".op-sum-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border,#1b3a5a)}"+
+      ".op-prof{font-weight:700;color:#dff0fb;font-size:1.05rem;margin-top:4px}"+
+      ".op-badge{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;font-size:.6rem;font-weight:700;background:rgba(0,204,255,.14);color:var(--a,#00ccff);vertical-align:middle;letter-spacing:.05em;text-transform:uppercase}"+
+      ".op-mut{font-size:.7rem;letter-spacing:.05em;color:var(--muted,#7c93a8)}"+
+      ".op-ovr{display:flex;flex-direction:column;gap:4px;min-width:240px}.op-ovr label{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#7c93a8)}"+
+      ".op-rows{display:grid;gap:7px;max-width:320px;margin-left:auto}"+
+      ".op-r{display:flex;justify-content:space-between;font-size:.9rem}.op-r span{color:var(--muted,#7c93a8)}.op-r b{font-family:'DM Mono',monospace;color:var(--tx,#cfe3f2)}"+
+      ".op-total{border-top:1px solid var(--border,#1b3a5a);padding-top:9px;margin-top:3px;font-size:1.2rem}.op-total span{color:var(--tx,#cfe3f2);font-weight:700}.op-total b{color:var(--a,#00ccff)}"+
+      ".op-adj{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}"+
+      ".op-card{background:var(--panel,#111f2e);border:1px solid var(--border,#1b3a5a);border-radius:10px;padding:14px 16px}"+
+      ".op-card h4{margin:0 0 11px;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#7c93a8)}"+
+      ".op-disc{display:flex;gap:8px}.op-disc .pp-sel{flex:1}.op-disc .pp-inp{width:90px}"+
+      ".op-ch-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed rgba(124,147,168,.25);font-size:.86rem;color:var(--tx,#cfe3f2)}"+
+      ".op-ch-row b{font-family:'DM Mono',monospace}"+
+      ".op-x{background:none;border:0;color:#e26d6d;cursor:pointer;font-size:1.05rem;line-height:1;padding:0 2px}"+
+      ".op-addcharge{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center}"+
+      ".op-addcharge .pp-sel,.op-addcharge .pp-inp{flex:1;min-width:64px;padding:7px 9px;font-size:.82rem}"+
+      ".op-addcharge .pp-btn{flex:0 0 auto;padding:7px 14px}"+
+      ".op-bd{width:100%;border-collapse:collapse;margin-top:2px}"+
+      ".op-bd th{font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#7c93a8);text-align:left;padding:6px 10px;border-bottom:1px solid var(--border,#1b3a5a)}"+
+      ".op-bd td{padding:7px 10px;font-size:.86rem;color:var(--tx,#cfe3f2);border-bottom:1px solid rgba(27,58,90,.5);font-family:'DM Mono',monospace}"+
+      ".op-bd td:first-child{font-family:inherit}.op-bd b{color:var(--a,#00ccff)}"+
+      "@media(max-width:760px){.op-adj{grid-template-columns:1fr}.op-rows{max-width:none}}";
     document.head.appendChild(s);
   }
   function selectOrderTab(which){
@@ -496,6 +529,7 @@
     if(typeof window.openOrderModal==='function' && !window.openOrderModal.__pp){
       var _o=window.openOrderModal;
       window.openOrderModal=async function(){
+        try{ var a0=arguments[0]; window.__ppOrderId=(a0&&typeof a0==='object')?a0.id:(a0==null||a0===''?null:a0); }catch(e){ window.__ppOrderId=null; }
         var r=await _o.apply(this,arguments);
         try{ restructureOrderModal(); selectOrderTab('details');
           setTimeout(ensurePricingRelocated,120); setTimeout(ensurePricingRelocated,450);
@@ -505,7 +539,98 @@
       window.openOrderModal.__pp=true;
     }
   }
-  function renderOrderPricing(){ /* G-2b: rich per-item breakdown comes next */ }
+  function renderOrderPricing(){
+    var op=document.getElementById('op-pane'); if(!op)return;
+    injectOrderStyle();
+    var oldPanel=document.getElementById('o-price-panel'); if(oldPanel) oldPanel.style.display='none';
+    var host=document.getElementById('op-new');
+    if(!host){ host=document.createElement('div'); host.id='op-new'; op.insertBefore(host, op.firstChild); }
+    var oid=window.__ppOrderId;
+    if(oid==null){ host.innerHTML='<div class="op-empty">Save the order first to calculate pricing.</div>'; return; }
+    host.innerHTML='<div class="op-empty">Loading pricing\u2026</div>';
+    Promise.all([
+      api2('/'+oid+'/preview'),
+      api2('/'+oid+'/choice'),
+      api2('/'+oid+'/charges'),
+      api('GET','/profiles').catch(function(){return [];}),
+      api('GET','/categories').catch(function(){return [];})
+    ]).then(function(res){
+      renderPricingInto(host, oid, res[0], res[1], res[2], res[3], res[4]);
+    }).catch(function(e){
+      host.innerHTML='<div class="op-empty">Could not load pricing: '+esc(e.message)+'</div>';
+    });
+  }
+
+  function renderPricingInto(host, oid, preview, choice, charges, profiles, cats){
+    var resolved=preview.resolved||{}, bd=preview.breakdown;
+    var srcLabel={order:'Order override',customer:'Customer profile',product_default:'Product default',none:'No profile'}[resolved.source]||resolved.source||'';
+    var curOv=(choice && choice.profile_id!=null)?String(choice.profile_id):'';
+    var profOpts='<option value="">Use default ('+esc(resolved.profile_name||'none')+')</option>';
+    (profiles||[]).forEach(function(p){ profOpts+='<option value="'+p.id+'"'+(String(p.id)===curOv?' selected':'')+'>'+esc(p.name)+' \u2014 '+jd(p.base_rate)+'/'+(p.basis==='per_linear_meter'?'m':'m\u00B2')+'</option>'; });
+    var dtype=(choice&&choice.discount_type)||'', dval=(choice&&choice.discount_value!=null)?choice.discount_value:'';
+    var discSel='<select id="op-disc-type" class="pp-sel"><option value=""'+(dtype===''?' selected':'')+'>No discount</option><option value="pct"'+(dtype==='pct'?' selected':'')+'>Percent %</option><option value="flat"'+(dtype==='flat'?' selected':'')+'>Flat JOD</option></select>';
+    var discInp='<input id="op-disc-val" class="pp-inp" type="number" step="0.01" min="0" placeholder="0" value="'+esc(dval)+'"'+(dtype===''?' disabled':'')+'>';
+    var chList='';
+    (charges||[]).forEach(function(c){
+      chList+='<div class="op-ch-row"><span dir="auto">'+esc(c.description||c.category_label||'Charge')+(c.category_label?' <em class="op-mut">('+esc(c.category_label)+')</em>':'')+'</span>'+
+        '<span><b>'+jd(c.amount)+'</b> <button class="op-x" data-ch="'+c.id+'" type="button" title="Remove">\u00D7</button></span></div>';
+    });
+    if(!chList) chList='<div class="op-mut" style="padding:4px 0">No manual charges.</div>';
+    var catOpts='<option value="">(no category)</option>';
+    (cats||[]).forEach(function(c){ catOpts+='<option value="'+c.id+'">'+esc(c.label)+'</option>'; });
+    var nBase=bd?bd.value_base:0, nRule=bd?bd.value_rule_extras:0, nMan=bd?bd.manual_extras:0, nDisc=bd?bd.discount:0, nTot=bd?bd.subtotal:0;
+    var rows='';
+    if(bd && bd.lines && bd.lines.length){
+      bd.lines.forEach(function(l){ rows+='<tr><td>'+l.w+'\u00D7'+l.h+'</td><td>'+l.qty+'</td><td>'+jd(l.area)+'</td><td>'+jd(l.base_unit)+'</td><td>'+jd(l.extras_unit)+'</td><td><b>'+jd(l.line_base+l.line_extras)+'</b></td></tr>'; });
+    } else { rows='<tr><td colspan="6" class="op-mut" style="text-align:center;padding:14px">No priced items.</td></tr>'; }
+    var noProfileNote = bd ? '' : '<div class="op-empty" style="padding:12px;color:#f0a500">No price profile resolved. Pick an override below, or set a product/customer default.</div>';
+    host.innerHTML=
+      '<div class="op-sum">'+
+        '<div class="op-sum-head">'+
+          '<div><div class="op-mut">Price profile</div><div class="op-prof" dir="auto">'+esc(resolved.profile_name||'\u2014')+' <span class="op-badge">'+esc(srcLabel)+'</span></div></div>'+
+          '<div class="op-ovr"><label>Override for this order</label><select id="op-prof-sel" class="pp-sel">'+profOpts+'</select></div>'+
+        '</div>'+
+        '<div class="op-rows">'+
+          '<div class="op-r"><span>Base</span><b>'+jd(nBase)+'</b></div>'+
+          '<div class="op-r"><span>Rule extras</span><b>'+jd(nRule)+'</b></div>'+
+          '<div class="op-r"><span>Manual charges</span><b>'+jd(nMan)+'</b></div>'+
+          '<div class="op-r"><span>Discount</span><b>'+(nDisc?'-':'')+jd(nDisc)+'</b></div>'+
+          '<div class="op-r op-total"><span>Total</span><b>'+jd(nTot)+' JOD</b></div>'+
+        '</div>'+
+      '</div>'+
+      noProfileNote+
+      '<div class="op-adj">'+
+        '<div class="op-card"><h4>Discount</h4><div class="op-disc">'+discSel+discInp+'</div></div>'+
+        '<div class="op-card"><h4>Manual charges</h4><div id="op-charges">'+chList+'</div>'+
+          '<div class="op-addcharge"><select id="op-ch-cat" class="pp-sel">'+catOpts+'</select>'+
+          '<input id="op-ch-desc" class="pp-inp" placeholder="description">'+
+          '<input id="op-ch-amt" class="pp-inp" type="number" step="0.01" min="0" placeholder="JOD">'+
+          '<button id="op-ch-add" class="pp-btn" type="button">Add</button></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="op-card"><h4>Item breakdown</h4>'+
+        '<table class="pp-tbl op-bd"><thead><tr><th>Size (mm)</th><th>Qty</th><th>Area m\u00B2</th><th>Base/pc</th><th>Extras/pc</th><th>Line total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '</div>';
+    wirePricing(host, oid);
+  }
+
+  function wirePricing(host, oid){
+    function curChoice(){ return { profile_id:(host.querySelector('#op-prof-sel').value||null),
+                                   discount_type:(host.querySelector('#op-disc-type').value||null),
+                                   discount_value:(host.querySelector('#op-disc-val').value||0) }; }
+    function put(){ return api2('/'+oid+'/choice','PUT',curChoice()).then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); }
+    var ps=host.querySelector('#op-prof-sel'); if(ps) ps.onchange=put;
+    var dt=host.querySelector('#op-disc-type'), dv=host.querySelector('#op-disc-val');
+    if(dt) dt.onchange=function(){ dv.disabled=(dt.value===''); put(); };
+    if(dv) dv.onchange=put;
+    var add=host.querySelector('#op-ch-add');
+    if(add) add.onclick=function(){
+      var cat=host.querySelector('#op-ch-cat').value||null, desc=host.querySelector('#op-ch-desc').value||null, amt=parseFloat(host.querySelector('#op-ch-amt').value);
+      if(!(amt>0)){ toast('Enter an amount greater than 0',1); return; }
+      api2('/'+oid+'/charges','POST',{category_id:cat,description:desc,amount:amt}).then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); });
+    };
+    host.querySelectorAll('.op-x').forEach(function(b){ b.onclick=function(){ api2('/'+oid+'/charges/'+b.dataset.ch,'DELETE').then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); }; });
+  }
 
   function init(){ try{ injectStyle(); injectNav(); injectPanel(); wrapSP(); injectCustTab(); wrapCustFns(); wrapOrderModal(); }catch(e){ console.warn('pricing-ui init',e); } }
   if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded',init);

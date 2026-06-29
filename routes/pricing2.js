@@ -87,5 +87,77 @@ router.get('/:orderId/preview', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ---- BLOCK G-2b: order-level pricing writes (preview tables only; live billing untouched) ----
+function _getOrder(id){ return db.prepare('SELECT id FROM orders WHERE id=?').get(id); }
+
+// GET the raw order-level choice (profile override + discount)
+router.get('/:orderId/choice', (req,res) => {
+  try {
+    const id=+req.params.orderId;
+    const row=db.prepare('SELECT profile_id, discount_type, discount_value, discount_note FROM order_price_choice WHERE order_id=? AND product_id IS NULL').get(id);
+    res.json(row || { profile_id:null, discount_type:null, discount_value:null, discount_note:null });
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// PUT set/clear the order-level profile override + discount
+router.put('/:orderId/choice', (req,res) => {
+  try {
+    const id=+req.params.orderId;
+    if(!_getOrder(id)) return res.status(404).json({error:'Order not found'});
+    const b=req.body||{};
+    const profile_id = (b.profile_id===''||b.profile_id==null) ? null : +b.profile_id;
+    const dtype = (b.discount_type==='pct'||b.discount_type==='flat') ? b.discount_type : null;
+    const dval  = dtype ? (+b.discount_value||0) : null;
+    const dnote = b.discount_note || null;
+    const existing = db.prepare('SELECT id FROM order_price_choice WHERE order_id=? AND product_id IS NULL').get(id);
+    if(profile_id==null && dtype==null){
+      if(existing) db.prepare('DELETE FROM order_price_choice WHERE id=?').run(existing.id);
+      return res.json({ order_id:id, cleared:true });
+    }
+    if(existing){
+      db.prepare('UPDATE order_price_choice SET profile_id=?, discount_type=?, discount_value=?, discount_note=? WHERE id=?')
+        .run(profile_id, dtype, dval, dnote, existing.id);
+    } else {
+      db.prepare('INSERT INTO order_price_choice(order_id, product_id, profile_id, discount_type, discount_value, discount_note) VALUES(?,NULL,?,?,?,?)')
+        .run(id, profile_id, dtype, dval, dnote);
+    }
+    res.json({ order_id:id, profile_id, discount_type:dtype, discount_value:dval, discount_note:dnote });
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// GET the order's manual extra charges
+router.get('/:orderId/charges', (req,res) => {
+  try {
+    const id=+req.params.orderId;
+    const rows=db.prepare(`SELECT ec.id, ec.category_id, ec.description, ec.amount, c.label category_label
+                           FROM order_extra_charges ec LEFT JOIN extra_charge_categories c ON c.id=ec.category_id
+                           WHERE ec.order_id=? ORDER BY ec.id`).all(id);
+    res.json(rows);
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// POST add a manual extra charge
+router.post('/:orderId/charges', (req,res) => {
+  try {
+    const id=+req.params.orderId;
+    if(!_getOrder(id)) return res.status(404).json({error:'Order not found'});
+    const b=req.body||{};
+    const amount=+b.amount; if(!(amount>0)) return res.status(400).json({error:'amount must be greater than 0'});
+    const cat=(b.category_id==null||b.category_id==='')?null:+b.category_id;
+    const info=db.prepare("INSERT INTO order_extra_charges(order_id, category_id, description, amount, created_at) VALUES(?,?,?,?,datetime('now'))")
+      .run(id, cat, b.description||null, round2(amount));
+    res.json(db.prepare('SELECT id, category_id, description, amount FROM order_extra_charges WHERE id=?').get(info.lastInsertRowid));
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// DELETE a manual extra charge (scoped to the order)
+router.delete('/:orderId/charges/:chargeId', (req,res) => {
+  try {
+    const id=+req.params.orderId, cid=+req.params.chargeId;
+    db.prepare('DELETE FROM order_extra_charges WHERE id=? AND order_id=?').run(cid, id);
+    res.json({deleted:cid});
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
 module.exports = router;
 
