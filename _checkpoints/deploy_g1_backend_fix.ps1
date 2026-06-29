@@ -1,3 +1,18 @@
+# ============================================================================
+#  BLOCK G-1 backend - FIX v2: customer-price DELETE/replace FK order
+#  (delete customer_price_profile mapping BEFORE its price_profiles row).
+#  Route-only - does NOT touch the DB (no migration), so no wedge risk.
+#  RUN AS ADMINISTRATOR.
+# ============================================================================
+$ts   = Get-Date -Format 'yyyyMMdd-HHmmss'
+$srv  = 'C:\agi-server'
+$rdir = Join-Path $srv 'routes'
+$rbk  = Join-Path $srv '_route_backups'
+New-Item -ItemType Directory -Force -Path $rbk | Out-Null
+
+$routePath = Join-Path $rdir 'pricing_admin.js'
+if (Test-Path $routePath) { Copy-Item $routePath (Join-Path $rbk "pricing_admin.js.$ts.bak") }
+$route = @'
 // routes/pricing_admin.js
 // BLOCK F-1 - CRUD admin for the modular pricing model (profiles, rules,
 // extra-charge categories, product default attachments). Reads/writes ONLY the
@@ -247,3 +262,23 @@ router.delete('/customers/:cid/prices/:productId', requireAdmin, (req,res) => {
 
 module.exports = router;
 
+'@
+Set-Content -Path $routePath -Value $route -Encoding ascii
+Push-Location $srv; & node --check $routePath; $chk = $LASTEXITCODE; Pop-Location
+if ($chk -ne 0) {
+  Write-Host 'ABORT: syntax check failed; restoring backup.'
+  Copy-Item (Join-Path $rbk "pricing_admin.js.$ts.bak") $routePath -Force
+  exit 1
+}
+Write-Host ('Wrote ' + $routePath)
+
+# robust restart (stop, free port 3444, start) - avoids leaving a wedged process
+Stop-Service agi-glass -Force
+Start-Sleep -Seconds 2
+$pids = (Get-NetTCPConnection -LocalPort 3444 -State Listen -ErrorAction SilentlyContinue).OwningProcess
+foreach ($p in $pids) { taskkill /F /PID $p 2>$null | Out-Null }
+Start-Sleep -Seconds 1
+Start-Service agi-glass
+Start-Sleep -Seconds 4
+Write-Host ('agi-glass status: ' + (Get-Service agi-glass).Status)
+Write-Host 'G-1 backend fix live. (Leftover test entry on customer 7 will be cleaned via the API next.)'

@@ -213,14 +213,16 @@
   }
 
   /* ---- rules ---- */
-  async function toggleRules(pid,link){
+  async function toggleRules(pid,link,colspan){
+    colspan=colspan||7;
     var tr=link.closest('tr'); var nx=tr.nextElementSibling;
     if(nx&&nx.classList.contains('pp-rules')){nx.remove();return;}
     var p; try{ p=await api('GET','/profiles/'+pid); }catch(e){ toast(e.message,true); return; }
+    if(!META.condition_types||!META.condition_types.length){ try{ META=await api('GET','/meta'); }catch(e){} }
     var condOpts=META.condition_types.map(function(c){return '<option value="'+c+'">'+c.replace('_gt','')+' &gt;</option>';}).join('');
     var actOpts=META.action_types.map(function(a){return '<option value="'+a+'">'+a.replace('_',' ')+'</option>';}).join('');
     var dr=document.createElement('tr'); dr.className='pp-rules';
-    var html='<td colspan="7"><div class="in"><h4>Rules - applied on top of base; all matching rules stack</h4><div id="pp-rl-'+pid+'">';
+    var html='<td colspan="'+colspan+'"><div class="in"><h4>Rules - applied on top of base; all matching rules stack</h4><div id="pp-rl-'+pid+'">';
     if(!p.rules.length) html+='<div class="pp-mut" style="padding:3px 0">No rules. Add one below - e.g. area &gt; 5 &rarr; +20%.</div>';
     p.rules.forEach(function(r){html+=ruleRow(r);});
     html+='</div><div class="pp-rr" style="margin-top:8px"><span class="kw">IF</span>'+
@@ -302,7 +304,124 @@
   async function delCat(id){ if(!confirm('Delete this category?'))return; try{ await api('DELETE','/categories/'+id); toast('Category deleted'); loadCats(); }catch(e){ toast(e.message,true); } }
 
   /* ---- boot: inject as soon as the portal nav exists ---- */
-  function init(){ try{ injectStyle(); injectNav(); injectPanel(); wrapSP(); }catch(e){ console.warn('pricing-ui init',e); } }
+  /* ---- G-1: customer price profiles tab (in pg-custdetail) ---- */
+  function injectCustTab(){
+    var cd=document.getElementById('pg-custdetail'); if(!cd)return;
+    var rtabs=cd.querySelector('.rtabs'); if(!rtabs)return;
+    if(!document.getElementById('cd-priceprofiles')){
+      var pane=document.createElement('div'); pane.className='cdpane'; pane.id='cd-priceprofiles';
+      pane.innerHTML='<div class="pp-head" style="margin:14px 0 12px"><div><h2 style="font-size:1.15rem">Customer price profiles</h2>'+
+        '<p>Per-customer copies of a profile - adjust rate, minimum and rules for this customer only. Falls back to the product default when none is set.</p></div>'+
+        '<div style="flex:1"></div><button class="pp-btn pri" id="cd-pp-add">+ Add price profile</button></div>'+
+        '<div class="pp-card"><table class="pp-tbl"><thead><tr><th>Product</th><th>From profile</th>'+
+        '<th style="text-align:right">Rate</th><th style="text-align:right">Min/piece</th><th>Rules</th><th></th></tr></thead>'+
+        '<tbody id="cd-pp-rows"><tr><td colspan="6" class="pp-empty">Open a customer to manage their prices.</td></tr></tbody></table></div>';
+      cd.appendChild(pane);
+    }
+    if(!document.getElementById('cd-pp-tabbtn')){
+      var btn=document.createElement('button'); btn.className='cdtab'; btn.id='cd-pp-tabbtn';
+      btn.setAttribute('onclick',"custDetailTab('priceprofiles')");
+      btn.innerHTML='&#9670; Price Profiles';
+      var pricesBtn=[].slice.call(rtabs.querySelectorAll('button')).find(function(b){return /custDetailTab\('prices'\)/.test(b.getAttribute('onclick')||'');});
+      if(pricesBtn) rtabs.insertBefore(btn, pricesBtn.nextSibling); else rtabs.appendChild(btn);
+    }
+    if(!document.getElementById('cd-pp-modal')){
+      var w=document.createElement('div'); w.innerHTML=
+       '<div class="pp-mbg" id="cd-pp-modal"><div class="pp-mdl"><h3>Add price profile for this customer</h3><div class="pp-mb">'+
+        '<div class="pp-f"><label>Product</label><select id="cd-pp-prod"></select></div>'+
+        '<div class="pp-f"><label>Start from profile</label><select id="cd-pp-src"></select>'+
+        '<span class="hint">A full copy is made for this customer - editing it never affects the global profile.</span></div>'+
+        '</div><div class="pp-mf"><button class="pp-btn" id="cd-pp-x">Cancel</button><button class="pp-btn pri" id="cd-pp-s">Add copy</button></div></div></div>';
+      document.body.appendChild(w);
+      document.getElementById('cd-pp-x').onclick=function(){document.getElementById('cd-pp-modal').classList.remove('on');};
+      document.getElementById('cd-pp-s').onclick=saveAddCustPrice;
+      document.getElementById('cd-pp-modal').addEventListener('click',function(e){if(e.target.id==='cd-pp-modal')e.target.classList.remove('on');});
+    }
+    var addBtn=document.getElementById('cd-pp-add'); if(addBtn) addBtn.onclick=openAddCustPrice;
+  }
+  function wrapCustFns(){
+    if(typeof window.openCustDetail==='function' && !window.openCustDetail.__pp){
+      var _o=window.openCustDetail;
+      window.openCustDetail=function(id){ try{ window.__ppCust=(id&&typeof id==='object')?id.id:id; }catch(e){} return _o.apply(this,arguments); };
+      window.openCustDetail.__pp=true;
+    }
+    if(typeof window.custDetailTab==='function' && !window.custDetailTab.__pp){
+      var _t=window.custDetailTab;
+      window.custDetailTab=function(tab){
+        var r=_t.apply(this,arguments);
+        try{
+          var btns=document.querySelectorAll('#pg-custdetail .rtabs button.cdtab');
+          btns.forEach(function(b){ var m=(b.getAttribute('onclick')||'').match(/custDetailTab\('(\w+)'\)/); if(m) b.classList.toggle('on', m[1]===tab); });
+        }catch(e){}
+        if(tab==='priceprofiles') renderCustPrices();
+        return r;
+      };
+      window.custDetailTab.__pp=true;
+    }
+  }
+  async function renderCustPrices(){
+    injectStyle();
+    var cid=window.__ppCust;
+    var body=document.getElementById('cd-pp-rows'); if(!body)return;
+    if(cid==null){ body.innerHTML='<tr><td colspan="6" class="pp-empty">Open a customer to manage their prices.</td></tr>'; return; }
+    body.innerHTML='<tr><td colspan="6" class="pp-empty">Loading...</td></tr>';
+    var rows;
+    try{ rows=await api('GET','/customers/'+cid+'/prices'); }
+    catch(e){ toast(e.message,true); body.innerHTML='<tr><td colspan="6" class="pp-empty">'+esc(e.message)+'</td></tr>'; return; }
+    if(!rows.length){ body.innerHTML='<tr><td colspan="6" class="pp-empty">No customer-specific prices yet. Click "+ Add price profile" to create one.</td></tr>'; return; }
+    body.innerHTML='';
+    rows.forEach(function(r){
+      var tr=document.createElement('tr'); tr.className='r';
+      tr.innerHTML='<td><span class="pp-name" dir="auto">'+esc(r.product_label||('product '+r.product_id))+'</span></td>'+
+        '<td><span class="pp-mut" dir="auto">'+esc(r.source_name||r.profile_name||'-')+'</span></td>'+
+        '<td style="text-align:right"><input class="pp-inp" value="'+r.base_rate+'" data-f="base_rate" data-pid="'+r.profile_id+'"></td>'+
+        '<td style="text-align:right"><input class="pp-inp" value="'+r.min_per_piece+'" data-f="min_per_piece" data-pid="'+r.profile_id+'"></td>'+
+        '<td><a href="#" style="color:var(--a)" data-crules="'+r.profile_id+'">'+r.rule_count+' rule'+(r.rule_count==1?'':'s')+' &#9662;</a></td>'+
+        '<td><div class="pp-act"><button class="pp-btn gh sm dn" data-cdel="'+r.product_id+'">Remove</button></div></td>';
+      body.appendChild(tr);
+    });
+    body.querySelectorAll('.pp-inp').forEach(function(inp){
+      inp.addEventListener('input',function(){inp.classList.add('dirty');});
+      inp.addEventListener('blur',function(){saveCustCell(inp);});
+      inp.addEventListener('keydown',function(e){if(e.key==='Enter')inp.blur();});
+    });
+    body.querySelectorAll('[data-crules]').forEach(function(a){a.onclick=function(e){e.preventDefault();toggleRules(+a.dataset.crules,a,6);};});
+    body.querySelectorAll('[data-cdel]').forEach(function(b){b.onclick=function(){delCustPrice(+b.dataset.cdel);};});
+  }
+  async function saveCustCell(inp){
+    if(!inp.classList.contains('dirty'))return;
+    try{ var b={}; b[inp.dataset.f]=inp.value; await api('PUT','/profiles/'+inp.dataset.pid,b); inp.classList.remove('dirty'); toast('Saved'); }
+    catch(e){ toast(e.message,true); }
+  }
+  async function openAddCustPrice(){
+    var cid=window.__ppCust; if(cid==null){toast('Open a customer first',true);return;}
+    var prods, globs, existing;
+    try{ prods=await api('GET','/products'); globs=await api('GET','/profiles'); existing=await api('GET','/customers/'+cid+'/prices'); }
+    catch(e){ toast(e.message,true); return; }
+    var taken={}; existing.forEach(function(r){taken[r.product_id]=1;});
+    var prodSel=document.getElementById('cd-pp-prod');
+    prodSel.innerHTML=prods.map(function(p){return '<option value="'+p.product_id+'"'+(taken[p.product_id]?' disabled':'')+'>'+esc(p.label||('product '+p.product_id))+(taken[p.product_id]?' (already set)':'')+'</option>';}).join('');
+    var srcSel=document.getElementById('cd-pp-src');
+    srcSel.innerHTML=globs.map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join('');
+    document.getElementById('cd-pp-modal').classList.add('on');
+  }
+  async function saveAddCustPrice(){
+    var cid=window.__ppCust;
+    var product_id=+document.getElementById('cd-pp-prod').value;
+    var source_profile_id=+document.getElementById('cd-pp-src').value;
+    if(!product_id||!source_profile_id){toast('Pick a product and a profile',true);return;}
+    try{ await api('POST','/customers/'+cid+'/prices',{product_id:product_id,source_profile_id:source_profile_id});
+      document.getElementById('cd-pp-modal').classList.remove('on'); toast('Price added'); renderCustPrices(); }
+    catch(e){ toast(e.message,true); }
+  }
+  async function delCustPrice(productId){
+    var cid=window.__ppCust;
+    if(!confirm('Remove this customer price? The customer will fall back to the product default.'))return;
+    try{ await api('DELETE','/customers/'+cid+'/prices/'+productId); toast('Removed'); renderCustPrices(); }
+    catch(e){ toast(e.message,true); }
+  }
+
+  function init(){ try{ injectStyle(); injectNav(); injectPanel(); wrapSP(); injectCustTab(); wrapCustFns(); }catch(e){ console.warn('pricing-ui init',e); } }
   if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded',init);
   var tries=0; var iv=setInterval(function(){ init();
     if(document.getElementById('nt-pricing')&&document.getElementById('pg-pricing')&&window.SP&&window.SP.__pp){ clearInterval(iv); }

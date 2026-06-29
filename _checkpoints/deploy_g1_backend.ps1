@@ -1,3 +1,56 @@
+# ============================================================================
+#  BLOCK G-1 (a+b)  -  Customer price profiles (per-customer FULL COPIES).
+#  1) snapshot DB + add price_profiles.customer_id, .source_profile_id (idempotent)
+#  2) replace routes\pricing_admin.js (global list filtered to customer_id IS NULL;
+#     adds GET/POST/DELETE /customers/:cid/prices)
+#  3) restart the agi-glass service
+#  Additive only - does not touch orders, live billing, or legacy customer_prices.
+#  RUN AS ADMINISTRATOR.
+# ============================================================================
+$ts   = Get-Date -Format 'yyyyMMdd-HHmmss'
+$srv  = 'C:\agi-server'
+$rdir = Join-Path $srv 'routes'
+$rbk  = Join-Path $srv '_route_backups'
+$cp   = Join-Path $srv '_checkpoints'
+New-Item -ItemType Directory -Force -Path $rbk,$cp | Out-Null
+
+# --- 1) schema migration (snapshots DB itself, then adds columns) ---
+$migPath = Join-Path $cp 'migrate_g1.js'
+$mig = @'
+// Block G-1a migration: snapshot + add per-customer-copy columns to price_profiles.
+// Idempotent. Run from C:\agi-server so better-sqlite3 resolves.
+const Database=require('better-sqlite3'), fs=require('fs'), path=require('path');
+const DB='C:\\agi-server\\agi-glass.db';
+const db=new Database(DB);
+const dir='C:\\agi-server\\_checkpoints'; fs.mkdirSync(dir,{recursive:true});
+const ts=new Date().toISOString().replace(/[-:T]/g,'').slice(0,15);
+const snap=path.join(dir,'agi-glass_preG1_'+ts+'.db');
+try{ db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); }catch(e){}
+db.prepare("VACUUM INTO ?").run(snap);
+console.log('snapshot: '+snap);
+const cols=db.prepare("PRAGMA table_info(price_profiles)").all().map(c=>c.name);
+const added=[];
+if(!cols.includes('customer_id')){ db.exec("ALTER TABLE price_profiles ADD COLUMN customer_id INTEGER"); added.push('customer_id'); }
+if(!cols.includes('source_profile_id')){ db.exec("ALTER TABLE price_profiles ADD COLUMN source_profile_id INTEGER"); added.push('source_profile_id'); }
+console.log('added columns: '+(added.length?added.join(', '):'(none - already present)'));
+const tot=db.prepare("SELECT COUNT(*) c FROM price_profiles").get().c;
+const glob=db.prepare("SELECT COUNT(*) c FROM price_profiles WHERE customer_id IS NULL").get().c;
+console.log('price_profiles: total='+tot+', global(customer_id NULL)='+glob+', customer-owned='+(tot-glob));
+db.close();
+console.log('G-1a migration done.');
+
+'@
+Set-Content -Path $migPath -Value $mig -Encoding ascii
+Push-Location $srv
+& node $migPath
+$migExit = $LASTEXITCODE
+Pop-Location
+if ($migExit -ne 0) { Write-Host 'ABORT: migration failed.'; exit 1 }
+
+# --- 2) route file ---
+$routePath = Join-Path $rdir 'pricing_admin.js'
+if (Test-Path $routePath) { Copy-Item $routePath (Join-Path $rbk "pricing_admin.js.$ts.bak") }
+$route = @'
 // routes/pricing_admin.js
 // BLOCK F-1 - CRUD admin for the modular pricing model (profiles, rules,
 // extra-charge categories, product default attachments). Reads/writes ONLY the
@@ -202,8 +255,8 @@ router.post('/customers/:cid/prices', requireAdmin, (req,res) => {
       const ex=db.prepare('SELECT profile_id FROM customer_price_profile WHERE customer_id=? AND product_id=?').get(cid,productId);
       if(ex){
         db.prepare('DELETE FROM pricing_rules WHERE profile_id=?').run(ex.profile_id);
-        db.prepare('DELETE FROM customer_price_profile WHERE customer_id=? AND product_id=?').run(cid,productId);
         db.prepare('DELETE FROM price_profiles WHERE id=? AND customer_id=?').run(ex.profile_id, cid);
+        db.prepare('DELETE FROM customer_price_profile WHERE customer_id=? AND product_id=?').run(cid,productId);
       }
       const info=db.prepare(`INSERT INTO price_profiles(name,basis,length_basis,base_rate,min_per_piece,active,notes,customer_id,source_profile_id)
                              VALUES(?,?,?,?,?,?,?,?,?)`)
@@ -238,8 +291,8 @@ router.delete('/customers/:cid/prices/:productId', requireAdmin, (req,res) => {
     if(!map) return res.status(404).json({error:'No price entry for this customer/product'});
     const tx=db.transaction(()=>{
       db.prepare('DELETE FROM pricing_rules WHERE profile_id=?').run(map.profile_id);
-      db.prepare('DELETE FROM customer_price_profile WHERE customer_id=? AND product_id=?').run(cid,productId);
       db.prepare('DELETE FROM price_profiles WHERE id=? AND customer_id=?').run(map.profile_id, cid);
+      db.prepare('DELETE FROM customer_price_profile WHERE customer_id=? AND product_id=?').run(cid,productId);
     }); tx();
     res.json({deleted:productId});
   } catch(e){ res.status(500).json({error:e.message}); }
@@ -247,3 +300,25 @@ router.delete('/customers/:cid/prices/:productId', requireAdmin, (req,res) => {
 
 module.exports = router;
 
+'@
+Set-Content -Path $routePath -Value $route -Encoding ascii
+Push-Location $srv
+& node --check $routePath
+$chk = $LASTEXITCODE
+Pop-Location
+if ($chk -ne 0) {
+  Write-Host 'ABORT: new pricing_admin.js failed syntax check; restoring backup.'
+  Copy-Item (Join-Path $rbk "pricing_admin.js.$ts.bak") $routePath -Force
+  exit 1
+}
+Write-Host ('Wrote ' + $routePath)
+
+# --- 3) restart ---
+Restart-Service agi-glass -Force
+Start-Sleep -Seconds 3
+$svc = Get-Service agi-glass
+Write-Host ('agi-glass status: ' + $svc.Status)
+Write-Host ''
+Write-Host 'G-1 backend live. Next: G-1 frontend (Customer Prices tab).'
+Write-Host 'REVERT: restore routes\pricing_admin.js from _route_backups and Restart-Service agi-glass.'
+Write-Host '        (columns are additive/harmless; no DB revert needed.)'

@@ -246,4 +246,3 @@ router.delete('/customers/:cid/prices/:productId', requireAdmin, (req,res) => {
 });
 
 module.exports = router;
-

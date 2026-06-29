@@ -1,3 +1,15 @@
+# ============================================================================
+#  BLOCK G-1 frontend v2  -  Customer Price Profiles tab (highlight fix).
+#  Static file only: overwrites public\pricing-ui.js. NO restart, NO glassfab edit.
+#  v2: custDetailTab wrapper re-syncs the rtabs button highlight for the new tab.
+# ============================================================================
+$ts  = Get-Date -Format 'yyyyMMdd-HHmmss'
+$pub = 'C:\agi-server\public'
+$bk  = 'C:\agi-server\_public_backups'
+New-Item -ItemType Directory -Force -Path $bk | Out-Null
+$uiPath = Join-Path $pub 'pricing-ui.js'
+if (Test-Path $uiPath) { Copy-Item $uiPath (Join-Path $bk "pricing-ui.js.$ts.bak") }
+$uijs = @'
 /* pricing-ui.js  -  Block F-2 (native): injects a "Pricing" tab into the AGI
  * portal. Self-contained, defensive: if anything is missing it no-ops rather
  * than breaking the portal. Styled to the portal's dark theme. */
@@ -428,3 +440,10 @@
     if(++tries>60) clearInterval(iv);
   },500);
 })();
+
+'@
+Set-Content -Path $uiPath -Value $uijs -Encoding ascii
+& node --check $uiPath
+if ($LASTEXITCODE -ne 0) { Write-Host 'ABORT: syntax check failed; restoring.'; Copy-Item (Join-Path $bk "pricing-ui.js.$ts.bak") $uiPath -Force; exit 1 }
+Write-Host ('Wrote ' + $uiPath + '  (' + (Get-Item $uiPath).Length + ' bytes, syntax OK)')
+Write-Host 'Done. Hard-refresh the portal (Ctrl+F5).'
