@@ -421,7 +421,93 @@
     catch(e){ toast(e.message,true); }
   }
 
-  function init(){ try{ injectStyle(); injectNav(); injectPanel(); wrapSP(); injectCustTab(); wrapCustFns(); }catch(e){ console.warn('pricing-ui init',e); } }
+  /* ---- G-2a: full-page tabbed order modal (Order Details | Pricing) ---- */
+  function injectOrderStyle(){
+    if(document.getElementById('ord-fp-style'))return;
+    var s=document.createElement('style'); s.id='ord-fp-style';
+    s.textContent=
+      "#m-order .mdl{max-width:none!important;width:96vw!important;height:94vh!important;max-height:94vh!important;display:flex!important;flex-direction:column!important}"+
+      "#m-order .mh{flex:0 0 auto}"+
+      "#m-order .ord-tabbar{flex:0 0 auto;display:flex;gap:2px;padding:0 18px;border-bottom:1px solid var(--border,#1b3a5a)}"+
+      "#m-order .mb{flex:1 1 auto;overflow:auto}"+
+      "#m-order .mf{flex:0 0 auto;display:flex;align-items:center;gap:10px}"+
+      ".ord-tab{background:none;border:0;color:var(--muted,#7c93a8);font-family:'Cairo',sans-serif;font-weight:700;font-size:.85rem;letter-spacing:.5px;padding:11px 18px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}"+
+      ".ord-tab.on{color:var(--a,#00ccff);border-bottom-color:var(--a,#00ccff)}"+
+      ".ord-tab:hover{color:var(--tx,#cfe3f2)}"+
+      ".ord-pane{display:none}.ord-pane.on{display:block}"+
+      ".od-minisum{display:flex;gap:20px;align-items:center;margin-right:auto;font-size:.8rem;color:var(--muted,#7c93a8)}"+
+      ".od-minisum b{color:var(--a,#00ccff);font-family:'DM Mono',monospace;font-size:1rem;margin-left:6px}";
+    document.head.appendChild(s);
+  }
+  function selectOrderTab(which){
+    var bar=document.querySelector('#m-order .ord-tabbar'); if(!bar)return;
+    bar.querySelectorAll('.ord-tab').forEach(function(t){t.classList.toggle('on',t.dataset.otab===which);});
+    var od=document.getElementById('od-pane'), op=document.getElementById('op-pane');
+    if(od)od.classList.toggle('on',which==='details');
+    if(op)op.classList.toggle('on',which==='pricing');
+    var mini=document.getElementById('od-minisum'); if(mini) mini.style.display=(which==='details')?'flex':'none';
+    if(which==='pricing') renderOrderPricing();
+  }
+  function setText(el,v){ if(el && v!=null && el.textContent!==String(v)) el.textContent=v; }
+  function syncOrderMini(){
+    function num(el){ if(!el)return null; var m=(el.textContent||'').match(/[\d.]+/); return m?m[0]:null; }
+    setText(document.getElementById('od-ms-pcs'), num(document.getElementById('opp-pcs')));
+    setText(document.getElementById('od-ms-sqm'), num(document.getElementById('opp-area')));
+  }
+  function ensurePricingRelocated(){
+    var op=document.getElementById('op-pane'); if(!op)return;
+    var pp=document.getElementById('o-price-panel'); if(pp && pp.parentNode!==op) op.appendChild(pp);
+    var cop=document.getElementById('o-cop'), cell=cop&&cop.closest('.fg'); if(cell && cell.parentNode!==op) op.appendChild(cell);
+    if(pp && !pp.__ppObs){ try{ new MutationObserver(syncOrderMini).observe(pp,{childList:true,subtree:true,characterData:true}); pp.__ppObs=true; }catch(e){} }
+    syncOrderMini();
+  }
+  function restructureOrderModal(){
+    var m=document.getElementById('m-order'); if(!m)return;
+    var mdl=m.querySelector('.mdl'); if(!mdl)return;
+    var mb=mdl.querySelector('.mb'); if(!mb)return;
+    injectOrderStyle();
+    var od=document.getElementById('od-pane'), op=document.getElementById('op-pane');
+    if(!od||!op){
+      od=document.createElement('div'); od.id='od-pane'; od.className='ord-pane on';
+      op=document.createElement('div'); op.id='op-pane'; op.className='ord-pane';
+      [].slice.call(mb.children).forEach(function(c){ od.appendChild(c); });   // move the built form into details
+      var mini=document.createElement('div'); mini.className='od-minisum'; mini.id='od-minisum';
+      mini.innerHTML='<span>Total pieces<b id="od-ms-pcs">0</b></span><span>Total area<b id="od-ms-sqm">0</b> m\u00B2</span>';
+      var mf=mdl.querySelector('.mf'); if(mf) mf.insertBefore(mini, mf.firstChild);
+      mb.appendChild(od); mb.appendChild(op);
+      var bar=document.createElement('div'); bar.className='ord-tabbar';
+      bar.innerHTML='<button class="ord-tab on" type="button" data-otab="details">Order Details</button><button class="ord-tab" type="button" data-otab="pricing">Pricing</button>';
+      mdl.insertBefore(bar, mb);
+      bar.querySelectorAll('.ord-tab').forEach(function(b){ b.onclick=function(){ selectOrderTab(b.dataset.otab); }; });
+      // o-price-panel / o-cop are built asynchronously even after openOrderModal resolves;
+      // watch mb and relocate them whenever they appear (only acts when relocation is needed -> no loop)
+      try{
+        new MutationObserver(function(){
+          var op2=document.getElementById('op-pane'); if(!op2)return;
+          var pp2=document.getElementById('o-price-panel');
+          var c2=document.getElementById('o-cop'), cell2=c2&&c2.closest('.fg');
+          if((pp2&&pp2.parentNode!==op2)||(cell2&&cell2.parentNode!==op2)) ensurePricingRelocated();
+        }).observe(mb,{childList:true,subtree:true});
+      }catch(e){}
+    }
+    ensurePricingRelocated();
+  }
+  function wrapOrderModal(){
+    if(typeof window.openOrderModal==='function' && !window.openOrderModal.__pp){
+      var _o=window.openOrderModal;
+      window.openOrderModal=async function(){
+        var r=await _o.apply(this,arguments);
+        try{ restructureOrderModal(); selectOrderTab('details');
+          setTimeout(ensurePricingRelocated,120); setTimeout(ensurePricingRelocated,450);
+        }catch(e){ console.warn('order modal restructure',e); }
+        return r;
+      };
+      window.openOrderModal.__pp=true;
+    }
+  }
+  function renderOrderPricing(){ /* G-2b: rich per-item breakdown comes next */ }
+
+  function init(){ try{ injectStyle(); injectNav(); injectPanel(); wrapSP(); injectCustTab(); wrapCustFns(); wrapOrderModal(); }catch(e){ console.warn('pricing-ui init',e); } }
   if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded',init);
   var tries=0; var iv=setInterval(function(){ init();
     if(document.getElementById('nt-pricing')&&document.getElementById('pg-pricing')&&window.SP&&window.SP.__pp){ clearInterval(iv); }
