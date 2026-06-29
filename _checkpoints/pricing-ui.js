@@ -100,7 +100,7 @@
         '<th>Default profile</th></tr></thead><tbody id="pp-prodrows"><tr><td colspan="3" class="pp-empty">Loading...</td></tr></tbody></table></div></div>'+
       '<div class="pp-pane" id="pp-cats"><div class="pp-head" style="margin:0 0 12px"><div style="flex:1"></div>'+
         '<button class="pp-btn pri" id="pp-newcat">+ New category</button></div>'+
-        '<div class="pp-card"><table class="pp-tbl"><thead><tr><th>Label</th><th>Code</th><th>Description</th><th></th></tr></thead>'+
+        '<div class="pp-card"><table class="pp-tbl"><thead><tr><th>ID</th><th>Label</th><th>Code</th><th>Description</th><th></th></tr></thead>'+
         '<tbody id="pp-catrows"><tr><td colspan="4" class="pp-empty">Loading...</td></tr></tbody></table></div></div>';
     anchor.parentNode.appendChild(pg);
     // sub-tab switching
@@ -282,11 +282,11 @@
   async function loadCats(){
     try{ CATS=await api('GET','/categories'); }catch(e){ toast(e.message,true); return; }
     var tb=document.getElementById('pp-catrows'); if(!tb)return;
-    if(!CATS.length){ tb.innerHTML='<tr><td colspan="4" class="pp-empty">No categories yet.</td></tr>'; return; }
+    if(!CATS.length){ tb.innerHTML='<tr><td colspan="5" class="pp-empty">No categories yet.</td></tr>'; return; }
     tb.innerHTML='';
     CATS.forEach(function(c){
       var tr=document.createElement('tr'); tr.className='r';
-      tr.innerHTML='<td class="pp-name">'+esc(c.label)+'</td><td class="pp-mut">'+(esc(c.code)||'-')+'</td>'+
+      tr.innerHTML='<td class="pp-mut" style="font-family:\'DM Mono\',monospace">'+c.id+'</td><td class="pp-name">'+esc(c.label)+'</td><td class="pp-mut">'+(esc(c.code)||'-')+'</td>'+
         '<td class="pp-mut">'+(esc(c.description)||'-')+'</td>'+
         '<td><div class="pp-act"><button class="pp-btn gh sm" data-cedit="'+c.id+'">Edit</button>'+
         '<button class="pp-btn gh sm dn" data-cdel="'+c.id+'">Delete</button></div></td>';
@@ -469,6 +469,9 @@
       ".op-bd th{font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#7c93a8);text-align:left;padding:6px 10px;border-bottom:1px solid var(--border,#1b3a5a)}"+
       ".op-bd td{padding:7px 10px;font-size:.86rem;color:var(--tx,#cfe3f2);border-bottom:1px solid rgba(27,58,90,.5);font-family:'DM Mono',monospace}"+
       ".op-bd td:first-child{font-family:inherit}.op-bd b{color:var(--a,#00ccff)}"+
+      ".op-final{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;padding-top:13px;border-top:1px solid var(--border,#1b3a5a);flex-wrap:wrap}"+
+      ".op-final-badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:.66rem;font-weight:700;letter-spacing:.06em;background:rgba(70,211,154,.16);color:#46d39a}"+
+      ".op-sum-final{border-color:#2e7d57}"+
       "@media(max-width:760px){.op-adj{grid-template-columns:1fr}.op-rows{max-width:none}}";
     document.head.appendChild(s);
   }
@@ -553,20 +556,26 @@
       api2('/'+oid+'/choice'),
       api2('/'+oid+'/charges'),
       api('GET','/profiles').catch(function(){return [];}),
-      api('GET','/categories').catch(function(){return [];})
+      api('GET','/categories').catch(function(){return [];}),
+      api2('/'+oid+'/snapshot').catch(function(){return {finalized:false};})
     ]).then(function(res){
-      renderPricingInto(host, oid, res[0], res[1], res[2], res[3], res[4]);
+      renderPricingInto(host, oid, res[0], res[1], res[2], res[3], res[4], res[5]);
     }).catch(function(e){
       host.innerHTML='<div class="op-empty">Could not load pricing: '+esc(e.message)+'</div>';
     });
   }
 
-  function renderPricingInto(host, oid, preview, choice, charges, profiles, cats){
-    var resolved=preview.resolved||{}, bd=preview.breakdown;
+  function renderPricingInto(host, oid, preview, choice, charges, profiles, cats, snap){
+    var final=!!(snap && snap.finalized);
+    var src=final?(snap.snapshot||{}):preview;
+    var resolved=src.resolved||{}, bd=src.breakdown;
     var srcLabel={order:'Order override',customer:'Customer profile',product_default:'Product default',none:'No profile'}[resolved.source]||resolved.source||'';
     var curOv=(choice && choice.profile_id!=null)?String(choice.profile_id):'';
     var profOpts='<option value="">Use default ('+esc(resolved.profile_name||'none')+')</option>';
     (profiles||[]).forEach(function(p){ profOpts+='<option value="'+p.id+'"'+(String(p.id)===curOv?' selected':'')+'>'+esc(p.name)+' \u2014 '+jd(p.base_rate)+'/'+(p.basis==='per_linear_meter'?'m':'m\u00B2')+'</option>'; });
+    var overrideArea = final
+      ? '<div class="op-ovr"><label>Finalized profile</label><div class="op-prof" dir="auto" style="font-size:.95rem;margin-top:2px">'+esc(resolved.profile_name||'\u2014')+'</div></div>'
+      : '<div class="op-ovr"><label>Override for this order</label><select id="op-prof-sel" class="pp-sel">'+profOpts+'</select></div>';
     var dtype=(choice&&choice.discount_type)||'', dval=(choice&&choice.discount_value!=null)?choice.discount_value:'';
     var discSel='<select id="op-disc-type" class="pp-sel"><option value=""'+(dtype===''?' selected':'')+'>No discount</option><option value="pct"'+(dtype==='pct'?' selected':'')+'>Percent %</option><option value="flat"'+(dtype==='flat'?' selected':'')+'>Flat JOD</option></select>';
     var discInp='<input id="op-disc-val" class="pp-inp" type="number" step="0.01" min="0" placeholder="0" value="'+esc(dval)+'"'+(dtype===''?' disabled':'')+'>';
@@ -584,21 +593,18 @@
       bd.lines.forEach(function(l){ rows+='<tr><td>'+l.w+'\u00D7'+l.h+'</td><td>'+l.qty+'</td><td>'+jd(l.area)+'</td><td>'+jd(l.base_unit)+'</td><td>'+jd(l.extras_unit)+'</td><td><b>'+jd(l.line_base+l.line_extras)+'</b></td></tr>'; });
     } else { rows='<tr><td colspan="6" class="op-mut" style="text-align:center;padding:14px">No priced items.</td></tr>'; }
     var noProfileNote = bd ? '' : '<div class="op-empty" style="padding:12px;color:#f0a500">No price profile resolved. Pick an override below, or set a product/customer default.</div>';
-    host.innerHTML=
-      '<div class="op-sum">'+
-        '<div class="op-sum-head">'+
-          '<div><div class="op-mut">Price profile</div><div class="op-prof" dir="auto">'+esc(resolved.profile_name||'\u2014')+' <span class="op-badge">'+esc(srcLabel)+'</span></div></div>'+
-          '<div class="op-ovr"><label>Override for this order</label><select id="op-prof-sel" class="pp-sel">'+profOpts+'</select></div>'+
-        '</div>'+
-        '<div class="op-rows">'+
-          '<div class="op-r"><span>Base</span><b>'+jd(nBase)+'</b></div>'+
-          '<div class="op-r"><span>Rule extras</span><b>'+jd(nRule)+'</b></div>'+
-          '<div class="op-r"><span>Manual charges</span><b>'+jd(nMan)+'</b></div>'+
-          '<div class="op-r"><span>Discount</span><b>'+(nDisc?'-':'')+jd(nDisc)+'</b></div>'+
-          '<div class="op-r op-total"><span>Total</span><b>'+jd(nTot)+' JOD</b></div>'+
-        '</div>'+
-      '</div>'+
-      noProfileNote+
+    var actionBar;
+    if(final){
+      var liveDiff=(preview && preview.breakdown && Math.abs((preview.breakdown.subtotal||0)-(nTot||0))>0.005);
+      var when=(snap.finalized_at||'').slice(0,10), who=snap.finalized_by?(' \u00B7 '+esc(snap.finalized_by)):'';
+      actionBar='<div class="op-final"><div class="op-final-l"><span class="op-final-badge">\u2713 FINALIZED</span> <span class="op-mut">'+esc(when)+who+'</span>'+
+        (liveDiff?'<div class="op-mut" style="margin-top:5px;color:#f0a500">Live recalculation would be '+jd(preview.breakdown.subtotal)+' JOD \u2014 changed since finalized.</div>':'')+
+        '</div><button id="op-unfinal" class="pp-btn" type="button">Un-finalize</button></div>';
+    } else {
+      actionBar='<div class="op-final"><div class="op-mut">Freeze this price so later profile/rule changes won\u2019t move it.</div>'+
+        '<button id="op-finalize" class="pp-btn pri" type="button"'+(bd?'':' disabled')+'>Finalize price</button></div>';
+    }
+    var adjustments = final ? '' :
       '<div class="op-adj">'+
         '<div class="op-card"><h4>Discount</h4><div class="op-disc">'+discSel+discInp+'</div></div>'+
         '<div class="op-card"><h4>Manual charges</h4><div id="op-charges">'+chList+'</div>'+
@@ -607,29 +613,52 @@
           '<input id="op-ch-amt" class="pp-inp" type="number" step="0.01" min="0" placeholder="JOD">'+
           '<button id="op-ch-add" class="pp-btn" type="button">Add</button></div>'+
         '</div>'+
+      '</div>';
+    host.innerHTML=
+      '<div class="op-sum'+(final?' op-sum-final':'')+'">'+
+        '<div class="op-sum-head">'+
+          '<div><div class="op-mut">Price profile</div><div class="op-prof" dir="auto">'+esc(resolved.profile_name||'\u2014')+' <span class="op-badge">'+esc(srcLabel)+'</span></div></div>'+
+          overrideArea+
+        '</div>'+
+        '<div class="op-rows">'+
+          '<div class="op-r"><span>Base</span><b>'+jd(nBase)+'</b></div>'+
+          '<div class="op-r"><span>Rule extras</span><b>'+jd(nRule)+'</b></div>'+
+          '<div class="op-r"><span>Manual charges</span><b>'+jd(nMan)+'</b></div>'+
+          '<div class="op-r"><span>Discount</span><b>'+(nDisc?'-':'')+jd(nDisc)+'</b></div>'+
+          '<div class="op-r op-total"><span>Total</span><b>'+jd(nTot)+' JOD</b></div>'+
+        '</div>'+
+        actionBar+
       '</div>'+
-      '<div class="op-card"><h4>Item breakdown</h4>'+
+      noProfileNote+
+      adjustments+
+      '<div class="op-card"><h4>Item breakdown'+(final?' (finalized)':'')+'</h4>'+
         '<table class="pp-tbl op-bd"><thead><tr><th>Size (mm)</th><th>Qty</th><th>Area m\u00B2</th><th>Base/pc</th><th>Extras/pc</th><th>Line total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '</div>';
-    wirePricing(host, oid);
+    wirePricing(host, oid, final);
   }
 
-  function wirePricing(host, oid){
-    function curChoice(){ return { profile_id:(host.querySelector('#op-prof-sel').value||null),
-                                   discount_type:(host.querySelector('#op-disc-type').value||null),
-                                   discount_value:(host.querySelector('#op-disc-val').value||0) }; }
-    function put(){ return api2('/'+oid+'/choice','PUT',curChoice()).then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); }
-    var ps=host.querySelector('#op-prof-sel'); if(ps) ps.onchange=put;
-    var dt=host.querySelector('#op-disc-type'), dv=host.querySelector('#op-disc-val');
-    if(dt) dt.onchange=function(){ dv.disabled=(dt.value===''); put(); };
-    if(dv) dv.onchange=put;
-    var add=host.querySelector('#op-ch-add');
-    if(add) add.onclick=function(){
-      var cat=host.querySelector('#op-ch-cat').value||null, desc=host.querySelector('#op-ch-desc').value||null, amt=parseFloat(host.querySelector('#op-ch-amt').value);
-      if(!(amt>0)){ toast('Enter an amount greater than 0',1); return; }
-      api2('/'+oid+'/charges','POST',{category_id:cat,description:desc,amount:amt}).then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); });
-    };
-    host.querySelectorAll('.op-x').forEach(function(b){ b.onclick=function(){ api2('/'+oid+'/charges/'+b.dataset.ch,'DELETE').then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); }; });
+  function wirePricing(host, oid, final){
+    if(!final){
+      var curChoice=function(){ return { profile_id:(host.querySelector('#op-prof-sel').value||null),
+                                         discount_type:(host.querySelector('#op-disc-type').value||null),
+                                         discount_value:(host.querySelector('#op-disc-val').value||0) }; };
+      var put=function(){ return api2('/'+oid+'/choice','PUT',curChoice()).then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); };
+      var ps=host.querySelector('#op-prof-sel'); if(ps) ps.onchange=put;
+      var dt=host.querySelector('#op-disc-type'), dv=host.querySelector('#op-disc-val');
+      if(dt) dt.onchange=function(){ dv.disabled=(dt.value===''); put(); };
+      if(dv) dv.onchange=put;
+      var add=host.querySelector('#op-ch-add');
+      if(add) add.onclick=function(){
+        var cat=host.querySelector('#op-ch-cat').value||null, desc=host.querySelector('#op-ch-desc').value||null, amt=parseFloat(host.querySelector('#op-ch-amt').value);
+        if(!(amt>0)){ toast('Enter an amount greater than 0',1); return; }
+        api2('/'+oid+'/charges','POST',{category_id:cat,description:desc,amount:amt}).then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); });
+      };
+      host.querySelectorAll('.op-x').forEach(function(b){ b.onclick=function(){ api2('/'+oid+'/charges/'+b.dataset.ch,'DELETE').then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); }; });
+    }
+    var fin=host.querySelector('#op-finalize');
+    if(fin) fin.onclick=function(){ api2('/'+oid+'/finalize','POST').then(function(){ toast('Price finalized'); renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); };
+    var unf=host.querySelector('#op-unfinal');
+    if(unf) unf.onclick=function(){ if(!confirm('Un-finalize this order to allow re-pricing?'))return; api2('/'+oid+'/finalize','DELETE').then(function(){ toast('Un-finalized'); renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); };
   }
 
   function init(){ try{ injectStyle(); injectNav(); injectPanel(); wrapSP(); injectCustTab(); wrapCustFns(); wrapOrderModal(); }catch(e){ console.warn('pricing-ui init',e); } }

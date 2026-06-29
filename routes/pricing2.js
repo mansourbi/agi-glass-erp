@@ -8,6 +8,11 @@ const db     = require('../db');
 const { requireAuth } = require('../middleware/auth');
 router.use(requireAuth);
 
+// G-3: snapshot table for finalized order prices (created on load; no live migration)
+db.exec("CREATE TABLE IF NOT EXISTS order_price_snapshot ("+
+        "order_id INTEGER PRIMARY KEY, snapshot_json TEXT NOT NULL, subtotal REAL,"+
+        "finalized_at TEXT NOT NULL, finalized_by TEXT)");
+
 const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 
 function computePiece(profile, piece, rules) {
@@ -64,26 +69,32 @@ function resolveProfile(order) {
   return { profile_id:null, source:'none', product_id: product ? product.id : null };
 }
 
+// Build the full computed breakdown for an order (shared by preview + finalize)
+function buildPreview(id){
+  const order = db.prepare('SELECT id, customer_id, final_product_id FROM orders WHERE id=?').get(id);
+  if (!order) return { error:'Order not found', status:404 };
+  const resv = resolveProfile(order);
+  if (!resv.profile_id)
+    return { payload:{ order_id:id, resolved:resv, breakdown:null,
+                       note:'No price profile resolved - set a product default, customer, or order profile.' } };
+  const profile = db.prepare('SELECT * FROM price_profiles WHERE id=?').get(resv.profile_id);
+  const rules   = db.prepare('SELECT * FROM pricing_rules WHERE profile_id=? AND active=1').all(resv.profile_id);
+  const pieces  = db.prepare('SELECT w,h,qty,thickness,drill_count,cutout_count FROM order_items WHERE order_id=?').all(id);
+  const extras  = db.prepare('SELECT amount,description,category_id FROM order_extra_charges WHERE order_id=?').all(id);
+  const dc      = db.prepare('SELECT discount_type,discount_value FROM order_price_choice WHERE order_id=? AND product_id IS NULL').get(id);
+  const discount = (dc && dc.discount_type) ? { type:dc.discount_type, value:dc.discount_value } : null;
+  const breakdown = computeOrder(profile, pieces, rules, extras, discount);
+  return { payload:{ order_id:id,
+    resolved:{ ...resv, profile_name:profile.name, basis:profile.basis, base_rate:profile.base_rate, min_per_piece:profile.min_per_piece },
+    pieces: pieces.length, breakdown } };
+}
+
 // GET /api/pricing2/:orderId/preview  - full computed breakdown (no writes)
 router.get('/:orderId/preview', (req, res) => {
   try {
-    const id = +req.params.orderId;
-    const order = db.prepare('SELECT id, customer_id, final_product_id FROM orders WHERE id=?').get(id);
-    if (!order) return res.status(404).json({ error: 'Order not found' });
-    const resv = resolveProfile(order);
-    if (!resv.profile_id)
-      return res.json({ order_id:id, resolved:resv, breakdown:null,
-                        note:'No price profile resolved - set a product default, customer, or order profile.' });
-    const profile = db.prepare('SELECT * FROM price_profiles WHERE id=?').get(resv.profile_id);
-    const rules   = db.prepare('SELECT * FROM pricing_rules WHERE profile_id=? AND active=1').all(resv.profile_id);
-    const pieces  = db.prepare('SELECT w,h,qty,thickness,drill_count,cutout_count FROM order_items WHERE order_id=?').all(id);
-    const extras  = db.prepare('SELECT amount,description,category_id FROM order_extra_charges WHERE order_id=?').all(id);
-    const dc      = db.prepare('SELECT discount_type,discount_value FROM order_price_choice WHERE order_id=? AND product_id IS NULL').get(id);
-    const discount = (dc && dc.discount_type) ? { type:dc.discount_type, value:dc.discount_value } : null;
-    const breakdown = computeOrder(profile, pieces, rules, extras, discount);
-    res.json({ order_id:id,
-      resolved:{ ...resv, profile_name:profile.name, basis:profile.basis, base_rate:profile.base_rate, min_per_piece:profile.min_per_piece },
-      pieces: pieces.length, breakdown });
+    const r = buildPreview(+req.params.orderId);
+    if (r.error) return res.status(r.status||500).json({ error:r.error });
+    res.json(r.payload);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -156,6 +167,45 @@ router.delete('/:orderId/charges/:chargeId', (req,res) => {
     const id=+req.params.orderId, cid=+req.params.chargeId;
     db.prepare('DELETE FROM order_extra_charges WHERE id=? AND order_id=?').run(cid, id);
     res.json({deleted:cid});
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// ---- BLOCK G-3: finalize / un-finalize (snapshot-freeze the computed breakdown) ----
+function _who(req){ return (req.user && (req.user.name||req.user.username||req.user.email))||null; }
+
+// GET current snapshot (the frozen price), or finalized:false
+router.get('/:orderId/snapshot', (req,res) => {
+  try {
+    const id=+req.params.orderId;
+    const row=db.prepare('SELECT order_id, snapshot_json, subtotal, finalized_at, finalized_by FROM order_price_snapshot WHERE order_id=?').get(id);
+    if(!row) return res.json({ order_id:id, finalized:false });
+    res.json({ order_id:id, finalized:true, finalized_at:row.finalized_at, finalized_by:row.finalized_by,
+               subtotal:row.subtotal, snapshot:JSON.parse(row.snapshot_json) });
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// POST finalize: compute the current breakdown and freeze it (upsert)
+router.post('/:orderId/finalize', (req,res) => {
+  try {
+    const id=+req.params.orderId;
+    const r=buildPreview(id);
+    if(r.error) return res.status(r.status||500).json({error:r.error});
+    const pv=r.payload;
+    if(!pv.breakdown) return res.status(400).json({error:'Cannot finalize: no price profile resolved for this order.'});
+    const at=new Date().toISOString(), who=_who(req), json=JSON.stringify(pv), sub=pv.breakdown.subtotal;
+    const ex=db.prepare('SELECT order_id FROM order_price_snapshot WHERE order_id=?').get(id);
+    if(ex) db.prepare('UPDATE order_price_snapshot SET snapshot_json=?, subtotal=?, finalized_at=?, finalized_by=? WHERE order_id=?').run(json,sub,at,who,id);
+    else   db.prepare('INSERT INTO order_price_snapshot(order_id,snapshot_json,subtotal,finalized_at,finalized_by) VALUES(?,?,?,?,?)').run(id,json,sub,at,who);
+    res.json({ order_id:id, finalized:true, finalized_at:at, finalized_by:who, subtotal:sub, snapshot:pv });
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// DELETE un-finalize: unlock to re-quote
+router.delete('/:orderId/finalize', (req,res) => {
+  try {
+    const id=+req.params.orderId;
+    db.prepare('DELETE FROM order_price_snapshot WHERE order_id=?').run(id);
+    res.json({ order_id:id, finalized:false });
   } catch(e){ res.status(500).json({error:e.message}); }
 });
 

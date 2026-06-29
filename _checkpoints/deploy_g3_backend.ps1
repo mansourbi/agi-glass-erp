@@ -1,3 +1,16 @@
+# ============================================================================
+#  BLOCK G-3 backend - finalize / un-finalize (snapshot-freeze) on pricing2.js.
+#  Adds order_price_snapshot table (created on load) + 3 endpoints. Route-only.
+#  RUN AS ADMINISTRATOR.
+# ============================================================================
+$ts   = Get-Date -Format 'yyyyMMdd-HHmmss'
+$srv  = 'C:\agi-server'
+$rdir = Join-Path $srv 'routes'
+$rbk  = Join-Path $srv '_route_backups'
+New-Item -ItemType Directory -Force -Path $rbk | Out-Null
+$routePath = Join-Path $rdir 'pricing2.js'
+if (Test-Path $routePath) { Copy-Item $routePath (Join-Path $rbk "pricing2.js.$ts.bak") }
+$route = @'
 // routes/pricing2.js
 // BLOCK E-2 - modular pricing engine, PREVIEW MODE (read-only).
 // Computes the new breakdown (profile resolve -> per-piece base+rules ->
@@ -210,3 +223,18 @@ router.delete('/:orderId/finalize', (req,res) => {
 });
 
 module.exports = router;
+
+'@
+Set-Content -Path $routePath -Value $route -Encoding ascii
+Push-Location $srv; & node --check $routePath; $chk = $LASTEXITCODE; Pop-Location
+if ($chk -ne 0) { Write-Host 'ABORT: syntax check failed; restoring.'; Copy-Item (Join-Path $rbk "pricing2.js.$ts.bak") $routePath -Force; exit 1 }
+Write-Host ('Wrote ' + $routePath)
+Stop-Service agi-glass -Force
+Start-Sleep -Seconds 2
+$pids = (Get-NetTCPConnection -LocalPort 3444 -State Listen -ErrorAction SilentlyContinue).OwningProcess
+foreach ($p in $pids) { taskkill /F /PID $p 2>$null | Out-Null }
+Start-Sleep -Seconds 1
+Start-Service agi-glass
+Start-Sleep -Seconds 4
+Write-Host ('agi-glass status: ' + (Get-Service agi-glass).Status)
+Write-Host 'G-3 backend live (order_price_snapshot table auto-created on start).'
