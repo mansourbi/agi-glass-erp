@@ -1,3 +1,15 @@
+# deploy_r2_batch2a.ps1  -- R-2 batch 2a: Cutting / Remnants / A-Frames / Layout + customers-list worker fix
+# Replaces middleware/enforce.js only (already mounted in server.js). Backup + node --check + robust restart.
+$ErrorActionPreference = "Stop"
+$ts  = Get-Date -Format "yyyyMMdd_HHmmss"
+$dst = "C:\agi-server\middleware\enforce.js"
+$bkd = "C:\agi-server\_route_backups"
+if(!(Test-Path $bkd)){ New-Item -ItemType Directory -Path $bkd | Out-Null }
+$bk  = Join-Path $bkd "enforce.js.$ts.bak"
+Copy-Item $dst $bk -Force
+Write-Host "Backed up current enforce.js -> $bk"
+
+$code = @'
 // middleware/enforce.js - centralized backend permission enforcement (R-2)
 // Mounted once at app level, before the API routers. Superadmin bypasses;
 // UNMAPPED routes pass through unchanged (incremental rollout, nothing breaks).
@@ -109,3 +121,29 @@ function enforce(req, res, next){
 enforce.ROUTE_PERMS = ROUTE_PERMS;
 enforce.matchRoute = matchRoute;
 module.exports = enforce;
+'@
+Set-Content -Path $dst -Value $code -Encoding ascii
+Write-Host "Wrote enforce.js"
+
+Push-Location C:\agi-server
+node --check middleware\enforce.js
+if ($LASTEXITCODE -ne 0) { Write-Host "SYNTAX FAIL -> restoring backup"; Copy-Item $bk $dst -Force; Pop-Location; exit 1 }
+Pop-Location
+Write-Host "node --check OK"
+
+# round-trip marker verify (confirms the new content actually landed)
+$txt = Get-Content $dst -Raw
+$ok = ($txt -match "aframes\.stock\.assign") -and ($txt -match "remnants\.delete") -and ($txt -match "layout\.edit") -and ($txt -match "cutting\.create")
+Write-Host ("batch-2a markers present: " + $ok)
+if(-not $ok){ Write-Host "MARKER CHECK FAIL -> restoring backup"; Copy-Item $bk $dst -Force; exit 1 }
+
+# robust restart
+Stop-Service agi-glass -Force
+Start-Sleep 2
+$pids=(Get-NetTCPConnection -LocalPort 3444 -State Listen -EA SilentlyContinue).OwningProcess
+foreach($p in $pids){ taskkill /F /PID $p 2>$null | Out-Null }
+Start-Sleep 1
+Start-Service agi-glass
+Start-Sleep 2
+Write-Host ("agi-glass status: " + (Get-Service agi-glass).Status)
+Write-Host "Batch 2a deployed (Cutting / Remnants / A-Frames / Layout + customers-list worker fix)."
