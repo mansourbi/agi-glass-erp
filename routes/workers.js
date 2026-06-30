@@ -15,8 +15,9 @@ router.use(requireAuth);
 });
 
 function parseW(w) {
+  const { pass_hash, ...wsafe } = w; // never expose the password hash to clients
   return {
-    ...w,
+    ...wsafe,
     processes: JSON.parse(w.processes || '[]'),
     documents: w.documents ? JSON.parse(w.documents) : [],
     hourly_rate: w.hourly_rate ? +w.hourly_rate : null,
