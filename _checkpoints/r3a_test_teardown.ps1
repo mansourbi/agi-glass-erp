@@ -1,0 +1,20 @@
+# r3a_test_teardown.ps1 -- removes R-3a verification fixtures
+$ErrorActionPreference = "Stop"
+$js = @'
+const path = require("path");
+const m = require(path.join(process.cwd(), "db"));
+const db = (m && typeof m.prepare === "function") ? m : (m.db || m.default || m);
+const r = db.prepare("SELECT id FROM roles WHERE name=?").get("ZZ_R3A_TEST");
+const w = db.prepare("DELETE FROM workers WHERE email=?").run("zz_r3a");
+if (r) {
+  db.prepare("DELETE FROM role_permissions WHERE role_id=?").run(r.id);
+  db.prepare("DELETE FROM roles WHERE id=?").run(r.id);
+}
+console.log("CLEANED: removed users("+w.changes+"), role ZZ_R3A_TEST"+(r?" (id "+r.id+")":" (absent)"));
+'@
+$tmp = "C:\agi-server\_zz_r3a_teardown.js"
+Set-Content -Path $tmp -Value $js -Encoding ascii
+Push-Location "C:\agi-server"
+node $tmp
+Pop-Location
+Remove-Item $tmp -Force

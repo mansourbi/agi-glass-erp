@@ -23277,5 +23277,110 @@ function doLogout(){
 #m-order .mb > .frow:first-child{ align-items:end; }
 </style>
 <script src="/pricing-ui.js"></script>
+
+
+
+<!-- R3-NAV-GATING v1 START -->
+<script>
+/* R3-NAV-GATING v1 */
+(function(){
+  if (window.__R3_NAV_INSTALLED) return;
+  window.__R3_NAV_INSTALLED = true;
+
+  var SECTION_PERM = {
+    dash:'dashboard.view', crm:'customers.access', orders:'orders.access',
+    cutting:'cutting.access', track:'tracking.access', reports:'reports.access',
+    remnants:'remnants.access', deliveries:'deliveries.access', aframes:'aframes.access',
+    layout:'layout.access', purchasing:'purchasing.access', pricing:'pricing.access',
+    settings:'settings.access'
+  };
+  var NAV_ORDER = Object.keys(SECTION_PERM);
+  var superadmin = false, perms = {}, permsLoaded = false;
+
+  function CAN(k){ return superadmin || perms[k] === true; }
+  window.CAN = CAN;
+
+  function firstAllowed(){
+    for (var i=0;i<NAV_ORDER.length;i++){ var k=NAV_ORDER[i]; if (CAN(SECTION_PERM[k])) return k; }
+    return null;
+  }
+
+  function applyGating(){
+    for (var i=0;i<NAV_ORDER.length;i++){
+      var k=NAV_ORDER[i], allowed=CAN(SECTION_PERM[k]);
+      var btn=document.getElementById('nt-'+k), pg=document.getElementById('pg-'+k);
+      if (btn) btn.style.display = allowed ? '' : 'none';
+      if (!allowed && pg) pg.style.display = 'none';
+    }
+    var activeBtn = document.querySelector('[id^="nt-"].on');
+    var activeKey = activeBtn ? activeBtn.id.slice(3) : null;
+    if (!activeKey || !CAN(SECTION_PERM[activeKey])) {
+      var f = firstAllowed();
+      if (f && window.SP) window.SP(f);
+    }
+  }
+
+  function wrapSP(){
+    if (window.SP && !window.SP.__r3) {
+      var _SP = window.SP;
+      window.SP = function(k){
+        var p = SECTION_PERM[k];
+        if (p && !CAN(p)) { var f = firstAllowed(); return f ? _SP(f) : undefined; }
+        return _SP.apply(this, arguments);
+      };
+      window.SP.__r3 = true;
+      window.SP.__orig = _SP;
+    }
+  }
+
+  // re-wrap (the app reassigns SP after load) + re-hide on each pass; cheap + idempotent
+  function reconcile(){ if (!permsLoaded) return; wrapSP(); applyGating(); }
+
+  function getToken(){
+    try { if (window.AGI && AGI.getToken) { var t = AGI.getToken(); if (t) return t; } } catch(e){}
+    return localStorage.getItem('agi_token');
+  }
+
+  function loadPerms(){
+    var tok = getToken();
+    return fetch('/api/access/me', {headers:{'Authorization':'Bearer '+tok,'Accept':'application/json'}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(me){
+        if (!me) return false;
+        superadmin = !!me.superadmin;
+        perms = {};
+        (me.permissions || []).forEach(function(p){ perms[p] = true; });
+        permsLoaded = true;
+        return true;
+      })
+      .catch(function(){ return false; });
+  }
+
+  function start(){
+    return loadPerms().then(function(ok){
+      if (!ok) return;
+      reconcile();
+      [300,1000,3000,6000].forEach(function(d){ setTimeout(reconcile, d); });
+    });
+  }
+  window.__R3_REAPPLY = function(){ return loadPerms().then(reconcile); };
+
+  function ready(){
+    return document.getElementById('nt-dash') && typeof window.SP === 'function' && getToken();
+  }
+  var tries = 0;
+  (function boot(){
+    if (ready()) { start(); return; }
+    if (tries++ < 150) setTimeout(boot, 200);
+  })();
+  // re-reconcile after the app finishes its own init (which can reassign SP)
+  window.addEventListener('load', function(){
+    setTimeout(function(){ if (permsLoaded) reconcile(); else start(); }, 300);
+  });
+})();
+/* /R3-NAV-GATING v1 */
+
+</script>
+<!-- R3-NAV-GATING v1 END -->
 </body>
 </html>
