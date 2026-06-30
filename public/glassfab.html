@@ -23280,13 +23280,16 @@ function doLogout(){
 
 
 
+
+
 <!-- R3-NAV-GATING v1 START -->
 <script>
-/* R3-NAV-GATING v1 */
+/* R3-GATING v2 (nav sections + settings sub-tabs) */
 (function(){
   if (window.__R3_NAV_INSTALLED) return;
   window.__R3_NAV_INSTALLED = true;
 
+  // ---- nav section -> permission ----
   var SECTION_PERM = {
     dash:'dashboard.view', crm:'customers.access', orders:'orders.access',
     cutting:'cutting.access', track:'tracking.access', reports:'reports.access',
@@ -23295,28 +23298,58 @@ function doLogout(){
     settings:'settings.access'
   };
   var NAV_ORDER = Object.keys(SECTION_PERM);
-  var superadmin = false, perms = {}, permsLoaded = false;
 
+  // ---- settings sub-tab -> permission ----
+  var SET_PERM = {
+    rawmat:'settings.rawmaterials.view', hr:'hr.access', workers:'settings.users.manage',
+    glassfam:'settings.glassfamilies.manage', remslots:'settings.remnantslots.manage',
+    fpfields:'settings.fpfields.manage', finalprods:'settings.finalproducts.manage',
+    procs:'settings.processes.manage', system:'settings.system.manage',
+    cancelreasons:'settings.cancelreasons.manage', typereasons:'settings.ordertypes.manage',
+    receivers:'settings.receivers.manage', extprocs:'settings.extprocesses.manage',
+    factories:'settings.factories.manage', translations:'settings.translations.manage',
+    logs:'settings.logs.view'
+  };
+  var SET_ORDER = Object.keys(SET_PERM);
+
+  var superadmin = false, perms = {}, permsLoaded = false;
   function CAN(k){ return superadmin || perms[k] === true; }
   window.CAN = CAN;
 
-  function firstAllowed(){
-    for (var i=0;i<NAV_ORDER.length;i++){ var k=NAV_ORDER[i]; if (CAN(SECTION_PERM[k])) return k; }
-    return null;
-  }
+  function firstNav(){ for (var i=0;i<NAV_ORDER.length;i++){ var k=NAV_ORDER[i]; if (CAN(SECTION_PERM[k])) return k; } return null; }
+  function firstSet(){ for (var i=0;i<SET_ORDER.length;i++){ var k=SET_ORDER[i]; if (CAN(SET_PERM[k])) return k; } return null; }
 
-  function applyGating(){
+  function applyNav(){
     for (var i=0;i<NAV_ORDER.length;i++){
       var k=NAV_ORDER[i], allowed=CAN(SECTION_PERM[k]);
       var btn=document.getElementById('nt-'+k), pg=document.getElementById('pg-'+k);
       if (btn) btn.style.display = allowed ? '' : 'none';
       if (!allowed && pg) pg.style.display = 'none';
     }
-    var activeBtn = document.querySelector('[id^="nt-"].on');
-    var activeKey = activeBtn ? activeBtn.id.slice(3) : null;
-    if (!activeKey || !CAN(SECTION_PERM[activeKey])) {
-      var f = firstAllowed();
-      if (f && window.SP) window.SP(f);
+    var ab = document.querySelector('[id^="nt-"].on');
+    var ak = ab ? ab.id.slice(3) : null;
+    if (!ak || !CAN(SECTION_PERM[ak])) { var f=firstNav(); if (f && window.SP) window.SP(f); }
+  }
+
+  function eachSetBtn(fn){
+    var els = document.querySelectorAll('[onclick]');
+    for (var i=0;i<els.length;i++){
+      var oc = els[i].getAttribute('onclick') || '';
+      var m = oc.match(/showSettingsTab\(['"]([^'"]+)['"]\)/);
+      if (m) fn(els[i], m[1]);
+    }
+  }
+  function applySettings(){
+    var activeKey = null;
+    eachSetBtn(function(btn,key){
+      var allowed = !(key in SET_PERM) || CAN(SET_PERM[key]);
+      btn.style.display = allowed ? '' : 'none';
+      var pane = document.getElementById('stab-'+key);
+      if (!allowed && pane) pane.style.display='none';
+      if (/(^|\s)on(\s|$)/.test(btn.className)) activeKey = key;
+    });
+    if (activeKey && (activeKey in SET_PERM) && !CAN(SET_PERM[activeKey])) {
+      var f = firstSet(); if (f && window.showSettingsTab) window.showSettingsTab(f);
     }
   }
 
@@ -23325,37 +23358,41 @@ function doLogout(){
       var _SP = window.SP;
       window.SP = function(k){
         var p = SECTION_PERM[k];
-        if (p && !CAN(p)) { var f = firstAllowed(); return f ? _SP(f) : undefined; }
+        if (p && !CAN(p)) { var f=firstNav(); return f?_SP(f):undefined; }
         return _SP.apply(this, arguments);
       };
-      window.SP.__r3 = true;
-      window.SP.__orig = _SP;
+      window.SP.__r3 = true; window.SP.__orig = _SP;
+    }
+  }
+  function wrapSet(){
+    if (window.showSettingsTab && !window.showSettingsTab.__r3) {
+      var _f = window.showSettingsTab;
+      window.showSettingsTab = function(k){
+        if ((k in SET_PERM) && !CAN(SET_PERM[k])) { var f=firstSet(); return f?_f(f):undefined; }
+        return _f.apply(this, arguments);
+      };
+      window.showSettingsTab.__r3 = true; window.showSettingsTab.__orig = _f;
     }
   }
 
-  // re-wrap (the app reassigns SP after load) + re-hide on each pass; cheap + idempotent
-  function reconcile(){ if (!permsLoaded) return; wrapSP(); applyGating(); }
+  function reconcile(){ if (!permsLoaded) return; wrapSP(); wrapSet(); applyNav(); applySettings(); }
 
   function getToken(){
     try { if (window.AGI && AGI.getToken) { var t = AGI.getToken(); if (t) return t; } } catch(e){}
     return localStorage.getItem('agi_token');
   }
-
   function loadPerms(){
     var tok = getToken();
     return fetch('/api/access/me', {headers:{'Authorization':'Bearer '+tok,'Accept':'application/json'}})
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(me){
         if (!me) return false;
-        superadmin = !!me.superadmin;
-        perms = {};
+        superadmin = !!me.superadmin; perms = {};
         (me.permissions || []).forEach(function(p){ perms[p] = true; });
-        permsLoaded = true;
-        return true;
+        permsLoaded = true; return true;
       })
       .catch(function(){ return false; });
   }
-
   function start(){
     return loadPerms().then(function(ok){
       if (!ok) return;
@@ -23365,20 +23402,12 @@ function doLogout(){
   }
   window.__R3_REAPPLY = function(){ return loadPerms().then(reconcile); };
 
-  function ready(){
-    return document.getElementById('nt-dash') && typeof window.SP === 'function' && getToken();
-  }
+  function ready(){ return document.getElementById('nt-dash') && typeof window.SP === 'function' && getToken(); }
   var tries = 0;
-  (function boot(){
-    if (ready()) { start(); return; }
-    if (tries++ < 150) setTimeout(boot, 200);
-  })();
-  // re-reconcile after the app finishes its own init (which can reassign SP)
-  window.addEventListener('load', function(){
-    setTimeout(function(){ if (permsLoaded) reconcile(); else start(); }, 300);
-  });
+  (function boot(){ if (ready()) { start(); return; } if (tries++ < 150) setTimeout(boot, 200); })();
+  window.addEventListener('load', function(){ setTimeout(function(){ if (permsLoaded) reconcile(); else start(); }, 300); });
 })();
-/* /R3-NAV-GATING v1 */
+/* /R3-GATING v2 */
 
 </script>
 <!-- R3-NAV-GATING v1 END -->
