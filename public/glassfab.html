@@ -23308,7 +23308,7 @@ function doLogout(){
     cancelreasons:'settings.cancelreasons.manage', typereasons:'settings.ordertypes.manage',
     receivers:'settings.receivers.manage', extprocs:'settings.extprocesses.manage',
     factories:'settings.factories.manage', translations:'settings.translations.manage',
-    logs:'settings.logs.view'
+    logs:'settings.logs.view', roles:'settings.roles.manage'
   };
   var SET_ORDER = Object.keys(SET_PERM);
 
@@ -23455,5 +23455,106 @@ function doLogout(){
 
 </script>
 <!-- R3-NAV-GATING v1 END -->
+<!-- R4B-ROLES-PAGE START -->
+<script>
+(function(){
+  if(window.__R4B_INSTALLED) return; window.__R4B_INSTALLED=true;
+  const tok=()=>localStorage.getItem('agi_token');
+  const H=(m,b)=>({method:m||'GET',headers:{'Authorization':'Bearer '+tok(),'Content-Type':'application/json','Accept':'application/json'},...(b?{body:JSON.stringify(b)}:{})});
+  async function api(path,m,b){ const r=await fetch(path,H(m,b)); let j=null; try{j=await r.json();}catch(e){} if(!r.ok) throw Object.assign(new Error((j&&j.error)||('HTTP '+r.status)),{status:r.status}); return j; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function badge(t,c){ return '<span style="display:inline-block;font-size:11px;padding:1px 6px;border-radius:8px;margin-right:4px;background:'+c+';color:#fff">'+t+'</span>'; }
+  const state={catalog:[],groups:[],superadmin:false,roles:[],workers:[],editing:null,sel:new Set()};
+  window.__R4B={state,api};
+  function injectTab(){
+    if(document.getElementById('r4b-tab-btn')) return true;
+    const wb=[...document.querySelectorAll('[onclick]')].find(b=>/showSettingsTab\(['"]workers['"]\)/.test(b.getAttribute('onclick')||''));
+    if(!wb) return false;
+    const btn=document.createElement(wb.tagName); btn.id='r4b-tab-btn'; btn.className=wb.className;
+    btn.setAttribute('onclick',"showSettingsTab('roles')"); btn.textContent='\uD83D\uDD10 Roles & Privileges';
+    wb.parentElement.insertBefore(btn, wb.nextSibling); return true;
+  }
+  function injectPane(){
+    if(document.getElementById('stab-roles')) return;
+    const ref=document.getElementById('stab-workers')||document.querySelector('[id^="stab-"]');
+    const p=document.createElement('div'); p.id='stab-roles'; p.className=ref?ref.className:''; p.style.display='none';
+    p.innerHTML='<div id="r4b-root" style="padding:8px"></div>'; ref.parentElement.appendChild(p);
+  }
+  function renderList(){
+    const root=document.getElementById('r4b-root'); if(!root) return;
+    let h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Roles &amp; Privileges</h2><button id="r4b-new" style="padding:6px 12px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">+ New Role</button></div>';
+    h+='<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="text-align:left;border-bottom:2px solid #ddd"><th style="padding:6px">Role</th><th>Badges</th><th>Perms</th><th>Users</th><th></th></tr></thead><tbody>';
+    state.roles.forEach(r=>{ let b=''; if(r.is_system)b+=badge('System','#6b7280'); if(r.superadmin)b+=badge('Superadmin','#dc2626'); if(r.portal_access)b+=badge('Portal','#2563eb'); if(r.workerapp_access)b+=badge('App','#059669');
+      h+='<tr style="border-bottom:1px solid #eee"><td style="padding:6px"><b>'+esc(r.name)+'</b><br><span style="color:#888;font-size:12px">'+esc(r.description||'')+'</span></td><td>'+b+'</td><td>'+r.perm_count+'</td><td>'+r.user_count+'</td><td style="white-space:nowrap"><button class="r4b-edit" data-rid="'+r.id+'">Edit</button> '+(!r.is_system?'<button class="r4b-del" data-rid="'+r.id+'">Delete</button>':'')+'</td></tr>'; });
+    h+='</tbody></table><div id="r4b-users-panel" style="margin-top:18px"></div>'; root.innerHTML=h;
+    document.getElementById('r4b-new').onclick=()=>openModal(null);
+    root.querySelectorAll('.r4b-edit').forEach(b=>b.onclick=()=>openModal(+b.dataset.rid));
+    root.querySelectorAll('.r4b-del').forEach(b=>b.onclick=()=>delRole(+b.dataset.rid));
+    renderUsersPanel();
+  }
+  function renderUsersPanel(){
+    const p=document.getElementById('r4b-users-panel'); if(!p) return;
+    let h='<h3>Users by role</h3><table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>';
+    state.workers.forEach(w=>{ h+='<tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px">'+esc(w.name)+'</td><td><select data-uid="'+w.id+'" class="r4b-uassign">'+state.roles.map(r=>'<option value="'+r.id+'"'+(w.role_id===r.id?' selected':'')+'>'+esc(r.name)+'</option>').join('')+'</select></td></tr>'; });
+    h+='</tbody></table>'; p.innerHTML=h;
+    p.querySelectorAll('.r4b-uassign').forEach(s=>s.onchange=()=>assignUser(+s.dataset.uid,+s.value));
+  }
+  function ensureModal(){ let m=document.getElementById('r4b-modal'); if(m) return m;
+    m=document.createElement('div'); m.id='r4b-modal'; m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;align-items:flex-start;justify-content:center;overflow:auto;padding:30px';
+    m.innerHTML='<div style="background:#fff;border-radius:10px;max-width:760px;width:100%;padding:20px;margin:auto;color:#111"><div id="r4b-modal-body"></div></div>';
+    document.body.appendChild(m); m.addEventListener('click',e=>{ if(e.target===m) m.style.display='none'; }); return m; }
+  async function openModal(rid){
+    let role=rid?await api('/api/access/roles/'+rid):null; state.editing=role; state.sel=new Set(role?role.permissions:[]);
+    const locked=role&&role.is_system&&role.superadmin; const dis=locked?'disabled':'';
+    const m=ensureModal(); const body=m.querySelector('#r4b-modal-body');
+    let h='<h2 style="margin-top:0">'+(role?('Edit Role: '+esc(role.name)):'New Role')+'</h2>';
+    if(locked) h+='<p style="color:#dc2626">The Superadmin role cannot be modified.</p>';
+    h+='<label>Name<br><input id="r4b-name" value="'+esc(role?role.name:'')+'" '+((role&&role.is_system)?'disabled':'')+' style="width:100%;padding:6px"></label><br><br>';
+    h+='<label>Description<br><input id="r4b-desc" value="'+esc(role?role.description:'')+'" '+dis+' style="width:100%;padding:6px"></label><br><br>';
+    h+='<label><input type="checkbox" id="r4b-portal" '+((role?role.portal_access:1)?'checked':'')+' '+dis+'> Portal access</label> &nbsp; <label><input type="checkbox" id="r4b-app" '+((role&&role.workerapp_access)?'checked':'')+' '+dis+'> Worker-app access</label>';
+    h+='<div id="r4b-grid" style="margin-top:14px;max-height:340px;overflow:auto;border:1px solid #eee;padding:6px"></div><div id="r4b-userassign-modal" style="margin-top:14px"></div>';
+    h+='<div style="margin-top:16px;text-align:right"><button id="r4b-cancel">Cancel</button> '+(locked?'':'<button id="r4b-save" style="background:#2563eb;color:#fff;padding:6px 14px;border:none;border-radius:6px">Save</button>')+'</div>';
+    body.innerHTML=h; m.style.display='flex'; renderGrid(locked); if(role) renderModalUsers(role);
+    body.querySelector('#r4b-cancel').onclick=()=>m.style.display='none';
+    const sv=body.querySelector('#r4b-save'); if(sv) sv.onclick=saveRole;
+  }
+  function renderGrid(locked){
+    const g=document.getElementById('r4b-grid'); if(!g) return;
+    const byG={}; state.catalog.forEach(c=>{(byG[c.g]=byG[c.g]||[]).push(c);});
+    let h='';
+    state.groups.forEach(grp=>{ if(grp==='Surfaces') return;
+      h+='<details style="border:1px solid #eee;border-radius:6px;margin-bottom:6px"><summary style="padding:6px;cursor:pointer;font-weight:600">'+esc(grp)+' <button class="r4b-grpall" data-g="'+esc(grp)+'" style="float:right;font-size:11px" '+(locked?'disabled':'')+'>all</button></summary><div style="padding:6px">';
+      (byG[grp]||[]).forEach(c=>{ const disabled=locked||(c.s&&!state.superadmin); h+='<label style="display:block;padding:2px 0;'+(disabled?'color:#aaa':'')+'"><input type="checkbox" class="r4b-perm" data-k="'+c.k+'" '+(state.sel.has(c.k)?'checked':'')+' '+(disabled?'disabled':'')+'> '+esc(c.l)+(c.s?' \uD83D\uDD12':'')+'</label>'; });
+      h+='</div></details>'; });
+    g.innerHTML=h;
+    g.querySelectorAll('.r4b-perm').forEach(cb=>cb.onchange=()=>{ cb.checked?state.sel.add(cb.dataset.k):state.sel.delete(cb.dataset.k); });
+    g.querySelectorAll('.r4b-grpall').forEach(b=>b.onclick=e=>{ e.preventDefault(); (byG[b.dataset.g]||[]).forEach(c=>{ if(locked||(c.s&&!state.superadmin))return; state.sel.add(c.k); }); renderGrid(locked); });
+  }
+  function renderModalUsers(role){ const d=document.getElementById('r4b-userassign-modal'); if(!d) return;
+    const mem=state.workers.filter(w=>w.role_id===role.id);
+    d.innerHTML='<h3>Users in this role ('+mem.length+')</h3>'+(mem.map(w=>'<span style="display:inline-block;background:#eef;padding:2px 8px;border-radius:8px;margin:2px">'+esc(w.name)+'</span>').join('')||'<i>none</i>'); }
+  async function saveRole(){
+    const body={name:document.getElementById('r4b-name').value.trim(),description:document.getElementById('r4b-desc').value.trim(),portal_access:document.getElementById('r4b-portal').checked,workerapp_access:document.getElementById('r4b-app').checked,permissions:[...state.sel]};
+    try{ if(state.editing) await api('/api/access/roles/'+state.editing.id,'PUT',body); else await api('/api/access/roles','POST',body); document.getElementById('r4b-modal').style.display='none'; await refresh(); }catch(e){ alert('Save failed: '+e.message); } }
+  async function delRole(rid){ const r=state.roles.find(x=>x.id===rid); if(!confirm('Delete role "'+(r&&r.name)+'"?')) return; try{ await api('/api/access/roles/'+rid,'DELETE'); await refresh(); }catch(e){ alert('Delete failed: '+e.message); } }
+  async function assignUser(uid,rid){ try{ await api('/api/access/roles/'+rid+'/users','POST',{userIds:[uid]}); await refresh(); }catch(e){ alert('Assign failed: '+e.message); await refresh(); } }
+  async function refresh(){ state.roles=await api('/api/access/roles'); state.workers=await api('/api/workers'); renderList(); }
+  Object.assign(window.__R4B,{openModal,refresh,delRole,assignUser});
+  async function init(){
+    let me; try{ me=await api('/api/access/me'); }catch(e){ return; }
+    const allowed = me.superadmin || (me.permissions||[]).includes('settings.roles.manage');
+    if(!allowed) return;
+    state.superadmin=!!me.superadmin;
+    const cat=await api('/api/access/catalog'); state.catalog=cat.catalog; state.groups=cat.groups;
+    injectTab(); injectPane(); await refresh();
+    [600,2000,5000].forEach(d=>setTimeout(injectTab,d));
+  }
+  function ready(){ return typeof showSettingsTab==='function' && (document.getElementById('stab-workers')||document.querySelector('[id^="stab-"]')) && tok(); }
+  let tries=0; (function boot(){ if(ready()){ init(); return; } if(tries++<150) setTimeout(boot,200); })();
+  window.addEventListener('load',()=>{ setTimeout(()=>{ if(!document.getElementById('r4b-tab-btn')) init(); }, 400); });
+})();
+
+</script>
+<!-- R4B-ROLES-PAGE END -->
 </body>
 </html>
