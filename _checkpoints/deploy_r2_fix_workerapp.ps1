@@ -1,3 +1,15 @@
+# ============================================================================
+#  R-2 FIX - worker app order/attachment access. GET /api/orders[/:id] now
+#  accept orders.access OR workerapp.access (mutations stay restricted).
+#  Updates middleware/enforce.js only. RUN AS ADMINISTRATOR.
+# ============================================================================
+$ts  = Get-Date -Format 'yyyyMMdd-HHmmss'
+$srv = 'C:\agi-server'
+$bk  = Join-Path $srv '_route_backups'
+New-Item -ItemType Directory -Force -Path $bk | Out-Null
+$enfPath = Join-Path $srv 'middleware\enforce.js'
+if (Test-Path $enfPath) { Copy-Item $enfPath (Join-Path $bk "enforce.js.$ts.bak") -Force }
+$enf = @'
 // middleware/enforce.js - centralized backend permission enforcement (R-2)
 // Mounted once at app level, before the API routers. Superadmin bypasses;
 // UNMAPPED routes pass through unchanged (incremental rollout, nothing breaks).
@@ -65,3 +77,18 @@ function enforce(req, res, next){
 enforce.ROUTE_PERMS = ROUTE_PERMS;
 enforce.matchRoute = matchRoute;
 module.exports = enforce;
+
+'@
+Set-Content -Path $enfPath -Value $enf -Encoding ascii
+Push-Location $srv; & node --check $enfPath; $c=$LASTEXITCODE; Pop-Location
+if ($c -ne 0) { Write-Host 'ABORT: syntax check failed; restoring.'; Copy-Item (Join-Path $bk "enforce.js.$ts.bak") $enfPath -Force; exit 1 }
+Write-Host 'enforce.js updated + syntax OK.'
+Stop-Service agi-glass -Force
+Start-Sleep -Seconds 2
+$pids = (Get-NetTCPConnection -LocalPort 3444 -State Listen -ErrorAction SilentlyContinue).OwningProcess
+foreach ($p in $pids) { taskkill /F /PID $p 2>$null | Out-Null }
+Start-Sleep -Seconds 1
+Start-Service agi-glass
+Start-Sleep -Seconds 4
+Write-Host ('agi-glass status: ' + (Get-Service agi-glass).Status)
+Write-Host 'Worker-app order/attachment access restored.'

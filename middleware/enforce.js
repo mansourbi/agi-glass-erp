@@ -25,9 +25,10 @@ const ROUTE_PERMS = [
   { m:'PUT',    re:/^\/api\/orders\/type-reasons\/\d+$/,    key:'settings.ordertypes.manage' },
   { m:'DELETE', re:/^\/api\/orders\/type-reasons\/\d+$/,    key:'settings.ordertypes.manage' },
   // core order CRUD
-  { m:'GET',    re:/^\/api\/orders\/?$/,                    key:'orders.access' },
+  // GET reads are needed by portal staff (orders.access) AND the worker app (workerapp.access)
+  { m:'GET',    re:/^\/api\/orders\/?$/,                    anyOf:['orders.access','workerapp.access'] },
   { m:'POST',   re:/^\/api\/orders\/?$/,                    key:'orders.create' },
-  { m:'GET',    re:/^\/api\/orders\/\d+$/,                  key:'orders.access' },
+  { m:'GET',    re:/^\/api\/orders\/\d+$/,                  anyOf:['orders.access','workerapp.access'] },
   { m:'PUT',    re:/^\/api\/orders\/\d+$/,                  key:'orders.edit'   },
   { m:'PATCH',  re:/^\/api\/orders\/\d+\/status$/,          key:'orders.status' },
   { m:'DELETE', re:/^\/api\/orders\/\d+$/,                  key:'orders.delete' }
@@ -55,8 +56,10 @@ function enforce(req, res, next){
   let p;
   try { p = resolvePerms(user.id); }
   catch(e){ console.error('[enforce] resolve error, allowing:', e.message); return next(); } // fail-open on bug
-  if(p.superadmin || p.keys.has(match.key)) return next();
-  return res.status(403).json({ error:'Permission denied', need:match.key });
+  if(p.superadmin) return next();
+  const ok = match.anyOf ? match.anyOf.some(function(k){ return p.keys.has(k); }) : p.keys.has(match.key);
+  if(ok) return next();
+  return res.status(403).json({ error:'Permission denied', need: match.anyOf ? match.anyOf.join(' OR ') : match.key });
 }
 
 enforce.ROUTE_PERMS = ROUTE_PERMS;
