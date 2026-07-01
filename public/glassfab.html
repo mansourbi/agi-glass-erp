@@ -23556,5 +23556,66 @@ function doLogout(){
 
 </script>
 <!-- R4B-ROLES-PAGE END -->
+<!-- R6-OVERRIDES-UI START -->
+<script>
+(function(){
+  if(window.__R6_INSTALLED) return; window.__R6_INSTALLED=true;
+  var tokf=function(){ try{ if(window.AGI&&AGI.getToken){var t=AGI.getToken(); if(t)return t;} }catch(e){} return localStorage.getItem('agi_token'); };
+  var H=function(m,b){ return {method:m||'GET',headers:{'Authorization':'Bearer '+tokf(),'Content-Type':'application/json','Accept':'application/json'}, body: b?JSON.stringify(b):undefined}; };
+  function api(p,m,b){ return fetch(p,H(m,b)).then(function(r){ return r.json().catch(function(){return null;}).then(function(j){ if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j; }); }); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  var catalog=[], groups=[], superadmin=false, catLoaded=false, state={};
+  function ensureCatalog(){ if(catLoaded) return Promise.resolve(); return api('/api/access/me').then(function(me){ superadmin=!!me.superadmin; return api('/api/access/catalog'); }).then(function(c){ catalog=c.catalog; groups=c.groups; catLoaded=true; }); }
+  function stateFor(k){ if(state.grants&&state.grants.has(k)) return 'grant'; if(state.denies&&state.denies.has(k)) return 'deny'; return 'inherit'; }
+  function effectiveOn(k){ var s=stateFor(k); if(s==='grant')return true; if(s==='deny')return false; return state.baseline.has(k); }
+  function ensureModal(){ var m=document.getElementById('r6-modal'); if(m) return m;
+    m=document.createElement('div'); m.id='r6-modal'; m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;align-items:flex-start;justify-content:center;overflow:auto;padding:30px';
+    m.innerHTML='<div style="background:#fff;border-radius:10px;max-width:820px;width:100%;padding:20px;margin:auto;color:#111"><div id="r6-body"></div></div>';
+    document.body.appendChild(m); m.addEventListener('click',function(e){if(e.target===m)m.style.display='none';}); return m; }
+  function openOverrideModal(uid, name){
+    return ensureCatalog().then(function(){
+      var w=(window.__R4B&&window.__R4B.state.workers||[]).filter(function(x){return x.id===uid;})[0];
+      var rid=w&&w.role_id, baseline=new Set(), roleSuper=false;
+      var p=Promise.resolve();
+      if(rid){ p=api('/api/access/roles/'+rid).then(function(role){ roleSuper=!!role.superadmin; if(roleSuper){ baseline=new Set(catalog.map(function(c){return c.k;})); } else { baseline=new Set(role.permissions); if(role.portal_access)baseline.add('portal.access'); if(role.workerapp_access)baseline.add('workerapp.access'); } }).catch(function(){}); }
+      return p.then(function(){ return api('/api/access/users/'+uid+'/overrides'); }).then(function(ov){ state={uid:uid, name:name, baseline:baseline, roleSuper:roleSuper, grants:new Set(ov.grants), denies:new Set(ov.denies)}; renderModal(); });
+    });
+  }
+  function renderModal(){
+    var m=ensureModal(); var body=m.querySelector('#r6-body'); var byG={};
+    catalog.forEach(function(c){(byG[c.g]=byG[c.g]||[]).push(c);});
+    var h='<h2 style="margin-top:0">Permission overrides &mdash; '+esc(state.name)+'</h2>';
+    if(state.roleSuper) h+='<p style="color:#dc2626">This user has a superadmin role; overrides do not apply.</p>';
+    h+='<p style="color:#666;font-size:13px">Each permission: <b>Inherit</b> (role default), <b>Grant</b> (force on), or <b>Deny</b> (force off). \uD83D\uDD12 keys require superadmin.</p>';
+    groups.forEach(function(g){ h+='<details style="border:1px solid #eee;border-radius:6px;margin-bottom:6px"><summary style="padding:6px;cursor:pointer;font-weight:600">'+esc(g)+'</summary><div style="padding:6px">';
+      (byG[g]||[]).forEach(function(c){ var st=stateFor(c.k); var dis=(c.s&&!superadmin); var roleHas=state.baseline.has(c.k);
+        h+='<div style="display:flex;align-items:center;gap:8px;padding:2px 0;'+(dis?'opacity:.5':'')+'"><span style="flex:1">'+esc(c.l)+(c.s?' \uD83D\uDD12':'')+' <span style="color:#999;font-size:11px">(role '+(roleHas?'on':'off')+' &rarr; <span class="r6-eff">'+(effectiveOn(c.k)?'ON':'off')+'</span>)</span></span><select class="r6-sel" data-k="'+c.k+'" '+(dis?'disabled':'')+'><option value="inherit"'+(st==='inherit'?' selected':'')+'>Inherit</option><option value="grant"'+(st==='grant'?' selected':'')+'>Grant</option><option value="deny"'+(st==='deny'?' selected':'')+'>Deny</option></select></div>'; });
+      h+='</div></details>'; });
+    h+='<div style="margin-top:16px;text-align:right"><button id="r6-cancel">Cancel</button> <button id="r6-clear">Clear all</button> <button id="r6-save" style="background:#2563eb;color:#fff;padding:6px 14px;border:none;border-radius:6px">Save</button></div>';
+    body.innerHTML=h; m.style.display='flex';
+    Array.prototype.forEach.call(body.querySelectorAll('.r6-sel'),function(s){ s.onchange=function(){ var k=s.dataset.k; state.grants.delete(k); state.denies.delete(k); if(s.value==='grant')state.grants.add(k); else if(s.value==='deny')state.denies.add(k); var eff=s.closest('div').querySelector('.r6-eff'); if(eff) eff.textContent=effectiveOn(k)?'ON':'off'; }; });
+    body.querySelector('#r6-cancel').onclick=function(){ m.style.display='none'; };
+    body.querySelector('#r6-clear').onclick=function(){ state.grants.clear(); state.denies.clear(); renderModal(); };
+    body.querySelector('#r6-save').onclick=saveOverrides;
+  }
+  function saveOverrides(){ api('/api/access/users/'+state.uid+'/overrides','PUT',{grants:Array.from(state.grants),denies:Array.from(state.denies)}).then(function(){ document.getElementById('r6-modal').style.display='none'; }).catch(function(e){ alert('Save failed: '+e.message); }); }
+  function buildSection(){
+    var root=document.getElementById('r4b-root'); if(!root) return Promise.resolve(false);
+    if(document.getElementById('r6-section')) return Promise.resolve(true);
+    return api('/api/workers').catch(function(){return [];}).then(function(workers){
+      var sec=document.createElement('div'); sec.id='r6-section'; sec.style.cssText='margin-top:22px;padding-top:14px;border-top:2px solid #eee';
+      sec.innerHTML='<h3>Per-user permission overrides</h3><p style="color:#666;font-size:13px">Grant or deny individual permissions for one user on top of their role.</p><select id="r6-user" style="padding:6px;min-width:220px">'+(workers||[]).map(function(w){return '<option value="'+w.id+'">'+esc(w.name)+'</option>';}).join('')+'</select> <button id="r6-edit" style="padding:6px 12px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Edit overrides</button>';
+      root.parentElement.appendChild(sec);
+      document.getElementById('r6-edit').onclick=function(){ var s=document.getElementById('r6-user'); openOverrideModal(+s.value, s.options[s.selectedIndex].text); };
+      return true;
+    });
+  }
+  window.__R6={ openOverrideModal:openOverrideModal, buildSection:buildSection };
+  function ready(){ return document.getElementById('r4b-root') && tokf(); }
+  var tries=0; (function boot(){ if(ready()){ buildSection(); return; } if(tries++<200) setTimeout(boot,300); })();
+})();
+
+</script>
+<!-- R6-OVERRIDES-UI END -->
 </body>
 </html>
