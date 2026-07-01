@@ -140,5 +140,31 @@ router.post('/roles/:id/users', P.requirePerm('settings.roles.manage'), function
 /* /R4A-ROLES */
 
 
+
+/* R6-OVERRIDES: per-user permission overrides (gated settings.roles.manage). Added by R-6. */
+router.get('/users/:id/overrides', P.requirePerm('settings.roles.manage'), function(req,res){
+  try{ var uid=+req.params.id; var rows=db.prepare('SELECT perm_key, mode FROM user_permissions WHERE user_id=?').all(uid);
+    res.json({ grants: rows.filter(function(r){return r.mode!=='deny';}).map(function(r){return r.perm_key;}), denies: rows.filter(function(r){return r.mode==='deny';}).map(function(r){return r.perm_key;}) });
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+router.get('/users/:id/effective', P.requirePerm('settings.roles.manage'), function(req,res){
+  try{ var p=P.resolvePerms(+req.params.id); res.json({ superadmin:p.superadmin, portal:p.portal, workerapp:p.workerapp, permissions: p.superadmin?P.ALL_KEYS.slice():Array.from(p.keys) }); }
+  catch(e){ res.status(500).json({error:e.message}); }
+});
+router.put('/users/:id/overrides', P.requirePerm('settings.roles.manage'), function(req,res){
+  try{
+    var uid=+req.params.id; var u=db.prepare('SELECT id FROM workers WHERE id=?').get(uid);
+    if(!u) return res.status(404).json({error:'User not found'});
+    var b=req.body||{};
+    var grants=Array.isArray(b.grants)?b.grants.filter(function(k){return _VALID.has(k);}):[];
+    var denies=Array.isArray(b.denies)?b.denies.filter(function(k){return _VALID.has(k);}):[];
+    if(!_callerSA(req)){ var touched=grants.concat(denies).filter(function(k){return _SENS.has(k);}); if(touched.length) return res.status(403).json({error:'Only a superadmin can override sensitive permissions', keys:touched}); }
+    var denySet=new Set(denies); var grantList=grants.filter(function(k){return !denySet.has(k);});
+    db.transaction(function(){ db.prepare('DELETE FROM user_permissions WHERE user_id=?').run(uid); var ins=db.prepare('INSERT OR IGNORE INTO user_permissions(user_id, perm_key, mode) VALUES(?,?,?)'); grantList.forEach(function(k){ ins.run(uid,k,'grant'); }); denies.forEach(function(k){ ins.run(uid,k,'deny'); }); })();
+    res.json({ ok:true, grants:grantList.length, denies:denies.length });
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+/* /R6-OVERRIDES */
+
 module.exports = router;
 

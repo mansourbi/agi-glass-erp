@@ -153,6 +153,7 @@ const WORKER_DEFAULT = ['workerapp.access','workerapp.deliver','workerapp.attend
 function ensureSchema(){
   db.exec("CREATE TABLE IF NOT EXISTS roles (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, description TEXT, is_system INTEGER DEFAULT 0, superadmin INTEGER DEFAULT 0, portal_access INTEGER DEFAULT 1, workerapp_access INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT)");
   db.exec("CREATE TABLE IF NOT EXISTS role_permissions (role_id INTEGER NOT NULL, perm_key TEXT NOT NULL, PRIMARY KEY (role_id, perm_key))");
+  db.exec("CREATE TABLE IF NOT EXISTS user_permissions (user_id INTEGER NOT NULL, perm_key TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'grant', PRIMARY KEY (user_id, perm_key))");
   var cols = db.prepare("PRAGMA table_info(workers)").all().map(function(c){return c.name;});
   if(cols.indexOf('role_id')<0) db.exec("ALTER TABLE workers ADD COLUMN role_id INTEGER");
 }
@@ -184,15 +185,24 @@ function resolvePerms(userId){
   if(!w) return {superadmin:false, keys:new Set(), portal:false, workerapp:false, role:null};
   var role = w.role_id ? db.prepare("SELECT * FROM roles WHERE id=?").get(w.role_id) : null;
   if(role && role.superadmin) return {superadmin:true, keys:new Set(ALL_KEYS), portal:true, workerapp:true, role:role};
+  var keys, portal, workerapp, legacy=false;
   if(role){
-    var keys=new Set(db.prepare("SELECT perm_key FROM role_permissions WHERE role_id=?").all(role.id).map(function(x){return x.perm_key;}));
+    keys=new Set(db.prepare("SELECT perm_key FROM role_permissions WHERE role_id=?").all(role.id).map(function(x){return x.perm_key;}));
     if(role.portal_access) keys.add('portal.access');
     if(role.workerapp_access) keys.add('workerapp.access');
-    return {superadmin:false, keys:keys, portal:!!role.portal_access, workerapp:!!role.workerapp_access, role:role};
+    portal=!!role.portal_access; workerapp=!!role.workerapp_access;
+  } else if(w.role==='admin'){
+    keys=new Set(ALL_KEYS); portal=true; workerapp=false; legacy=true;
+  } else {
+    keys=new Set(WORKER_DEFAULT); portal=false; workerapp=true; legacy=true;
   }
-  // fallback (no role assigned): preserve legacy behavior so nothing breaks
-  if(w.role==='admin') return {superadmin:false, keys:new Set(ALL_KEYS), portal:true, workerapp:false, role:null, legacy:true};
-  return {superadmin:false, keys:new Set(WORKER_DEFAULT), portal:false, workerapp:true, role:null, legacy:true};
+  var ovs=db.prepare("SELECT perm_key, mode FROM user_permissions WHERE user_id=?").all(w.id);
+  ovs.forEach(function(o){ if(o.mode==='deny'){ keys.delete(o.perm_key); } else { keys.add(o.perm_key); } });
+  var portalOv=ovs.find(function(o){return o.perm_key==='portal.access';});
+  var appOv=ovs.find(function(o){return o.perm_key==='workerapp.access';});
+  if(portalOv) portal=(portalOv.mode!=='deny');
+  if(appOv) workerapp=(appOv.mode!=='deny');
+  return {superadmin:false, keys:keys, portal:portal, workerapp:workerapp, role:role, legacy:legacy};
 }
 
 function can(req, key){
