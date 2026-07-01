@@ -398,6 +398,19 @@ router.put('/schedule', requireAdmin, (req, res) => {
 });
 
 // ══ OVERTIME ═══════════════════════════════════════════════════════════════
+// Recompute the same-day OT conflict flag: 2+ live (non-rejected) rows => flag the live ones; otherwise clear all.
+function syncConflictForDay(worker_id, date){
+  try {
+    const live = db.prepare("SELECT COUNT(*) c FROM overtime WHERE worker_id=? AND date=? AND status!='rejected'").get(worker_id, date).c;
+    if (live >= 2) {
+      db.prepare("UPDATE overtime SET conflict=1 WHERE worker_id=? AND date=? AND status!='rejected'").run(worker_id, date);
+      db.prepare("UPDATE overtime SET conflict=0 WHERE worker_id=? AND date=? AND status='rejected'").run(worker_id, date);
+    } else {
+      db.prepare("UPDATE overtime SET conflict=0 WHERE worker_id=? AND date=?").run(worker_id, date);
+    }
+  } catch(e){ console.warn('[syncConflictForDay]', e.message); }
+}
+
 router.get('/overtime', (req, res) => {
   try {
     const { status, worker_id, date_from, date_to } = req.query;
@@ -443,6 +456,7 @@ router.patch('/overtime/:id', requireAdmin, (req, res) => {
     if (ot && ot.attendance_id) {
       db.prepare('UPDATE attendance SET overtime_status=? WHERE id=?').run(status, ot.attendance_id);
     }
+    if (ot) syncConflictForDay(ot.worker_id, ot.date);
     res.json(ot);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -473,12 +487,26 @@ router.put('/overtime/:id', requireAdmin, (req, res) => {
       db.prepare('UPDATE attendance SET overtime_mins=?, overtime_status=? WHERE id=?')
         .run(attMins, ot.status, ot.attendance_id);
     }
+    if (ot) syncConflictForDay(ot.worker_id, ot.date);
     res.json(db.prepare('SELECT * FROM overtime WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ══ AUTO OVERTIME (called by attendance route on punch-out) ════════════════
 // GET /overtime/mine — worker's own OT submissions
+// Admin: delete a manual overtime row (auto rows are punch-derived - reject them instead)
+router.delete('/overtime/:id', requireAdmin, (req, res) => {
+  try {
+    const ot = db.prepare('SELECT * FROM overtime WHERE id=?').get(+req.params.id);
+    if (!ot) return res.status(404).json({ error: 'Not found' });
+    if (ot.type === 'auto' && ot.attendance_id)
+      return res.status(409).json({ error: 'Auto overtime is punch-derived - reject it instead (it would be recreated).' });
+    db.prepare('DELETE FROM overtime WHERE id=?').run(ot.id);
+    syncConflictForDay(ot.worker_id, ot.date);
+    res.json({ ok: true, deleted: ot.id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/overtime/mine', requireAuth, (req, res) => {
   try {
     const rows = db.prepare(`
@@ -734,6 +762,7 @@ router.get('/payroll', requireAdmin, (req, res) => {
         const dt = (o.att_day_type || 'normal').toLowerCase();
         if (dt === 'weekend' || dt === 'holiday') return; // weekend/holiday is not OT
         const mins = +o.mins || 0;
+        if (o.status === 'rejected') return; // rejected never counts (even with a stale conflict flag)
         if (o.conflict) { unapprovedOtMins += mins; return; } // unresolved conflict → not paid
         if (o.status === 'approved')     overtimeMins += mins;
         else if (o.status === 'pending') unapprovedOtMins += mins;
@@ -1138,6 +1167,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
           const dt = (o.att_day_type || 'normal').toLowerCase();
           if (dt === 'weekend' || dt === 'holiday') return;
           const mins = +o.mins || 0;
+          if (o.status === 'rejected') return; // rejected never counts (even with a stale conflict flag)
           if (o.conflict) { unapprovedOtMins += mins; return; }
           if (o.status === 'approved')     overtimeMins += mins;
           else if (o.status === 'pending') unapprovedOtMins += mins;

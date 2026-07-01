@@ -19024,7 +19024,7 @@ async function renderHROT(){
       `:r.status==='rejected'?`
         <button class="btn bg bsm" onclick="reviewOT(${r.id},'pending')" title="Reset to Pending" style="font-size:.6rem">↩ Reset</button>
       `:`<span style="font-size:.65rem;color:var(--mu)">${r.reviewed_at?r.reviewed_at.slice(0,10):'—'}</span>`}
-      <button class="btn bs bsm" onclick="editOT(${r.id})" title="Edit" style="font-size:.65rem">✎</button>
+      <button class="btn bs bsm" onclick="editOT(${r.id})" title="Edit" style="font-size:.65rem">✎</button>${r.type==='manual'?`<button class="btn br bsm" onclick="deleteOT(${r.id})" title="Delete this manual OT" style="font-size:.65rem">🗑</button>`:''}
     </td>
   </tr>`).join('');
 }
@@ -19048,6 +19048,22 @@ async function resolveConflict(keepId){
       await fetch('/api/hr/overtime/'+o.id,{method:'PUT',headers:H,body:JSON.stringify({date:o.date,start_time:o.start_time,end_time:o.end_time,description:o.description,status:'rejected',conflict:0})});
     }
     showToast('Conflict resolved');
+    renderHROT();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+async function deleteOT(id){
+  try{
+    const all = await AGI.HR.overtime.list({});
+    const r = all.find(o=>o.id===id);
+    if(!r){ alert('Record not found'); return; }
+    if(r.type==='auto'){ alert('Auto overtime is punch-derived - reject it instead (it would be recreated on next sync).'); return; }
+    if(!confirm('Delete this manual OT ('+(r.mins/60).toFixed(1)+'h, '+r.status+') for '+r.worker_name+' on '+r.date+'?\n\nThis permanently removes the row.')) return;
+    const tk=localStorage.getItem('agi_token')||'';
+    const res=await fetch('/api/hr/overtime/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+tk}});
+    if(!res.ok){ const e=await res.json().catch(()=>({})); alert('Delete failed: '+(e.error||res.status)); return; }
+    showToast('Overtime deleted');
+    _otEditRows=[];
     renderHROT();
   }catch(e){ alert('Error: '+e.message); }
 }
