@@ -2393,5 +2393,43 @@ async function unmarkProcess(uid, pid){
   }, msUntilMidnight);
 })();
 </script>
+<!-- R5-WORKERAPP-GATING START -->
+<script>
+(function(){
+  if(window.__R5_INSTALLED) return; window.__R5_INSTALLED=true;
+  var TAB_PERM={ attendance:'workerapp.attend', deliver:'workerapp.deliver' }; // tabs not listed = core; add future gated tabs here
+  var perms={}, superadmin=false, loaded=false;
+  function CAN(k){ return superadmin || perms[k]===true; }
+  function tok(){ try{ if(window.AGI&&AGI.getToken){ var t=AGI.getToken(); if(t) return t; } }catch(e){} return localStorage.getItem('agi_token'); }
+  function applyGating(){
+    if(!loaded) return;
+    var els=document.querySelectorAll('[onclick*="switchTab"]');
+    for(var i=0;i<els.length;i++){ var el=els[i]; var m=(el.getAttribute('onclick')||'').match(/switchTab\(['"]([^'"]+)['"]/); if(!m) continue; var need=TAB_PERM[m[1]];
+      if(need && !CAN(need)){ el.style.display='none'; el.setAttribute('data-r5hidden','1'); }
+      else if(el.getAttribute('data-r5hidden')==='1'){ el.style.display=''; el.removeAttribute('data-r5hidden'); } }
+    var ot=document.querySelectorAll('[onclick*="openOTModal"]');
+    for(var j=0;j<ot.length;j++){ var e2=ot[j];
+      if(!CAN('workerapp.overtime')){ e2.style.display='none'; e2.setAttribute('data-r5hidden','1'); }
+      else if(e2.getAttribute('data-r5hidden')==='1'){ e2.style.display=''; e2.removeAttribute('data-r5hidden'); } }
+  }
+  function wrapSwitch(){
+    if(window.switchTab && !window.switchTab.__r5){
+      var _s=window.switchTab;
+      window.switchTab=function(tab){ var need=TAB_PERM[tab]; var rv; if(need && !CAN(need)){ rv=_s('home'); } else { rv=_s.apply(this,arguments); } applyGating(); return rv; };
+      window.switchTab.__r5=true; window.switchTab.__orig=_s;
+    }
+  }
+  function loadPerms(){ return fetch('/api/access/me',{headers:{'Authorization':'Bearer '+tok(),'Accept':'application/json'}}).then(function(r){return r.ok?r.json():null;}).then(function(me){ if(!me) return false; superadmin=!!me.superadmin; perms={}; (me.permissions||[]).forEach(function(p){perms[p]=true;}); loaded=true; return true; }).catch(function(){ return false; }); }
+  function reconcile(){ wrapSwitch(); applyGating(); }
+  window.__R5_REAPPLY=function(){ return loadPerms().then(reconcile); };
+  window.__R5={ applyGating:applyGating, get loaded(){return loaded;}, get superadmin(){return superadmin;} };
+  function start(){ loadPerms().then(function(ok){ if(ok){ reconcile(); [500,1500,3500].forEach(function(d){ setTimeout(reconcile,d); }); } }); }
+  var tries=0; (function boot(){ if(tok()){ start(); return; } if(tries++<300) setTimeout(boot,500); })();
+  if(window.doLogin && !window.doLogin.__r5wrap){ var _l=window.doLogin; window.doLogin=function(){ var rv=_l.apply(this,arguments); Promise.resolve(rv).then(function(){ setTimeout(function(){ loadPerms().then(reconcile); },800); }).catch(function(){}); return rv; }; window.doLogin.__r5wrap=true; }
+  window.addEventListener('load',function(){ setTimeout(function(){ loaded?reconcile():start(); },600); });
+})();
+
+</script>
+<!-- R5-WORKERAPP-GATING END -->
 </body>
 </html>
