@@ -411,6 +411,62 @@ function syncConflictForDay(worker_id, date){
   } catch(e){ console.warn('[syncConflictForDay]', e.message); }
 }
 
+// vac carry-over (replay-based, deterministic): opening(M)=accrual(M)+max(endBal(M-1),0)
+// replayed from join month; a negative month books its penalty and resets carry-in to 0.
+function vacAccrualFor(w, m){
+  const j=+w.vac_days_junior||14, s=+w.vac_days_senior||21;
+  const jd=w.join_date?new Date(w.join_date):null;
+  const p=m.split('-').map(Number), py=p[0], pm=p[1];
+  const dim=new Date(py,pm,0).getDate();
+  const mS=new Date(py,pm-1,1), mE=new Date(py,pm-1,dim);
+  const yrs=jd?((mS-jd)/(365.25*24*3600*1000)):0;
+  const full=(yrs>=5?s:j)/12;
+  if(!jd) return full;
+  if(jd>mE) return 0;
+  if(jd<=mS) return full;
+  return (full/dim)*(dim-jd.getDate()+1);
+}
+function vacMonthDeductions(w, m){
+  const lr=db.prepare("SELECT lr.days,lr.hours,lr.leave_kind,COALESCE(lt.is_paid,1) AS is_paid FROM leave_requests lr LEFT JOIN leave_types lt ON lower(trim(lt.label))=lower(trim(lr.type)) WHERE lr.worker_id=? AND lr.status='approved' AND ((lr.leave_kind='hourly' AND lr.date_from LIKE ?) OR (lr.leave_kind!='hourly' AND (lr.date_from LIKE ? OR lr.date_to LIKE ?)))").all(w.id,m+'%',m+'%',m+'%');
+  let paidLeave=0; lr.forEach(x=>{ const d=x.leave_kind==='hourly'?(+x.hours||0)/8:(+x.days||0); if(x.is_paid) paidLeave+=d; });
+  const at=db.prepare("SELECT day_type,punch_in,late_mins FROM attendance WHERE worker_id=? AND date LIKE ?").all(w.id,m+'%');
+  let lateM=0; at.forEach(a=>{ const dt=(a.day_type||'normal').toLowerCase(); if(a.punch_in&&dt==='normal') lateM+=+a.late_mins||0; });
+  const sr=db.prepare('SELECT weekend_day FROM work_schedule ORDER BY id LIMIT 1').get()||{};
+  const wknd=(sr.weekend_day!=null)?+sr.weekend_day:5;
+  const p=m.split('-').map(Number), yy=p[0], mm=p[1];
+  const dim=new Date(yy,mm,0).getDate();
+  const worked=new Set(db.prepare("SELECT date FROM attendance WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL").all(w.id,m+'%').map(r=>r.date));
+  let absence=0;
+  for(let d=1; d<=dim; d++){
+    const ds=yy+'-'+String(mm).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    if(new Date(ds).getDay()===wknd) continue;
+    if(worked.has(ds)) continue;
+    if(db.prepare("SELECT 1 FROM leave_requests WHERE worker_id=? AND status='approved' AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?)) LIMIT 1").get(w.id,ds,ds,ds)) continue;
+    if(db.prepare("SELECT 1 FROM holidays WHERE date=? LIMIT 1").get(ds)) continue;
+    absence++;
+  }
+  return { paidLeave, lateDays: lateM/480, absence };
+}
+function vacCarryIn(w, targetMonth){
+  try{
+    if(!w.join_date) return 0;
+    const joinM=String(w.join_date).slice(0,7);
+    if(joinM>=targetMonth) return 0;
+    let carry=0;
+    const c=joinM.split('-').map(Number); let cy=c[0], cm=c[1];
+    const t=targetMonth.split('-').map(Number); const ty=t[0], tm=t[1];
+    while(cy<ty || (cy===ty && cm<tm)){
+      const m=cy+'-'+String(cm).padStart(2,'0');
+      const dd=vacMonthDeductions(w,m);
+      const endBal=(vacAccrualFor(w,m)+Math.max(carry,0))-dd.paidLeave-dd.lateDays-dd.absence;
+      carry=endBal>0?endBal:0;
+      cm++; if(cm>12){cm=1;cy++;}
+    }
+    return carry;
+  }catch(e){ console.warn('[vacCarryIn]', e.message); return 0; }
+}
+function vacOpening(w, m){ return vacCarryIn(w, m) + vacAccrualFor(w, m); }
+
 router.get('/overtime', (req, res) => {
   try {
     const { status, worker_id, date_from, date_to } = req.query;
@@ -851,7 +907,7 @@ router.get('/payroll', requireAdmin, (req, res) => {
           wMonthAccrual = (wFullAccrual / daysInPayMonth) * dw;
         }
       } else { wMonthAccrual = wFullAccrual; }
-      const openingBalance = storedBalance + wMonthAccrual;
+      const openingBalance = vacCarryIn(w, m) + wMonthAccrual;
       const lateDays = lateMins / 480;
       // End-of-month balance = opening - vacations - leaves - late - absences
       const balanceAfter = openingBalance - paidLeaveDays - lateDays - absenceDays;
@@ -1183,7 +1239,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
           if (workedDates.has(dateStr)) continue;
           const covered = db.prepare(`SELECT 1 FROM leave_requests WHERE worker_id=? AND status='approved' AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?)) LIMIT 1`).get(w.id, dateStr, dateStr, dateStr);
           if (covered) continue;
-          const isHoliday = db.prepare("SELECT 1 FROM attendance WHERE date=? AND day_type='holiday' LIMIT 1").get(dateStr);
+          const isHoliday = db.prepare("SELECT 1 FROM holidays WHERE date=? LIMIT 1").get(dateStr);
           if (isHoliday) continue;
           absenceDays++;
         }
@@ -1203,7 +1259,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
         });
         // Balance
         const vb = db.prepare('SELECT balance_days FROM vacation_balance WHERE worker_id=?').get(w.id);
-        const currentBalance = vb ? (+vb.balance_days || 0) : 0;
+        const currentBalance = vacOpening(w, month);
         const lateDays = lateMins / 480;
         const balanceAfter = currentBalance - paidLeaveDays - lateDays - absenceDays;
         const negativeDays = balanceAfter < 0 ? -balanceAfter : 0;
@@ -1234,7 +1290,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
         db.prepare(`INSERT INTO vacation_balance (worker_id, worker_name, balance_days, accrual_rate, last_accrued, updated_at)
           VALUES (?, ?, ?, ?, ?, datetime('now','localtime'))
           ON CONFLICT(worker_id) DO UPDATE SET balance_days=excluded.balance_days, accrual_rate=excluded.accrual_rate, last_accrued=excluded.last_accrued, updated_at=excluded.updated_at`)
-          .run(w.id, w.name, wAccrual, wAccrual, month+'-close');
+          .run(w.id, w.name, (balanceAfter > 0 ? balanceAfter : 0), wAccrual, month+'-close');
       });
     });
     tx();
