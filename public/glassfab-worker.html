@@ -688,6 +688,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
   </div>
 </div>
 
+<!-- LATE PUNCH-IN REASON -->
+<div id="m-late-reason" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:1px solid var(--a2);border-radius:var(--r);padding:24px;width:90%;max-width:360px">
+    <div style="font-weight:700;margin-bottom:8px;font-size:1rem;color:var(--a2)">&#9200; Late Arrival</div>
+    <div id="late-reason-info" style="font-size:.8rem;color:var(--tx2);margin-bottom:14px"></div>
+    <label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Reason (optional)</label>
+    <input type="text" id="late-reason-input" class="inp" style="padding:10px 12px;margin-bottom:14px" placeholder="e.g. traffic, doctor appointment">
+    <div style="display:flex;gap:8px">
+      <button onclick="skipLateReason()" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer;font-weight:600">Skip</button>
+      <button onclick="saveLateReason()" style="flex:1;padding:12px;background:var(--a3);border:none;border-radius:var(--r);color:#000;font-weight:700;cursor:pointer">&#10003; Save reason</button>
+    </div>
+  </div>
+</div>
+
+<!-- EARLY PUNCH-OUT REASON -->
+<div id="m-early-reason" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:1px solid var(--a2);border-radius:var(--r);padding:24px;width:90%;max-width:360px">
+    <div style="font-weight:700;margin-bottom:8px;font-size:1rem;color:var(--a2)">&#9200; Leaving Early</div>
+    <div id="early-reason-info" style="font-size:.8rem;color:var(--tx2);margin-bottom:14px"></div>
+    <label style="font-size:.68rem;color:var(--tx2);display:block;margin-bottom:3px">Reason (optional)</label>
+    <input type="text" id="early-reason-input" class="inp" style="padding:10px 12px;margin-bottom:14px" placeholder="e.g. family matter, feeling unwell">
+    <div style="display:flex;gap:8px">
+      <button onclick="skipEarlyReason()" style="flex:1;padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:var(--r);color:var(--tx);cursor:pointer;font-weight:600">Skip</button>
+      <button onclick="saveEarlyReason()" style="flex:1;padding:12px;background:var(--a3);border:none;border-radius:var(--r);color:#000;font-weight:700;cursor:pointer">&#10003; Save reason</button>
+    </div>
+  </div>
+</div>
+
 <!-- EARLY PUNCH-IN OVERTIME DECISION -->
 <div id="m-early-ot" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;align-items:center;justify-content:center">
   <div style="background:var(--bg);border:1px solid var(--a4);border-radius:var(--r);padding:24px;width:90%;max-width:360px">
@@ -1064,9 +1092,10 @@ async function doPunchIn(){
 async function _finishPunchIn(earlyOvertime){
   try{
     document.getElementById('m-early-ot').style.display='none';
-    await AGI.Attendance.punchIn(earlyOvertime===undefined?{}:{early_overtime:earlyOvertime});
+    const _pi = await AGI.Attendance.punchIn(earlyOvertime===undefined?{}:{early_overtime:earlyOvertime});
     const msg = earlyOvertime===true ? 'Early overtime recorded' : 'Have a great shift!';
     showFlash('&#9654;','Punched In',msg,'var(--a3)');
+    if(_pi && (+_pi.late_mins||0) > 0){ promptLateReason(+_pi.late_mins); }
     vibrate([50,30,50]);
     await loadAttendance();
     await loadHomeStatus();
@@ -1089,6 +1118,7 @@ async function doPunchOut(){
     } else {
       const hrs = r.total_mins?(r.total_mins/60).toFixed(1)+'h':'';
       showFlash('&#9632;','Punched Out','Total: '+hrs,'var(--a)');
+      if((+r.early_mins||0) > 0){ promptEarlyReason(+r.early_mins, r.shift_end||''); }
       vibrate([50,30,50,30,50]);
       await loadAttendance();
       await loadHomeStatus();
@@ -1131,6 +1161,32 @@ async function submitOTDecision(workedOT){
 // ════════════════════════════════════════════════════════
 // OT & LEAVE MODALS
 // ════════════════════════════════════════════════════════
+function _fmtMins(t){ const h=Math.floor(t/60), m=t%60; return (h?h+'h ':'')+m+'m'; }
+function promptLateReason(lateMins){
+  document.getElementById('late-reason-info').textContent = 'You arrived '+_fmtMins(lateMins)+' late. Add a reason for your records (optional).';
+  document.getElementById('late-reason-input').value='';
+  document.getElementById('m-late-reason').style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;align-items:center;justify-content:center';
+}
+function promptEarlyReason(earlyMins, shiftEnd){
+  document.getElementById('early-reason-info').textContent = 'You left '+_fmtMins(earlyMins)+' before shift end'+(shiftEnd?' ('+shiftEnd+')':'')+'. Add a reason (optional).';
+  document.getElementById('early-reason-input').value='';
+  document.getElementById('m-early-reason').style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;align-items:center;justify-content:center';
+}
+async function _postReason(kind, reason){
+  try{
+    if(reason){
+      await fetch('/api/attendance/punch-reason',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},
+        body:JSON.stringify({kind:kind, reason:reason})}).then(r=>r.json());
+      showFlash('&#10003;','Saved','Reason recorded','var(--a3)');
+    }
+  }catch(e){ /* non-blocking */ }
+}
+function skipLateReason(){ document.getElementById('m-late-reason').style.display='none'; }
+function saveLateReason(){ const v=document.getElementById('late-reason-input').value.trim(); document.getElementById('m-late-reason').style.display='none'; _postReason('late', v); }
+function skipEarlyReason(){ document.getElementById('m-early-reason').style.display='none'; }
+function saveEarlyReason(){ const v=document.getElementById('early-reason-input').value.trim(); document.getElementById('m-early-reason').style.display='none'; _postReason('early', v); }
+
 function openOTModal(){
   document.getElementById('ot-date').value=new Date().toISOString().slice(0,10);
   document.getElementById('ot-from').value='';

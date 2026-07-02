@@ -20,7 +20,7 @@ try {
 } catch(e) {}
 
 // Add columns to existing table if missing
-['punch_in','punch_out','total_mins','date','day_type'].forEach(col => {
+['punch_in','punch_out','total_mins','date','day_type','late_reason','early_leave_reason'].forEach(col => {
   try { db.prepare(`ALTER TABLE attendance ADD COLUMN ${col} TEXT`).run(); } catch(e) {}
 });
 
@@ -226,7 +226,8 @@ router.post('/punch-in', (req, res) => {
     const r = db.prepare(
       "INSERT INTO attendance (worker_id,worker_name,date,punch_in,type,day_type,late_mins) VALUES (?,?,?,?,?,?,?)"
     ).run(req.user.id, req.user.name, today, now, 'sign_in', auto_day_type, late_mins);
-    res.status(201).json(db.prepare('SELECT * FROM attendance WHERE id=?').get(r.lastInsertRowid));
+    const _piRow = db.prepare('SELECT * FROM attendance WHERE id=?').get(r.lastInsertRowid);
+    res.status(201).json({ ..._piRow, late_mins: late_mins });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -258,9 +259,11 @@ router.post('/punch-out', (req, res) => {
         const [eh,em] = endTime.split(':').map(Number);
         const [ph,pm] = punchOutTime.split(':').map(Number);
         const overMins = (ph*60+pm) - (eh*60+em);
+        // Early departure: minutes before shift end (mirror of overtime)
+        const early_mins = (eh*60+em) - (ph*60+pm);
         // Return overtime info to worker app so it can prompt
         const overtimeDetected = overMins > grace;
-        return res.json({ ...updated, overtime_detected: overtimeDetected, shift_end: endTime, over_mins: Math.max(0,overMins) });
+        return res.json({ ...updated, overtime_detected: overtimeDetected, shift_end: endTime, over_mins: Math.max(0,overMins), early_mins: Math.max(0,early_mins) });
       }
     } catch(e) { console.warn('[ot check]', e.message); }
     res.json(updated);
@@ -268,6 +271,21 @@ router.post('/punch-out', (req, res) => {
 });
 
 // ── POST /overtime-decision — worker submits overtime yes/no ─────────────
+// POST /punch-reason ? worker records reason for lateness / early leave (non-blocking).
+// Attaches to TODAY's own attendance row. kind='late'|'early'.
+router.post('/punch-reason', (req, res) => {
+  try {
+    const { kind, reason } = req.body || {};
+    if (!['late','early'].includes(kind)) return res.status(400).json({ error: "kind must be 'late' or 'early'" });
+    const today = todayStr();
+    const row = db.prepare('SELECT * FROM attendance WHERE worker_id=? AND date=?').get(req.user.id, today);
+    if (!row) return res.status(400).json({ error: 'No attendance record for today' });
+    const col = kind === 'late' ? 'late_reason' : 'early_leave_reason';
+    db.prepare('UPDATE attendance SET '+col+'=? WHERE id=?').run((reason||'').toString().slice(0,500) || null, row.id);
+    res.json({ ok: true, id: row.id, kind });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/overtime-decision', (req, res) => {
   try {
     const { worked_overtime, project, notes } = req.body;
