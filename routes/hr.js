@@ -436,8 +436,10 @@ function vacMonthDeductions(w, m){
   const p=m.split('-').map(Number), yy=p[0], mm=p[1];
   const dim=new Date(yy,mm,0).getDate();
   const worked=new Set(db.prepare("SELECT date FROM attendance WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL").all(w.id,m+'%').map(r=>r.date));
+  const _now=new Date();
+  const endDay=(_now.getFullYear()===yy && (_now.getMonth()+1)===mm)?_now.getDate():dim;
   let absence=0;
-  for(let d=1; d<=dim; d++){
+  for(let d=1; d<=endDay; d++){
     const ds=yy+'-'+String(mm).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     if(new Date(ds).getDay()===wknd) continue;
     if(worked.has(ds)) continue;
@@ -1407,174 +1409,38 @@ router.post('/vacation/accrue', requireAdmin, (req, res) => {
 // GET /hr/vacation-report?from=YYYY-MM&to=YYYY-MM
 // Returns pivoted data: per worker, per month — opening, vacations, leaves,
 // late_days, absences, ending balance, cash deduction
-router.get('/vacation-report', requireAdmin, (req, res) => {
+router.get('/vacation-report', (req, res) => {  // REPORT-ENGINE-V2 (shared with payroll)
   try {
-    const { from, to } = req.query;
-    if (!from || !to) return res.status(400).json({ error: 'from and to (YYYY-MM) required' });
-
-    // Build list of months between from and to
+    const from = req.query.from, to = req.query.to;  // 'YYYY-MM'
+    if(!from || !to) return res.status(400).json({ error: 'from and to (YYYY-MM) required' });
     const months = [];
-    let [cy, cm] = from.split('-').map(Number);
-    const [ey, em] = to.split('-').map(Number);
-    while (cy < ey || (cy === ey && cm <= em)) {
-      months.push(`${cy}-${String(cm).padStart(2,'0')}`);
-      cm++; if (cm > 12) { cm = 1; cy++; }
-    }
-
-    const now = new Date();
-    const workers = db.prepare('SELECT * FROM workers WHERE is_active=1 AND (hourly_rate > 0 OR (monthly_salary IS NOT NULL AND monthly_salary > 0)) ORDER BY name').all();
-    const sched = getSchedule();
-    const weekendDay = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}[sched.weekend_day||'fri'] ?? 5;
-
-    const results = workers.map(w => {
-      const junior = +w.vac_days_junior || 14;
-      const senior = +w.vac_days_senior || 21;
-      const hourlyRate = +w.hourly_rate || 0;
-      const joinDate = w.join_date ? new Date(w.join_date) : null;
-
-      // Start with balance from vacation_balance table as of the month before 'from'
-      // We replay month by month from the beginning
-      // Get the stored balance
-      const vb = db.prepare('SELECT balance_days FROM vacation_balance WHERE worker_id=?').get(w.id);
-      let runningBalance = vb ? +vb.balance_days : 0;
-
-      // We need to compute from scratch for each month in range
-      // For accuracy, we carry balance forward month by month
-      const monthData = months.map(m => {
-        const [yy, mm] = m.split('-').map(Number);
-        const daysInMonth = new Date(yy, mm, 0).getDate();
-        const monthStart = new Date(yy, mm-1, 1);
-        const monthEnd   = new Date(yy, mm-1, daysInMonth);
-
-        // Skip future months entirely
-        if (monthStart > now) {
-          return { month: m, future: true, accrual:0, opening:0, vac_days:0, leave_days:0, late_days:0, absence_days:0, total_deductions:0, ending:0, cash_deduction:0 };
-        }
-        // Skip months before worker joined
-        if (joinDate && monthEnd < joinDate) {
-          return { month: m, before_join: true, accrual:0, opening:0, vac_days:0, leave_days:0, late_days:0, absence_days:0, total_deductions:0, ending:0, cash_deduction:0 };
-        }
-
-        // ── Accrual for this month ─────────────────────────────────────
-        const yearsService = joinDate
-          ? ((monthStart - joinDate) / (365.25*24*3600*1000))
-          : 0;
-        const annualDays = yearsService >= 5 ? senior : junior;
-        const fullMonthAccrual = annualDays / 12;
-
-        let accrual = 0;
-        if (joinDate) {
-          if (joinDate > monthEnd) {
-            accrual = 0; // not yet joined
-          } else if (joinDate <= monthStart) {
-            accrual = fullMonthAccrual; // full month
-          } else {
-            // Prorated: days from join date to end of month
-            const daysWorked = daysInMonth - joinDate.getDate() + 1;
-            accrual = (fullMonthAccrual / daysInMonth) * daysWorked;
-          }
-        } else {
-          accrual = fullMonthAccrual;
-        }
-        accrual = Math.round(accrual * 10000) / 10000;
-
-        // Opening balance = previous ending + this month's accrual
-        const opening = Math.round((runningBalance + accrual) * 10000) / 10000;
-
-        // ── Vacation days taken (approved vacation leaves) ─────────────
-        const vacRows = db.prepare(`
-          SELECT SUM(CASE WHEN leave_kind='hourly' THEN hours/8.0 ELSE days END) AS total
-          FROM leave_requests lr
-          LEFT JOIN leave_types lt ON lower(trim(lt.label))=lower(trim(lr.type))
-          WHERE lr.worker_id=? AND lr.status='approved'
-            AND lower(trim(lr.type)) IN ('vacation','annual leave','annual','إجازة سنوية')
-            AND (date_from LIKE ? OR date_to LIKE ?)
-        `).get(w.id, m+'%', m+'%');
-        const vacLeaves = Math.round((+vacRows?.total || 0) * 10000) / 10000; // will add absenceDays after
-
-        // ── Other approved hourly leaves (non-sick, non-vacation) ──────
-        const leaveRows = db.prepare(`
-          SELECT SUM(CASE WHEN leave_kind='hourly' THEN hours/8.0 ELSE days END) AS total
-          FROM leave_requests lr
-          LEFT JOIN leave_types lt ON lower(trim(lt.label))=lower(trim(lr.type))
-          WHERE lr.worker_id=? AND lr.status='approved'
-            AND lower(trim(lr.type)) NOT IN ('vacation','annual leave','annual','إجازة سنوية','sick','sick leave','مرضية')
-            AND COALESCE(lt.is_paid,1)=1
-            AND (date_from LIKE ? OR date_to LIKE ?)
-        `).get(w.id, m+'%', m+'%');
-        const leaveDays = Math.round((+leaveRows?.total || 0) * 10000) / 10000;
-
-        // ── Late minutes → days ────────────────────────────────────────
-        const lateRow = db.prepare(`
-          SELECT SUM(late_mins) AS total FROM attendance
-          WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL
-        `).get(w.id, m+'%');
-        const lateDays = Math.round(((+lateRow?.total || 0) / 480) * 10000) / 10000;
-
-        // ── Absence days ───────────────────────────────────────────────
-        let absenceDays = 0;
-        const today2 = new Date();
-        const endDay = (today2.getFullYear()===yy && (today2.getMonth()+1)===mm)
-          ? today2.getDate() : daysInMonth;
-        const workedDates = new Set(
-          db.prepare(`SELECT date FROM attendance WHERE worker_id=? AND date LIKE ? AND punch_in IS NOT NULL`)
-            .all(w.id, m+'%').map(r => r.date)
-        );
-        for (let d = 1; d <= endDay; d++) {
-          const dateStr = `${yy}-${String(mm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-          if (joinDate && new Date(dateStr) < joinDate) continue;
-          const dow = new Date(dateStr).getDay();
-          if (dow === weekendDay) continue;
-          if (workedDates.has(dateStr)) continue;
-          const covered = db.prepare(`SELECT 1 FROM leave_requests
-            WHERE worker_id=? AND status='approved'
-            AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?))
-            LIMIT 1`).get(w.id, dateStr, dateStr, dateStr);
-          if (covered) continue;
-          const isHol = db.prepare('SELECT 1 FROM holidays WHERE date=? LIMIT 1').get(dateStr);
-          if (isHol) continue;
-          absenceDays++;
-        }
-
-        // ── Combine vacation leaves + absences ────────────────────────
-        const vacDays = Math.round((vacLeaves + absenceDays) * 10000) / 10000;
-
-        // ── Ending balance ─────────────────────────────────────────────
-        const totalDeductions = vacDays + leaveDays + lateDays;
-        const ending = Math.round((opening - totalDeductions) * 10000) / 10000;
-
-        // ── Cash deduction if negative ─────────────────────────────────
-        const cashDeduction = ending < 0
-          ? Math.round(Math.abs(ending) * 8 * hourlyRate * 100) / 100
-          : 0;
-
-        // Carry forward — if negative, reset to 0 (cash deduction applied)
-        runningBalance = ending < 0 ? 0 : ending;
-
+    { let [fy,fm]=from.split('-').map(Number); const [ty,tm]=to.split('-').map(Number);
+      while(fy<ty || (fy===ty && fm<=tm)){ months.push(fy+'-'+String(fm).padStart(2,'0')); fm++; if(fm>12){fm=1;fy++;} } }
+    const workers = db.prepare("SELECT id, name, monthly_salary, vac_days_junior, vac_days_senior, join_date FROM workers WHERE is_active=1 AND (hourly_rate > 0 OR (monthly_salary IS NOT NULL AND monthly_salary > 0)) ORDER BY name").all();
+    const out = workers.map(w => {
+      const _salary = +w.monthly_salary || 0;
+      let carry = 0;
+      const monthRows = months.map(m => {
+        const opening = vacOpening(w, m);            // = vacCarryIn + accrual (shared engine, today-capped)
+        const dd = vacMonthDeductions(w, m);         // paidLeave / lateDays / absence (identical to payroll)
+        const ending = opening - dd.paidLeave - dd.lateDays - dd.absence;
+        const cash_deduction = ending < 0 ? +(Math.abs(ending) * (_salary/30)).toFixed(2) : 0;
+        carry = ending > 0 ? ending : 0;
         return {
           month: m,
-          accrual:       +accrual.toFixed(4),
-          opening:       +opening.toFixed(4),
-          vac_days:      +vacDays.toFixed(2),
-          leave_days:    +leaveDays.toFixed(2),
-          late_days:     +lateDays.toFixed(3),
-          absence_days:  absenceDays,
-          total_deductions: +totalDeductions.toFixed(3),
-          ending:        +ending.toFixed(4),
-          cash_deduction: +cashDeduction.toFixed(2)
+          opening: +opening.toFixed(3),
+          vac_days: +dd.absence.toFixed(3),
+          leave_days: +dd.paidLeave.toFixed(3),
+          late_days: +dd.lateDays.toFixed(3),
+          absence_days: +dd.absence.toFixed(3),
+          total_deductions: +(dd.paidLeave + dd.lateDays + dd.absence).toFixed(3),
+          ending: +ending.toFixed(3),
+          cash_deduction
         };
       });
-
-      return {
-        worker_id:   w.id,
-        worker_name: w.name,
-        join_date:   w.join_date,
-        hourly_rate: hourlyRate,
-        months:      monthData
-      };
+      return { worker_id: w.id, worker_name: w.name, months: monthRows };
     });
-
-    res.json({ months, workers: results });
+    res.json({ from, to, months, workers: out });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
