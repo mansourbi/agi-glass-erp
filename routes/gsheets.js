@@ -414,7 +414,7 @@ async function writeDeliveriesToSheet(sheets, spreadsheetId, rows) {
   const clearRows = Math.max(totalRows + 10, 200);
 
   // Clear and write data
-  await sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Deliveries' });
+  await sheets.spreadsheets.values.clear({ spreadsheetId, range: 'Deliveries!A:P' });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: `Deliveries!A1:${endCol}${totalRows}`,
@@ -426,12 +426,12 @@ async function writeDeliveriesToSheet(sheets, spreadsheetId, rows) {
 
   // 1. Remove ALL existing formatting and borders
   requests.push({ repeatCell: {
-    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:0, endColumnIndex:totalCols+2 },
+    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:0, endColumnIndex:totalCols },
     cell: { userEnteredFormat: {} },
     fields: 'userEnteredFormat'
   }});
   requests.push({ updateBorders: {
-    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:0, endColumnIndex:totalCols+2 },
+    range: { sheetId, startRowIndex:0, endRowIndex:clearRows, startColumnIndex:0, endColumnIndex:totalCols },
     top:{ style:'NONE' }, bottom:{ style:'NONE' }, left:{ style:'NONE' }, right:{ style:'NONE' },
     innerHorizontal:{ style:'NONE' }, innerVertical:{ style:'NONE' }
   }});
