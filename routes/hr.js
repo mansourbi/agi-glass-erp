@@ -413,6 +413,23 @@ function syncConflictForDay(worker_id, date){
 
 // vac carry-over (replay-based, deterministic): opening(M)=accrual(M)+max(endBal(M-1),0)
 // replayed from join month; a negative month books its penalty and resets carry-in to 0.
+// Interior-only hourly-leave rule: deducts hours/8 ONLY if strictly inside the shift
+// (time_from > shift start AND time_to < day's shift end). Edge leaves (touching
+// start or end) are documentation-only: the punch already charges lateness/early-out.
+// Blank times => deduct (conservative). deducts_balance=0 types never deduct.
+function hourlyLeaveDeducts(lr){
+  try{
+    if(lr.deducts_balance===0) return false;
+    if(!lr.time_from || !lr.time_to) return true;
+    const sch=getSchedule();
+    const m=t=>{const p=String(t).split(':').map(Number);return p[0]*60+(p[1]||0);};
+    const start=m(sch.start_time||'08:00');
+    const isThu=new Date(lr.date_from).getDay()===4;
+    const end=m(isThu?(sch.thursday_end_time||'15:00'):(sch.end_time||'16:30'));
+    return m(lr.time_from)>start && m(lr.time_to)<end;
+  }catch(e){ return true; }
+}
+
 function vacAccrualFor(w, m){
   const j=+w.vac_days_junior||14, s=+w.vac_days_senior||21;
   const jd=w.join_date?new Date(w.join_date):null;
@@ -427,8 +444,8 @@ function vacAccrualFor(w, m){
   return (full/dim)*(dim-jd.getDate()+1);
 }
 function vacMonthDeductions(w, m){
-  const lr=db.prepare("SELECT lr.days,lr.hours,lr.leave_kind,COALESCE(lt.is_paid,1) AS is_paid FROM leave_requests lr LEFT JOIN leave_types lt ON lower(trim(lt.label))=lower(trim(lr.type)) WHERE lr.worker_id=? AND lr.status='approved' AND ((lr.leave_kind='hourly' AND lr.date_from LIKE ?) OR (lr.leave_kind!='hourly' AND (lr.date_from LIKE ? OR lr.date_to LIKE ?)))").all(w.id,m+'%',m+'%',m+'%');
-  let paidLeave=0; lr.forEach(x=>{ const d=x.leave_kind==='hourly'?(+x.hours||0)/8:(+x.days||0); if(x.is_paid) paidLeave+=d; });
+  const lr=db.prepare("SELECT lr.days,lr.hours,lr.leave_kind,lr.time_from,lr.time_to,lr.date_from,COALESCE(lt.deducts_balance,1) AS deducts_balance,COALESCE(lt.is_paid,1) AS is_paid FROM leave_requests lr LEFT JOIN leave_types lt ON lower(trim(lt.label))=lower(trim(lr.type)) WHERE lr.worker_id=? AND lr.status='approved' AND ((lr.leave_kind='hourly' AND lr.date_from LIKE ?) OR (lr.leave_kind!='hourly' AND (lr.date_from LIKE ? OR lr.date_to LIKE ?)))").all(w.id,m+'%',m+'%',m+'%');
+  let paidLeave=0; lr.forEach(x=>{ const d=x.leave_kind==='hourly'?(hourlyLeaveDeducts(x)?(+x.hours||0)/8:0):((x.deducts_balance===0)?0:(+x.days||0)); if(x.is_paid) paidLeave+=d; });
   const at=db.prepare("SELECT day_type,punch_in,late_mins FROM attendance WHERE worker_id=? AND date LIKE ?").all(w.id,m+'%');
   let lateM=0; at.forEach(a=>{ const dt=(a.day_type||'normal').toLowerCase(); if(a.punch_in&&dt==='normal') lateM+=+a.late_mins||0; });
   const sr=db.prepare('SELECT weekend_day FROM work_schedule ORDER BY id LIMIT 1').get()||{};
@@ -443,7 +460,7 @@ function vacMonthDeductions(w, m){
     const ds=yy+'-'+String(mm).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     if(new Date(ds).getDay()===wknd) continue;
     if(worked.has(ds)) continue;
-    if(db.prepare("SELECT 1 FROM leave_requests WHERE worker_id=? AND status='approved' AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?)) LIMIT 1").get(w.id,ds,ds,ds)) continue;
+    if(db.prepare("SELECT 1 FROM leave_requests WHERE worker_id=? AND status='approved' AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND COALESCE(date_to,date_from)>=?)) LIMIT 1").get(w.id,ds,ds,ds)) continue;
     if(db.prepare("SELECT 1 FROM holidays WHERE date=? LIMIT 1").get(ds)) continue;
     absence++;
   }
@@ -742,36 +759,10 @@ router.get('/payroll', requireAdmin, (req, res) => {
     ).all(m);
     const isClosed = closedRuns.length > 0;
 
-    if (isClosed) {
-      // Return the stored snapshot
-      return res.json({
-        month: m,
-        schedule: sched,
-        is_closed: true,
-        closed_at: closedRuns[0].closed_at,
-        closed_by: closedRuns[0].closed_by,
-        workers: closedRuns.map(r => ({
-          worker_id: r.worker_id,
-          worker_name: r.worker_name,
-          is_closed: true,
-          // Snapshot fields
-          base_salary:        +r.base_salary,
-          overtime_pay:       +r.ot_pay,
-          weekend_pay:        +r.weekend_pay,
-          holiday_pay:        +r.holiday_pay,
-          absence_deduction:  +r.absence_deduction,
-          lateness_deduction: +r.lateness_deduction,
-          balance_deduction:  +r.balance_deduction,
-          unpaid_leave_deduction: +r.unpaid_leave_deduction,
-          total_adjustments:  +r.total_adjustments,
-          gross_pay:          +r.gross_pay,
-          ss_deduction:       +r.ss_deduction,
-          net_pay:            +r.net_pay,
-          total_pay:          +r.net_pay,
-          balance_before_close: +r.balance_before_close
-        }))
-      });
-    }
+    // Closed months fall through to the LIVE computation so all columns render.
+    // payroll_runs stays the frozen legal record; frozen_net exposes per-worker drift.
+    const frozenNet = {};
+    closedRuns.forEach(r => { frozenNet[r.worker_id] = +r.net_pay; });
 
     // OPEN month — include all active workers with a salary rate set
     const workers = db.prepare('SELECT * FROM workers WHERE is_active=1 AND (hourly_rate > 0 OR (monthly_salary IS NOT NULL AND monthly_salary > 0)) ORDER BY name').all();
@@ -845,7 +836,7 @@ router.get('/payroll', requireAdmin, (req, res) => {
           WHERE worker_id=? AND status='approved'
             AND (
               (leave_kind='hourly' AND date_from=?)
-              OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?)
+              OR (leave_kind!='hourly' AND date_from<=? AND COALESCE(date_to,date_from)>=?)
             )
           LIMIT 1
         `).get(w.id, dateStr, dateStr, dateStr);
@@ -860,7 +851,7 @@ router.get('/payroll', requireAdmin, (req, res) => {
 
       // ── Paid / unpaid leave usage (approved, in month) ─────────────────
       const leaveRows = db.prepare(`
-        SELECT lr.days, lr.hours, lr.leave_kind, COALESCE(lt.is_paid, 1) AS is_paid
+        SELECT lr.days, lr.hours, lr.leave_kind, lr.time_from, lr.time_to, lr.date_from, COALESCE(lt.deducts_balance,1) AS deducts_balance, COALESCE(lt.is_paid, 1) AS is_paid
         FROM leave_requests lr
         LEFT JOIN leave_types lt ON lower(trim(lt.label)) = lower(trim(lr.type))
         WHERE lr.worker_id = ?
@@ -873,7 +864,7 @@ router.get('/payroll', requireAdmin, (req, res) => {
       let paidLeaveDays = 0, unpaidLeaveMins = 0, paidLeaveMins = 0;
       let vacationDays = 0; // whole-day vacation leaves only (not hourly)
       leaveRows.forEach(lr => {
-        const d = lr.leave_kind === 'hourly' ? (+lr.hours || 0) / 8 : (+lr.days || 0);
+        const d = lr.leave_kind === 'hourly' ? (hourlyLeaveDeducts(lr) ? (+lr.hours || 0) / 8 : 0) : ((lr.deducts_balance===0) ? 0 : (+lr.days || 0));
         if (lr.is_paid) {
           paidLeaveDays += d;
           paidLeaveMins += Math.round(d * STD_MINS);
@@ -975,10 +966,11 @@ router.get('/payroll', requireAdmin, (req, res) => {
 
       return {
         worker_id: w.id, worker_name: w.name,
+        frozen_net: frozenNet[w.id] !== undefined ? frozenNet[w.id] : null,
         employment_type: w.employment_type || 'hourly',
         hourly_rate: +hourlyRate.toFixed(4),
         monthly_salary: monthlyBase,
-        is_closed: false,
+        is_closed: isClosed,
         // Attendance analytics
         days_worked: daysWorked,
         absence_days: absenceDays,
@@ -1020,7 +1012,7 @@ router.get('/payroll', requireAdmin, (req, res) => {
         total_pay:          +net.toFixed(2)
       };
     });
-    res.json({ month: m, schedule: sched, is_closed: false, workers: results });
+    res.json({ month: m, schedule: sched, is_closed: isClosed, closed_at: isClosed ? closedRuns[0].closed_at : null, closed_by: isClosed ? closedRuns[0].closed_by : null, workers: results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1187,8 +1179,9 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
         base_salary, ot_pay, weekend_pay, holiday_pay,
         absence_deduction, lateness_deduction, balance_deduction, unpaid_leave_deduction,
         total_adjustments, gross_pay, ss_deduction, net_pay,
+        advances_deduction, days_worked, absence_days, opening_balance, balance_after, late_days, paid_leave_days,
         balance_before_close, closed_at, closed_by, is_reopened
-      ) VALUES (?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?, 0)
+      ) VALUES (?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?,?,?, ?,?,?, 0)
     `);
 
     const tx = db.transaction(() => {
@@ -1239,7 +1232,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
           const dow = new Date(dateStr).getDay();
           if (dow === weekendDay) continue;
           if (workedDates.has(dateStr)) continue;
-          const covered = db.prepare(`SELECT 1 FROM leave_requests WHERE worker_id=? AND status='approved' AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND date_to>=?)) LIMIT 1`).get(w.id, dateStr, dateStr, dateStr);
+          const covered = db.prepare(`SELECT 1 FROM leave_requests WHERE worker_id=? AND status='approved' AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND COALESCE(date_to,date_from)>=?)) LIMIT 1`).get(w.id, dateStr, dateStr, dateStr);
           if (covered) continue;
           const isHoliday = db.prepare("SELECT 1 FROM holidays WHERE date=? LIMIT 1").get(dateStr);
           if (isHoliday) continue;
@@ -1247,7 +1240,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
         }
         // Leaves
         const leaveRows = db.prepare(`
-          SELECT lr.days, lr.hours, lr.leave_kind, COALESCE(lt.is_paid, 1) AS is_paid
+          SELECT lr.days, lr.hours, lr.leave_kind, lr.time_from, lr.time_to, lr.date_from, COALESCE(lt.deducts_balance,1) AS deducts_balance, COALESCE(lt.is_paid, 1) AS is_paid
           FROM leave_requests lr
           LEFT JOIN leave_types lt ON lower(trim(lt.label)) = lower(trim(lr.type))
           WHERE lr.worker_id = ? AND lr.status = 'approved'
@@ -1255,7 +1248,7 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
         `).all(w.id, month+'%', month+'%', month+'%');
         let paidLeaveDays = 0, unpaidLeaveMins = 0;
         leaveRows.forEach(lr => {
-          const d = lr.leave_kind === 'hourly' ? (+lr.hours || 0) / 8 : (+lr.days || 0);
+          const d = lr.leave_kind === 'hourly' ? (hourlyLeaveDeducts(lr) ? (+lr.hours || 0) / 8 : 0) : ((lr.deducts_balance===0) ? 0 : (+lr.days || 0));
           if (lr.is_paid) paidLeaveDays += d;
           else            unpaidLeaveMins += Math.round(d * STD_MINS);
         });
@@ -1271,17 +1264,26 @@ router.post('/payroll/close-month', requireAdmin, (req, res) => {
         const weekendPay  = (weekendMins  / 60) * hourlyRate * 1.50;
         const holidayPay  = (holidayMins  / 60) * hourlyRate * 1.50;
         const unpaidLeavePay = (unpaidLeaveMins / 60) * hourlyRate;
-        const adjSum = db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM payroll_adjustments WHERE worker_id=? AND (payroll_month=? OR (payroll_month IS NULL AND adjustment_date LIKE ?))").get(w.id, month, month+'%').s || 0;
+        // Adjustments split identically to live GET /payroll (isAdvance on category+note):
+        const adjRowsC = db.prepare("SELECT * FROM payroll_adjustments WHERE worker_id=? AND (payroll_month=? OR (payroll_month IS NULL AND adjustment_date LIKE ?))").all(w.id, month, month+'%');
+        const isAdvC = r => {
+          const t = ((r.category||'') + ' ' + (r.note||'')).toLowerCase();
+          return t.includes('advance') || t.includes('\u0633\u0644\u0641\u0629') || t.includes('salary advance');
+        };
+        const advances = adjRowsC.filter(r => (+r.amount||0) < 0 && isAdvC(r)).reduce((s,r) => s - (+r.amount||0), 0);
+        const adjSum   = adjRowsC.filter(r => !((+r.amount||0) < 0 && isAdvC(r))).reduce((s,r) => s + (+r.amount||0), 0);
         const gross = monthlyBase + overtimePay + weekendPay + holidayPay - balanceDeduction - unpaidLeavePay + adjSum;
         const ssPct = +w.social_security_pct || 0;
-        const ssDeduction = gross * (ssPct / 100);
-        const net = gross - ssDeduction;
+        const ssSalary = monthlyBase; // fixed SS base (matches live payroll convention)
+        const ssDeduction = ssSalary * (ssPct / 100);
+        const net = gross - ssDeduction - advances;
         // Write run row
         insertRun.run(
           w.id, w.name, month,
           monthlyBase, overtimePay, weekendPay, holidayPay,
           0, 0, balanceDeduction, unpaidLeavePay,
           adjSum, gross, ssDeduction, net,
+          advances, daysWorked, absenceDays, currentBalance, balanceAfter, lateDays, paidLeaveDays,
           currentBalance, now, by
         );
         // Reset balance to 0 + per-worker accrual (based on seniority from join_date)

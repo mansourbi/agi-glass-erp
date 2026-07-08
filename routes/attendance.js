@@ -43,7 +43,7 @@ function computeLateMins(punchInStr, dateStr, dayType, workerId) {
   if (workerId && dateStr) {
     try {
       const leave = db.prepare(
-        "SELECT id FROM leave_requests WHERE worker_id=? AND status='approved' AND date_from<=? AND date_to>=? LIMIT 1"
+        "SELECT id FROM leave_requests WHERE worker_id=? AND status='approved' AND leave_kind!='hourly' AND date_from<=? AND COALESCE(date_to,date_from)>=? LIMIT 1"
       ).get(+workerId, dateStr, dateStr);
       if (leave) return 0;
     } catch(e) { /* table may not exist yet, fall through */ }
@@ -227,7 +227,13 @@ router.post('/punch-in', (req, res) => {
       "INSERT INTO attendance (worker_id,worker_name,date,punch_in,type,day_type,late_mins) VALUES (?,?,?,?,?,?,?)"
     ).run(req.user.id, req.user.name, today, now, 'sign_in', auto_day_type, late_mins);
     const _piRow = db.prepare('SELECT * FROM attendance WHERE id=?').get(r.lastInsertRowid);
-    res.status(201).json({ ..._piRow, late_mins: late_mins });
+    let edgeLeaveIn = null;
+    if (late_mins > 0) {
+      const sch = db.prepare('SELECT start_time FROM work_schedule ORDER BY id LIMIT 1').get() || {};
+      const [sh, sm] = String(sch.start_time || '08:00').split(':').map(Number);
+      edgeLeaveIn = linkOrCreateEdgeLeave(req.user, today, 'late', sh*60+(sm||0), sh*60+(sm||0)+late_mins, r.lastInsertRowid);
+    }
+    res.status(201).json({ ..._piRow, late_mins: late_mins, leave_linked: !!(edgeLeaveIn && edgeLeaveIn.linked), leave_id: edgeLeaveIn ? edgeLeaveIn.leave_id : null, reason_on_file: !!(edgeLeaveIn && edgeLeaveIn.had_reason) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -263,7 +269,13 @@ router.post('/punch-out', (req, res) => {
         const early_mins = (eh*60+em) - (ph*60+pm);
         // Return overtime info to worker app so it can prompt
         const overtimeDetected = overMins > grace;
-        return res.json({ ...updated, overtime_detected: overtimeDetected, shift_end: endTime, over_mins: Math.max(0,overMins), early_mins: Math.max(0,early_mins) });
+        let edgeLeaveOut = null;
+        if (early_mins > 0) {
+          const [xh, xm] = String(endTime || '16:30').split(':').map(Number);
+          const endM = xh*60+(xm||0);
+          edgeLeaveOut = linkOrCreateEdgeLeave(req.user, today, 'early', endM - early_mins, endM, updated.id);
+        }
+        return res.json({ ...updated, overtime_detected: overtimeDetected, shift_end: endTime, over_mins: Math.max(0,overMins), early_mins: Math.max(0,early_mins), leave_linked: !!(edgeLeaveOut && edgeLeaveOut.linked), leave_id: edgeLeaveOut ? edgeLeaveOut.leave_id : null, reason_on_file: !!(edgeLeaveOut && edgeLeaveOut.had_reason) });
       }
     } catch(e) { console.warn('[ot check]', e.message); }
     res.json(updated);
@@ -273,6 +285,33 @@ router.post('/punch-out', (req, res) => {
 // ── POST /overtime-decision — worker submits overtime yes/no ─────────────
 // POST /punch-reason ? worker records reason for lateness / early leave (non-blocking).
 // Attaches to TODAY's own attendance row. kind='late'|'early'.
+// B2: one gap -> one leave record. On a late punch-in or early punch-out, link an
+// existing hourly leave covering today's gap (auto-approving a pending EDGE request,
+// since edge leaves are documentation-only and charge nothing). If none exists,
+// auto-create an auto-approved leave under the non-deducting 'Late/Early (documented)'
+// type with source='auto'. Returns { linked, leave_id, had_reason } or null on failure.
+function linkOrCreateEdgeLeave(user, dateStr, kind, gapFrom, gapTo, attendanceId){
+  try{
+    const ex = db.prepare("SELECT * FROM leave_requests WHERE worker_id=? AND leave_kind='hourly' AND date_from=? AND status IN ('approved','pending') ORDER BY status='approved' DESC, id DESC LIMIT 1").get(user.id, dateStr);
+    if(ex){
+      if(ex.status==='pending'){
+        db.prepare("UPDATE leave_requests SET status='approved', reviewed_by=?, reviewed_at=datetime('now','localtime') WHERE id=?").run('system (punch)', ex.id);
+      }
+      if(attendanceId && !ex.attendance_id){ try{ db.prepare('UPDATE leave_requests SET attendance_id=? WHERE id=?').run(attendanceId, ex.id); }catch(e){} }
+      return { linked:true, leave_id:ex.id, had_reason: !!(ex.reason && String(ex.reason).trim()) };
+    }
+    const hours = Math.max(0, Math.round(((gapTo - gapFrom) / 60) * 100) / 100);
+    const tf = String(Math.floor(gapFrom/60)).padStart(2,'0')+':'+String(gapFrom%60).padStart(2,'0');
+    const tt = String(Math.floor(gapTo/60)).padStart(2,'0')+':'+String(gapTo%60).padStart(2,'0');
+    const r = db.prepare(`INSERT INTO leave_requests (worker_id, worker_name, date_from, date_to, days, type, reason, status, leave_kind, hours, time_from, time_to, source, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now','localtime'))`)
+      .run(user.id, user.name, dateStr, dateStr, 0, 'Late/Early (documented)', null, 'approved', 'hourly', hours, tf, tt, 'auto');
+    db.prepare("UPDATE leave_requests SET reviewed_by=?, reviewed_at=datetime('now','localtime') WHERE id=?").run('system (punch)', r.lastInsertRowid);
+    if(attendanceId){ try{ db.prepare('UPDATE leave_requests SET attendance_id=? WHERE id=?').run(attendanceId, r.lastInsertRowid); }catch(e){} }
+    return { linked:false, leave_id:r.lastInsertRowid, had_reason:false };
+  }catch(e){ console.warn('[linkOrCreateEdgeLeave]', e.message); return null; }
+}
+
 router.post('/punch-reason', (req, res) => {
   try {
     const { kind, reason } = req.body || {};
@@ -282,6 +321,11 @@ router.post('/punch-reason', (req, res) => {
     if (!row) return res.status(400).json({ error: 'No attendance record for today' });
     const col = kind === 'late' ? 'late_reason' : 'early_leave_reason';
     db.prepare('UPDATE attendance SET '+col+'=? WHERE id=?').run((reason||'').toString().slice(0,500) || null, row.id);
+    // B2: mirror reason onto leave record for today (auto or linked), if reason given and leave has none
+    try{
+      const lv = db.prepare("SELECT id, reason FROM leave_requests WHERE worker_id=? AND leave_kind='hourly' AND date_from=? AND status='approved' ORDER BY id DESC LIMIT 1").get(req.user.id, today);
+      if (lv && reason && !(lv.reason && String(lv.reason).trim())) db.prepare('UPDATE leave_requests SET reason=? WHERE id=?').run(String(reason).slice(0,500), lv.id);
+    }catch(e){}
     res.json({ ok: true, id: row.id, kind });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
