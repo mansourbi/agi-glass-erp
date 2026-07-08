@@ -1095,7 +1095,7 @@ async function _finishPunchIn(earlyOvertime){
     const _pi = await AGI.Attendance.punchIn(earlyOvertime===undefined?{}:{early_overtime:earlyOvertime});
     const msg = earlyOvertime===true ? 'Early overtime recorded' : 'Have a great shift!';
     showFlash('&#9654;','Punched In',msg,'var(--a3)');
-    if(_pi && (+_pi.late_mins||0) > 0){ promptLateReason(+_pi.late_mins); }
+    if(_pi && (+_pi.late_mins||0) > 0 && !_pi.reason_on_file){ promptLateReason(+_pi.late_mins); }
     vibrate([50,30,50]);
     await loadAttendance();
     await loadHomeStatus();
@@ -1118,7 +1118,7 @@ async function doPunchOut(){
     } else {
       const hrs = r.total_mins?(r.total_mins/60).toFixed(1)+'h':'';
       showFlash('&#9632;','Punched Out','Total: '+hrs,'var(--a)');
-      if((+r.early_mins||0) > 0){ promptEarlyReason(+r.early_mins, r.shift_end||''); }
+      if((+r.early_mins||0) > 0 && !r.reason_on_file){ promptEarlyReason(+r.early_mins, r.shift_end||''); }
       vibrate([50,30,50,30,50]);
       await loadAttendance();
       await loadHomeStatus();

@@ -758,6 +758,8 @@ router.get('/payroll', requireAdmin, (req, res) => {
       "SELECT * FROM payroll_runs WHERE month=? AND is_reopened=0"
     ).all(m);
     const isClosed = closedRuns.length > 0;
+    // Phase C: ensure absent elapsed days exist as pending auto-vacations (open months only).
+    if (!isClosed) { try { sweepMonthAbsences(m); } catch(e) { console.warn('[payroll sweep]', e.message); } }
 
     // Closed months fall through to the LIVE computation so all columns render.
     // payroll_runs stays the frozen legal record; frozen_net exposes per-worker drift.
@@ -1012,7 +1014,8 @@ router.get('/payroll', requireAdmin, (req, res) => {
         total_pay:          +net.toFixed(2)
       };
     });
-    res.json({ month: m, schedule: sched, is_closed: isClosed, closed_at: isClosed ? closedRuns[0].closed_at : null, closed_by: isClosed ? closedRuns[0].closed_by : null, workers: results });
+    const pendingAbsenceVacs = db.prepare("SELECT COUNT(*) AS c FROM leave_requests WHERE source='auto' AND type='Vacation' AND status='pending' AND date_from LIKE ?").get(m+'%').c;
+    res.json({ month: m, schedule: sched, is_closed: isClosed, closed_at: isClosed ? closedRuns[0].closed_at : null, closed_by: isClosed ? closedRuns[0].closed_by : null, pending_absence_vacations: pendingAbsenceVacs, workers: results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1578,4 +1581,70 @@ router.get('/worker-detail', requireAdmin, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ?? Phase C: absence auto-vacations ??????????????????????????????????????????
+// For a given date, create a PENDING day-vacation (type 'Vacation', source 'auto')
+// for each salaried worker who was absent by the SAME predicate payroll counts:
+// weekday, no punch, no covering approved leave, not a holiday, not a closed month.
+// Idempotent (skips if an auto-vacation already exists for that worker+date).
+// Money is unchanged: a raw absence and a paid vacation day both deduct one balance
+// day; this only turns the absence into a reviewable record.
+function sweepAbsenceVacations(dateStr){
+  try{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return { created:0, skipped:'bad-date' };
+    const month = dateStr.slice(0,7);
+    // skip closed (non-reopened) months entirely
+    const closed = db.prepare("SELECT 1 FROM payroll_runs WHERE month=? AND is_reopened=0 LIMIT 1").get(month);
+    if(closed) return { created:0, skipped:'closed-month' };
+    const sched = getSchedule();
+    const weekendDay = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}[sched.weekend_day||'fri'] ?? 5;
+    const dow = new Date(dateStr).getDay();
+    if(dow === weekendDay) return { created:0, skipped:'weekend' };
+    if(db.prepare('SELECT 1 FROM holidays WHERE date=? LIMIT 1').get(dateStr)) return { created:0, skipped:'holiday' };
+    const workers = db.prepare('SELECT id, name FROM workers WHERE is_active=1 AND monthly_salary IS NOT NULL AND monthly_salary > 0').all();
+    let created = 0;
+    const tx = db.transaction(()=>{
+      workers.forEach(w=>{
+        // punched that day? not absent
+        const punched = db.prepare('SELECT 1 FROM attendance WHERE worker_id=? AND date=? AND punch_in IS NOT NULL LIMIT 1').get(w.id, dateStr);
+        if(punched) return;
+        // any approved leave already covering the day? (paid or unpaid) -> not a plain absence
+        const covered = db.prepare("SELECT 1 FROM leave_requests WHERE worker_id=? AND status='approved' AND ((leave_kind='hourly' AND date_from=?) OR (leave_kind!='hourly' AND date_from<=? AND COALESCE(date_to,date_from)>=?)) LIMIT 1").get(w.id, dateStr, dateStr, dateStr);
+        if(covered) return;
+        // already have an auto-vacation for this worker+date? idempotent
+        const existsAuto = db.prepare("SELECT 1 FROM leave_requests WHERE worker_id=? AND date_from=? AND source='auto' AND type='Vacation' LIMIT 1").get(w.id, dateStr);
+        if(existsAuto) return;
+        // also skip if ANY leave (even pending/rejected manual) already sits on this exact day, to avoid clutter
+        const anyLeave = db.prepare("SELECT 1 FROM leave_requests WHERE worker_id=? AND leave_kind!='hourly' AND date_from<=? AND COALESCE(date_to,date_from)>=? AND status!='rejected' LIMIT 1").get(w.id, dateStr, dateStr);
+        if(anyLeave) return;
+        db.prepare(`INSERT INTO leave_requests (worker_id, worker_name, date_from, date_to, days, type, reason, status, leave_kind, hours, time_from, time_to, source, created_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now','localtime'))`)
+          .run(w.id, w.name, dateStr, dateStr, 1, 'Vacation', 'Auto: no attendance recorded', 'pending', 'vacation', 0, null, null, 'auto');
+        created++;
+      });
+    });
+    tx();
+    return { created, date: dateStr };
+  }catch(e){ console.warn('[sweepAbsenceVacations]', e.message); return { created:0, error:e.message }; }
+}
+
+// Sweep every elapsed day of a month (used at CALCULATE). Skips future days and today.
+function sweepMonthAbsences(month){
+  try{
+    if(!/^\d{4}-\d{2}$/.test(month)) return { created:0 };
+    const [yy,mm] = month.split('-').map(Number);
+    const dim = new Date(yy, mm, 0).getDate();
+    const now = new Date(); const isCur = (now.getFullYear()===yy && (now.getMonth()+1)===mm);
+    const lastDay = isCur ? now.getDate()-1 : dim; // never sweep today or future
+    let total = 0;
+    for(let d=1; d<=lastDay; d++){
+      const ds = yy+'-'+String(mm).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      const r = sweepAbsenceVacations(ds);
+      total += (r.created||0);
+    }
+    return { created: total, month };
+  }catch(e){ return { created:0, error:e.message }; }
+}
+
 module.exports = router;
+module.exports.sweepAbsenceVacations = sweepAbsenceVacations;
+module.exports.sweepMonthAbsences = sweepMonthAbsences;
