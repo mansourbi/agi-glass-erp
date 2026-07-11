@@ -5012,19 +5012,24 @@ function onCustChange(val){
   refreshPieceCodes();
 }
 
+// 5-part family key: thickness|type|family|color|pattern ('' for absent parts).
+// family defaults to 'float' for legacy rows so old cached data can't crash it.
+function famKey5(t,type,family,color,pattern){
+  return [t,type,(family||'float'),(color||''),(pattern||'')].join('|');
+}
 function buildFamilyOptions(){
   // Use DB-managed glass families, fall back to raw sheet catalog if empty
   const source = glassFamilies.filter(f=>f.active!==0&&f.active!==false);
   if(source.length){
     return source.map(f=>({
-      key: f.thickness+'|'+f.type+'|'+f.color,
-      thickness: f.thickness, type: f.type, color: f.color, label: f.label
+      key: famKey5(f.thickness, f.type, f.family, f.color, f.pattern),
+      thickness: f.thickness, type: f.type, family: f.family||'float', color: f.color, pattern: f.pattern||null, label: f.label
     }));
   }
   // Fallback: derive from raw sheet catalog
   const families=new Map();
   rawSheetCatalog.forEach(s=>{
-    const key=s.thickness+'|'+(s.type||s.glass_type||'glass')+'|'+s.color;
+    const key=famKey5(s.thickness,(s.type||s.glass_type||'glass'),s.family,s.color,s.pattern);
     if(!families.has(key)){
       families.set(key,{thickness:s.thickness,type:s.type||s.glass_type||'glass',color:s.color,
         label:s.thickness+'mm '+s.color.charAt(0).toUpperCase()+s.color.slice(1)+' '+
@@ -5107,7 +5112,7 @@ function onFamilyChange(val){
     if(badge) badge.style.display='none';
     return;
   }
-  const [thick,type,color]=val.split('|');
+  const parts=val.split('|'); const thick=parts[0], type=parts[1], color=(parts.length>=5?parts[3]:parts[2]);
   document.getElementById('bulk-thick').value=thick;
   document.getElementById('bulk-type').value=type;
   document.getElementById('bulk-color').value=color;
@@ -5308,7 +5313,7 @@ async function openOrderModal(id=null){
     // Restore family from first item
     const fi=(o.items||[])[0];
     if(fi){
-      const fkey=(fi.thickness||6)+'|'+(fi.glassType||'glass')+'|'+(fi.color||'clear');
+      const fkey=famKey5((fi.thickness||6),(fi.glassType||'glass'),fi.family,(fi.color||'clear'),fi.pattern);
       const fams2=buildFamilyOptions();
       const fobj=fams2.find(f=>f.key===fkey);
       document.getElementById('o-family').value=fkey;
@@ -5707,8 +5712,9 @@ async function saveOrder(){
   // Enforce single glass family
   const famKey=document.getElementById('o-family')?.value;
   if(!famKey){alert('Please select a Glass Family (thickness/type/color) for this order.');return}
-  const [reqThick,reqType,reqColor]=famKey.split('|');
+  const [reqThick,reqType,reqFamily,reqColor,reqPattern]=famKey.split('|');
   const mismatch=items.find(i=>String(i.thickness)!==reqThick||i.glassType!==reqType||i.color!==reqColor);
+  items.forEach(i=>{ i.family=reqFamily||'float'; i.pattern=reqPattern||null; }); // stamp family identity on every piece
   if(mismatch){
     alert('All pieces must match the selected glass family: '+reqThick+'mm '+reqColor+' '+reqType+'. Piece "'+mismatch.code+'" does not match. Create a separate order for different glass families.');
     return;
@@ -6888,6 +6894,18 @@ function removeAdditionalSheet(id){
 // Opens a modal listing all catalog sheets that match the anchor's
 // thickness + color + type (excluding the anchor itself). Each row has a
 // checkbox, sheet info, and a stock balance badge.
+// Family/pattern compatibility between two glass identities a and b.
+// - family must be equal (missing family treated as 'float' for legacy rows).
+// - pattern must be equal, UNLESS either side is a pattern_any wildcard sheet
+//   (matches any pattern within its thickness/type/family, e.g. mixed-pattern
+//   antique remnant virtual sheets).
+function famPatternMatch(a, b){
+  const fam = v => String(v && v.family || 'float').trim().toLowerCase();
+  const pat = v => String(v && v.pattern || '').trim().toLowerCase();
+  if (fam(a) !== fam(b)) return false;
+  if ((a && +a.pattern_any) || (b && +b.pattern_any)) return true;
+  return pat(a) === pat(b);
+}
 async function openAdditionalSheetsPicker(){
   if (!activeRawSheet) { alert('Pick an anchor raw sheet first.'); return; }
   const a = activeRawSheet;
@@ -6902,7 +6920,8 @@ async function openAdditionalSheetsPicker(){
     s.id !== a.id &&
     +s.thickness === +a.thickness &&
     norm(s.color) === norm(a.color) &&
-    sheetType(s) === sheetType(a)
+    sheetType(s) === sheetType(a) &&
+    famPatternMatch(s, a)
   );
 
   // Fetch live slot inventory once so we can show real stock per sheet
@@ -7403,6 +7422,8 @@ async function sendToCutting(orderId){
   const orderThick=[...new Set(items.map(i=>i.thickness).filter(Boolean))];
   const orderColor=[...new Set(items.map(i=>i.color).filter(Boolean))];
   const orderType =[...new Set(items.map(i=>(i.glassType||i.type||'glass')).filter(Boolean))];
+  const orderFam  =[...new Set(items.map(i=>(i.family||'float')))];
+  const orderPat  =[...new Set(items.map(i=>String(i.pattern||'').toLowerCase()))];
   // Build sheet picker options — filter to matching sheets
   if(!rawSheetCatalog.length){ alert('No raw sheets in catalog'); return; }
   const _norm = (v) => String(v || '').trim().toLowerCase();
@@ -7411,6 +7432,8 @@ async function sendToCutting(orderId){
     if(orderThick.length && !orderThick.includes(s.thickness)) return false;
     if(orderColor.length && !orderColor.map(_norm).includes(_norm(s.color))) return false;
     if(orderType.length  && !orderType.map(_norm).includes(_sheetType(s))) return false;
+    if(!orderFam.includes(String(s.family||'float').trim().toLowerCase())) return false;
+    if(!(+s.pattern_any) && !orderPat.includes(String(s.pattern||'').trim().toLowerCase())) return false;
     return true;
   });
   // Whether the order has any spec at all. If the order is bare (no thick/color/type),

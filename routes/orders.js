@@ -256,10 +256,10 @@ router.post('/', (req, res) => {
         const it=items[i]; const qty=Math.max(1,+it.qty||1);
         const uids=[]; for(let q=0;q<qty;q++){uids.push(`${orderNum}-${gs}`);gs++;}
         db.prepare(`INSERT INTO order_items
-          (order_id,code,w,h,thickness,glass_type,color,qty,processes,bevel_mm,drill_count,cutout_count,sort_order,piece_uids,start_serial,original_piece_uid)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+          (order_id,code,w,h,thickness,glass_type,color,family,pattern,qty,processes,bevel_mm,drill_count,cutout_count,sort_order,piece_uids,start_serial,original_piece_uid)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
           oid,(it.code||'').toUpperCase(),+it.w,+it.h,
-          +it.thickness||6,it.glassType||it.glass_type||'glass',it.color||'clear',qty,
+          +it.thickness||6,it.glassType||it.glass_type||'glass',it.color||'clear',(it.family||'float'),(it.pattern||null),qty,
           JSON.stringify(it.processes||[]),+it.bevelMM||+it.bevel_mm||0,
           +it.drillCount||+it.drill_count||0,+it.cutoutCount||+it.cutout_count||0,i,
           JSON.stringify(uids),uids[0]?+uids[0].split('-').pop():gs-qty,
@@ -313,10 +313,10 @@ router.put('/:id', (req, res) => {
         const it=items[i]; const qty=Math.max(1,+it.qty||1);
         const uids=[]; for(let q=0;q<qty;q++){uids.push(`${newNum}-${gs}`);gs++;}
         db.prepare(`INSERT INTO order_items
-          (order_id,code,w,h,thickness,glass_type,color,qty,processes,bevel_mm,drill_count,cutout_count,sort_order,piece_uids,start_serial,original_piece_uid)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+          (order_id,code,w,h,thickness,glass_type,color,family,pattern,qty,processes,bevel_mm,drill_count,cutout_count,sort_order,piece_uids,start_serial,original_piece_uid)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
           +req.params.id,(it.code||'').toUpperCase(),+it.w,+it.h,
-          +it.thickness||6,it.glassType||it.glass_type||'glass',it.color||'clear',qty,
+          +it.thickness||6,it.glassType||it.glass_type||'glass',it.color||'clear',(it.family||'float'),(it.pattern||null),qty,
           JSON.stringify(it.processes||[]),+it.bevelMM||+it.bevel_mm||0,
           +it.drillCount||+it.drill_count||0,+it.cutoutCount||+it.cutout_count||0,i,
           JSON.stringify(uids),uids[0]?+uids[0].split('-').pop():gs-qty,
