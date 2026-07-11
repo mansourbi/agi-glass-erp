@@ -81,8 +81,8 @@ router.post('/', requireAdmin, (req, res) => {
     const { code, glass_type, type, color, thickness, w, h, company, origin, notes, stock_qty } = req.body;
     const gtype = glass_type || type || 'glass';
     const r = db.prepare(
-      'INSERT INTO raw_sheets (code,glass_type,color,thickness,w,h,company,origin,notes,stock_qty) VALUES (?,?,?,?,?,?,?,?,?,?)'
-    ).run(code, gtype, color||'clear', +thickness, +w, +h, company||null, origin||null, notes||null, +stock_qty||0);
+      'INSERT INTO raw_sheets (code,glass_type,color,thickness,w,h,company,origin,notes,stock_qty,family,pattern,is_virtual,pattern_any) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).run(code, gtype, color||'clear', +thickness, +w, +h, company||null, origin||null, notes||null, +stock_qty||0, (req.body.family||'float'), (req.body.pattern||null), (+req.body.is_virtual?1:0), (+req.body.pattern_any?1:0));
     const row = db.prepare('SELECT * FROM raw_sheets WHERE id=?').get(r.lastInsertRowid);
     // Create opening transaction if stock_qty > 0
     if (+stock_qty > 0) {
@@ -98,8 +98,8 @@ router.put('/:id', requireAdmin, (req, res) => {
     const { code, glass_type, type, color, thickness, w, h, company, origin, notes, stock_qty } = req.body;
     const gtype = glass_type || type || 'glass';
     db.prepare(
-      `UPDATE raw_sheets SET code=?,glass_type=?,color=?,thickness=?,w=?,h=?,company=?,origin=?,notes=?,stock_qty=?,updated_at=datetime('now') WHERE id=?`
-    ).run(code, gtype, color||'clear', +thickness, +w, +h, company||null, origin||null, notes||null, +stock_qty||0, +req.params.id);
+      `UPDATE raw_sheets SET code=?,glass_type=?,color=?,thickness=?,w=?,h=?,company=?,origin=?,notes=?,stock_qty=?,family=COALESCE(?,family),pattern=CASE WHEN ? IS NULL THEN pattern ELSE NULLIF(?, '') END,is_virtual=COALESCE(?,is_virtual),pattern_any=COALESCE(?,pattern_any),updated_at=datetime('now') WHERE id=?`
+    ).run(code, gtype, color||'clear', +thickness, +w, +h, company||null, origin||null, notes||null, +stock_qty||0, (req.body.family!==undefined?(req.body.family||'float'):null), (req.body.pattern!==undefined?String(req.body.pattern||''):null), (req.body.pattern!==undefined?String(req.body.pattern||''):null), (req.body.is_virtual!==undefined?(+req.body.is_virtual?1:0):null), (req.body.pattern_any!==undefined?(+req.body.pattern_any?1:0):null), +req.params.id);
     const row = db.prepare('SELECT * FROM raw_sheets WHERE id=?').get(+req.params.id);
     res.status(200).json({ ...normalize(row), balance: getBalance(+req.params.id) });
   } catch(e) { res.status(500).json({error:e.message}); }

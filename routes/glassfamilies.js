@@ -105,10 +105,10 @@ router.get('/', (req, res) => {
 // POST create
 router.post('/', requireAdmin, (req, res) => {
   try {
-    const { thickness, type, color, label, sort_order } = req.body;
+    const { thickness, type, color, label, sort_order, family, pattern } = req.body;
     if (!thickness || !type || !color) return res.status(400).json({ error: 'thickness, type, color required' });
     const lbl = label || (thickness+'mm '+color.charAt(0).toUpperCase()+color.slice(1)+' '+type.charAt(0).toUpperCase()+type.slice(1));
-    const r = db.prepare('INSERT INTO glass_families (thickness,type,color,label,sort_order) VALUES (?,?,?,?,?)').run(+thickness, type, color, lbl, sort_order||0);
+    const r = db.prepare('INSERT INTO glass_families (thickness,type,color,label,sort_order,family,pattern) VALUES (?,?,?,?,?,?,?)').run(+thickness, type, color, lbl, sort_order||0, (family||'float'), (pattern||null));
     res.status(201).json(db.prepare('SELECT * FROM glass_families WHERE id=?').get(r.lastInsertRowid));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -116,10 +116,10 @@ router.post('/', requireAdmin, (req, res) => {
 // PUT update
 router.put('/:id', requireAdmin, (req, res) => {
   try {
-    const { thickness, type, color, label, active, sort_order } = req.body;
+    const { thickness, type, color, label, active, sort_order, family, pattern } = req.body;
     const lbl = label || (thickness+'mm '+color.charAt(0).toUpperCase()+color.slice(1)+' '+type.charAt(0).toUpperCase()+type.slice(1));
-    db.prepare('UPDATE glass_families SET thickness=?,type=?,color=?,label=?,active=?,sort_order=? WHERE id=?')
-      .run(+thickness, type, color, lbl, active===false?0:1, sort_order||0, +req.params.id);
+    db.prepare('UPDATE glass_families SET thickness=?,type=?,color=?,label=?,active=?,sort_order=?,family=COALESCE(?,family),pattern=? WHERE id=?')
+      .run(+thickness, type, color, lbl, active===false?0:1, sort_order||0, (family||null), (pattern||null), +req.params.id);
     res.json(db.prepare('SELECT * FROM glass_families WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

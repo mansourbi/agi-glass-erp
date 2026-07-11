@@ -1014,7 +1014,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
                 <option value="bronze" data-i18n="Bronze">Bronze</option><option value="grey" data-i18n="Grey">Grey</option>
                 <option value="green" data-i18n="Green">Green</option><option value="blue" data-i18n="Blue">Blue</option>
                 <option value="black" data-i18n="Black">Black</option><option value="white" data-i18n="White">White</option>
-                <option value="antique" data-i18n="Antique">Antique</option><option value="silver" data-i18n="Silver">Silver</option><option value="other" data-i18n="Other">Other</option>
+                <option value="antique" data-i18n="Antique">Antique</option><option value="gold" data-i18n="Gold">Gold</option><option value="silver" data-i18n="Silver">Silver</option><option value="other" data-i18n="Other">Other</option>
               </select></div>
             </th>
             <th class="ord-th xcol" id="xh-sqm">
@@ -2583,7 +2583,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <option value="bronze" data-i18n="Bronze">Bronze</option><option value="grey" data-i18n="Grey">Grey</option>
               <option value="green" data-i18n="Green">Green</option><option value="blue" data-i18n="Blue">Blue</option>
               <option value="black" data-i18n="Black">Black</option><option value="white" data-i18n="White">White</option>
-              <option value="antique" data-i18n="Antique">Antique</option><option value="silver" data-i18n="Silver">Silver</option><option value="other" data-i18n="Other">Other</option>
+              <option value="gold" data-i18n="Gold">Gold</option><option value="silver" data-i18n="Silver">Silver</option><option value="other" data-i18n="Other">Other</option>
             </select>
             <select id="rs-f-thick" onchange="renderSettingsRSCatalog()" style="font-size:.7rem;padding:5px 8px;width:auto">
               <option value="" data-i18n="All Thicknesses">All Thicknesses</option>
@@ -3881,10 +3881,18 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <option value="bronze" data-i18n="Bronze">Bronze</option><option value="grey" data-i18n="Grey">Grey</option>
             <option value="green" data-i18n="Green">Green</option><option value="blue" data-i18n="Blue">Blue</option>
             <option value="black" data-i18n="Black">Black</option><option value="white" data-i18n="White">White</option>
-            <option value="antique" data-i18n="Antique">Antique</option><option value="silver" data-i18n="Silver">Silver</option><option value="other" data-i18n="Other">Other</option>
+            <option value="gold" data-i18n="Gold">Gold</option><option value="silver" data-i18n="Silver">Silver</option><option value="other" data-i18n="Other">Other</option>
           </select></div>
         <div class="fg"><label class="lbl" data-i18n="Thickness mm">Thickness mm</label>
           <select id="rs-thick"></select></div>
+      </div>
+      <div class="frow" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:10px">
+        <div class="fg"><label class="lbl" data-i18n="Family">Family</label>
+          <select id="rs-family"><option value="float">Float</option><option value="patterned">Patterned</option><option value="tinted">Tinted</option><option value="reflective">Reflective</option><option value="antique">Antique</option></select></div>
+        <div class="fg"><label class="lbl" data-i18n="Pattern">Pattern</label>
+          <input type="text" id="rs-pattern" placeholder="fluted / s201..."></div>
+        <div class="fg"><label class="lbl" data-i18n="Matches any pattern">Matches any pattern</label>
+          <select id="rs-patternany"><option value="0" data-i18n="No">No</option><option value="1" data-i18n="Yes (wildcard)">Yes (wildcard)</option></select></div>
       </div>
       <div class="frow" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
         <div class="fg"><label class="lbl" data-i18n="Width mm">Width mm</label><input type="number" id="rs-w" placeholder="3210" min="1"></div>
@@ -6308,6 +6316,9 @@ async function openRawSheetModal(id=null){
   ['company','origin','notes','code'].forEach(f=>{const el=document.getElementById('rs-'+f);if(el)el.value=rs[f]||'';});
   document.getElementById('rs-type').value=rs.type||'glass';
   document.getElementById('rs-color').value=rs.color||'clear';
+  document.getElementById('rs-family').value=rs.family||'float';
+  document.getElementById('rs-pattern').value=rs.pattern||'';
+  document.getElementById('rs-patternany').value=(+rs.pattern_any)?'1':'0';
   document.getElementById('rs-w').value=rs.w||'';
   document.getElementById('rs-h').value=rs.h||'';
   const ts=document.getElementById('rs-thick');
@@ -6430,6 +6441,9 @@ async function saveRawSheet(){
   const apiData={code:data.code,glass_type:data.type,color:data.color,
     thickness:data.thickness,w:data.w,h:data.h,
     company:data.company,origin:data.origin,notes:data.notes,stock_qty:0,
+    family:document.getElementById('rs-family').value||'float',
+    pattern:(document.getElementById('rs-pattern').value||'').trim().toLowerCase(),
+    pattern_any:+document.getElementById('rs-patternany').value||0,
     manufacturer_id};
   try{
     await apiSaveRawSheet(apiData, _editRsId||null);
@@ -21778,11 +21792,14 @@ function openGlassFamModal(id=null){
   // Populate color from raw sheet catalog
   const colorSel=document.getElementById('gf-color');
   const rawColors=[...new Set(rawSheetCatalog.map(s=>s.color).filter(Boolean))].sort();
-  const allColors=rawColors.length?rawColors:['clear','low-iron','bronze','grey','green','blue','black','white'];
+  const baseColors=['clear','low-iron','bronze','grey','green','blue','black','silver','gold'];
+  const allColors=[...new Set([...(rawColors||[]),...baseColors])].filter(Boolean).sort();
   colorSel.innerHTML='<option value="">—</option>'+
     allColors.map(col=>`<option value="${col}">${col.charAt(0).toUpperCase()+col.slice(1)}</option>`).join('');
   colorSel.value=gf.color||'clear';
   document.getElementById('gf-sort').value=gf.sort_order||0;
+  document.getElementById('gf-family').value=gf.family||'float';
+  document.getElementById('gf-pattern').value=gf.pattern||'';
   OM('m-glassfam');
 }
 
@@ -21793,12 +21810,15 @@ async function saveGlassFam(){
   const label=document.getElementById('gf-label').value.trim()||
     (thickness+'mm '+color.charAt(0).toUpperCase()+color.slice(1)+' '+type.charAt(0).toUpperCase()+type.slice(1));
   const sort_order=+document.getElementById('gf-sort').value||0;
+  const family=document.getElementById('gf-family').value||'float';
+  const pattern=(document.getElementById('gf-pattern').value||'').trim().toLowerCase()||null;
+  if(pattern && family!=='patterned' && family!=='antique'){alert('Pattern is only valid for Patterned or Antique families.');return}
   if(!thickness||!type){alert('Thickness and type are required');return}
   try{
     if(_editGfId){
-      await AGI.GlassFamilies.update(_editGfId,{thickness,type,color,label,sort_order,active:1});
+      await AGI.GlassFamilies.update(_editGfId,{thickness,type,color,label,sort_order,active:1,family,pattern});
     }else{
-      await AGI.GlassFamilies.create({thickness,type,color,label,sort_order});
+      await AGI.GlassFamilies.create({thickness,type,color,label,sort_order,family,pattern});
     }
     glassFamilies=await AGI.GlassFamilies.list();
     CM('m-glassfam');
@@ -22548,6 +22568,16 @@ function doLogout(){
           </select></div>
         <div class="fg"><label class="lbl" data-i18n="Color">Color</label>
           <select id="gf-color" class="inp"></select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div class="fg"><label class="lbl" data-i18n="Family">Family</label>
+          <select id="gf-family" class="inp">
+            <option value="float">Float</option><option value="patterned">Patterned</option>
+            <option value="tinted">Tinted</option><option value="reflective">Reflective</option>
+            <option value="antique">Antique</option>
+          </select></div>
+        <div class="fg"><label class="lbl" data-i18n="Pattern">Pattern</label>
+          <input type="text" id="gf-pattern" class="inp" placeholder="fluted / s201 / s306..." title="Only for Patterned or Antique families"></div>
       </div>
       <div class="fg" style="margin-top:10px"><label class="lbl" data-i18n="Sort Order">Sort Order</label>
         <input type="number" id="gf-sort" class="inp" placeholder="0" value="0"></div>
