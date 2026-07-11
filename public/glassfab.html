@@ -7391,6 +7391,9 @@ function addOrderToCutQueue(o, filterThick, filterColor){
     if(filterColor && item.color && item.color!==filterColor) return;
     const filterType=activeRawSheet?activeRawSheet.type:null;
     if(filterType && (item.glassType||'glass')!==filterType) return;
+    // Family/pattern gate: a fluted piece must never load onto a plain sheet and
+    // vice versa; pattern_any wildcard sheets accept any pattern of their family.
+    if(activeRawSheet && !famPatternMatch(item, activeRawSheet)) return;
     // Expand each piece using pieceUIDs (which encode REF-1-1, REF-1-2...)
     // Support both camelCase (new) and snake_case (old API)
     const uids=(item.pieceUIDs||item.piece_uids||[]).slice();
@@ -7406,6 +7409,7 @@ function addOrderToCutQueue(o, filterThick, filterColor){
         w:item.w, h:item.h, cutW:item.w+cw, cutH:item.h+ch,
         thickness:item.thickness, glassType:item.glassType||'glass',
         color:item.color||'clear',
+        family:item.family||'float', pattern:item.pattern||null,
         processes:item.processes||[], bevelMM:item.bevelMM||0,
         drillCount:item.drillCount||0, cutoutCount:item.cutoutCount||0,
         qty:1, ci:0
@@ -7612,6 +7616,7 @@ async function openLoadOrderModal(){
       if(ft&&item.thickness!=ft) return a;
       if(fc&&item.color&&item.color!==fc) return a;
       if(ftype&&(item.glassType||'glass')!==ftype) return a;
+      if(activeRawSheet && !famPatternMatch(item, activeRawSheet)) return a; // agree with the cut-queue gate
       return a+item.qty;
     },0);
     const noMatch=(ft||ftype)&&matchPcs===0;
@@ -8430,6 +8435,8 @@ async function runOptimize(){
       thickness:src?src.thickness:6,
       glassType:src?(src.glassType||'glass'):'glass',
       color:src?(src.color||'clear'):'clear',
+      family:src?(src.family||'float'):'float',
+      pattern:src?(src.pattern||null):null,
       processes:src?src.processes:['cutting'],
       bevelMM:src?src.bevelMM:0,
       drillCount:src?src.drillCount||0:0,
@@ -8448,6 +8455,8 @@ async function runOptimize(){
       thickness:p.thickness||6,
       glassType:p.glassType||'glass',
       color:p.color||'clear',
+      family:p.family||'float',
+      pattern:p.pattern||null,
       processes:p.processes||['cutting'],
       bevelMM:p.bevelMM||0,
       drillCount:p.drillCount||0,
@@ -10915,6 +10924,8 @@ function renderCutLabels(){
     const procNames=(item.processes||[]).filter(pid=>_labelActive.has(pid)).map(pid=>{const p=PROC_MAP[pid];return p?p.label:pid}).filter(Boolean);
     const typeStr=(item.glassType||'glass').charAt(0).toUpperCase()+(item.glassType||'glass').slice(1);
     const colorStr=(item.color||'clear').charAt(0).toUpperCase()+(item.color||'clear').slice(1);
+    const patRaw=(item.pattern||'').trim();
+    const patStr=patRaw?(/^s\d{3}$/i.test(patRaw)?patRaw.toUpperCase():patRaw.charAt(0).toUpperCase()+patRaw.slice(1)):'';
     // Build QR text block — readable by any QR reader outside LAN, parseable by worker app inside factory
     const orderId = item.orderId || item.order_id;
     const ord = (typeof orders!=='undefined'&&orderId) ? orders.find(o=>o.id===orderId)||{} : {};
@@ -10929,7 +10940,7 @@ function renderCutLabels(){
     qrText += 'SIZE:' + item.w + 'x' + item.h + 'mm\n';
     if(hasComp) qrText += 'CUT:' + cut_w + 'x' + cut_h + 'mm\n';
     qrText += 'THK:' + (item.thickness||'') + 'mm\n';
-    qrText += 'GLASS:' + typeStr + (item.color?'/'+colorStr:'') + '\n';
+    qrText += 'GLASS:' + typeStr + (item.color?'/'+colorStr:'') + (patStr?'/'+patStr:'') + '\n';
     if(item.bevelMM||item.bevel_mm) qrText += 'BEVEL:'+(item.bevelMM||item.bevel_mm)+'cm\n';
     if(item.drillCount||item.drill_count) qrText += 'DRILLS:'+(item.drillCount||item.drill_count)+'\n';
     if(item.cutoutCount||item.cutout_count) qrText += 'CUTOUTS:'+(item.cutoutCount||item.cutout_count)+'\n';
@@ -10964,7 +10975,7 @@ function renderCutLabels(){
         <div class="lbl-info">
           <div class="lbl-uid">${item.uid}${isManual?'<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span>':''}</div>
           <div class="lbl-size">&#9632; ${item.w} &times; ${item.h} mm</div>
-          <div class="lbl-glass">${item.thickness}mm ${typeStr} &bull; ${colorStr}</div>
+          <div class="lbl-glass">${item.thickness}mm ${typeStr} &bull; ${colorStr}${patStr?' &bull; '+patStr:''}</div>
           <hr class="lbl-divider">
           <div class="lbl-procs">${isManual?'<span style="background:var(--a4);color:#000;border-radius:2px;padding:0 3px;font-size:.75em;margin-right:3px">REM</span>':''}${procNames.join(' — ')||'—'}</div>
           ${ord.notes?`<div class="lbl-procs" style="border-top:1px solid #eee;margin-top:0.3mm;padding-top:0.3mm">${ord.notes}</div>`:''}

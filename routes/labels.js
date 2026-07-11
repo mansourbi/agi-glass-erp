@@ -39,12 +39,13 @@ router.post('/', (req, res) => {
   try {
     const items = Array.isArray(req.body) ? req.body : [req.body];
     const upsert = db.prepare(`
-      INSERT INTO label_items (uid,code,w,h,thickness,glass_type,color,processes,bevel_mm,drill_count,cutout_count,
+      INSERT INTO label_items (uid,code,w,h,thickness,glass_type,color,family,pattern,processes,bevel_mm,drill_count,cutout_count,
         order_id,order_num,opt_file_id,sheet_idx,cut_type,date)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(uid) DO UPDATE SET
         code=excluded.code, w=excluded.w, h=excluded.h,
         thickness=excluded.thickness, glass_type=excluded.glass_type, color=excluded.color,
+        family=excluded.family, pattern=excluded.pattern,
         processes=excluded.processes, bevel_mm=excluded.bevel_mm,
         drill_count=excluded.drill_count, cutout_count=excluded.cutout_count,
         order_id=excluded.order_id, order_num=excluded.order_num,
@@ -56,6 +57,7 @@ router.post('/', (req, res) => {
         upsert.run(
           l.uid, l.code||'', +l.w||0, +l.h||0, +l.thickness||6,
           l.glassType||l.glass_type||'glass', l.color||'clear',
+          l.family||'float', l.pattern||null,
           JSON.stringify(l.processes||[]), +l.bevelMM||+l.bevel_mm||0,
           +l.drillCount||+l.drill_count||0, +l.cutoutCount||+l.cutout_count||0,
           l.orderId||l.order_id||null, l.orderNum||l.order_num||null,
