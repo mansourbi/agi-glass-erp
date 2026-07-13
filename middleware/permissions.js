@@ -143,7 +143,8 @@ const CATALOG = [
   // Worker app features
   {k:'workerapp.deliver',       g:'Worker App', l:'Deliver tab'},
   {k:'workerapp.attend',        g:'Worker App', l:'Attend tab (clock in/out)'},
-  {k:'workerapp.overtime',      g:'Worker App', l:'View own overtime history'}
+  {k:'workerapp.overtime',      g:'Worker App', l:'View own overtime history'},
+  {k:'workerapp.remnants',      g:'Worker App', l:'Remnants tab (stock-take, use, move)'}
 ];
 const ALL_KEYS = CATALOG.map(c=>c.k);
 const GROUPS = (function(){ const m={}; CATALOG.forEach(c=>{ (m[c.g]=m[c.g]||[]).push(c); }); return m; })();

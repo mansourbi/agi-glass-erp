@@ -301,6 +301,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bnh-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
     <button class="bn" id="bnh-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bnh-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
+    <button class="bn" id="bnh-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
 </div>
 
@@ -353,6 +354,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bna-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
     <button class="bn" id="bna-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bna-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
+    <button class="bn" id="bna-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
 </div>
 
@@ -391,6 +393,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bns-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
     <button class="bn" id="bns-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bns-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
+    <button class="bn" id="bns-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
 </div>
 
@@ -417,6 +420,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn on" id="bnq-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
     <button class="bn" id="bnq-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bnq-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
+    <button class="bn" id="bnq-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
 </div>
 
@@ -447,6 +451,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bnh2-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
     <button class="bn" id="bnh2-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn on" id="bnh2-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
+    <button class="bn" id="bnh2-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
 </div>
 
@@ -530,6 +535,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bndlv-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
     <button class="bn on" id="bndlv-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
     <button class="bn" id="bndlv-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
+    <button class="bn" id="bndlv-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
 </div>
 
@@ -742,6 +748,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
   </div>
 </div>
 
+<!-- SCREEN: REM (Remnants) -->
+<div class="screen" id="scr-rem">
+  <div class="topbar">
+    <div class="topbar-brand" id="rem-topbar-title">Remnants</div>
+    <div class="topbar-worker" id="wn-rem"></div>
+    <button class="topbar-logout" onclick="doLogout()">Logout</button>
+  </div>
+  <div id="rem-home" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px">
+    <button onclick="remShowPane('add')" style="padding:18px 16px;background:rgba(0,204,255,.08);border:1.5px solid rgba(0,204,255,.35);border-radius:12px;color:var(--tx);text-align:left;cursor:pointer">
+      <div style="font-size:.9rem;font-weight:700">&#10133; Add (Session)</div>
+      <div style="font-size:.72rem;color:var(--tx2)">Stock-take: pick glass once, add many remnants</div>
+    </button>
+    <button onclick="remShowPane('view')" style="padding:18px 16px;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:12px;color:var(--tx);text-align:left;cursor:pointer">
+      <div style="font-size:.9rem;font-weight:700">&#128203; View Remnants</div>
+      <div style="font-size:.72rem;color:var(--tx2)">Browse, filter, edit, discard</div>
+    </button>
+    <button onclick="remShowPane('use')" style="padding:18px 16px;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:12px;color:var(--tx);text-align:left;cursor:pointer">
+      <div style="font-size:.9rem;font-weight:700">&#128269; Use Remnant</div>
+      <div style="font-size:.72rem;color:var(--tx2)">Scan a remnant, pick order pieces it will cut</div>
+    </button>
+    <button onclick="remShowPane('move')" style="padding:18px 16px;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:12px;color:var(--tx);text-align:left;cursor:pointer">
+      <div style="font-size:.9rem;font-weight:700">&#128230; Move Remnant</div>
+      <div style="font-size:.72rem;color:var(--tx2)">Scan and transfer to another slot</div>
+    </button>
+  </div>
+  <div id="rem-pane" style="display:none;flex:1;overflow-y:auto;padding:14px"></div>
+  <nav class="bottom-nav">
+    <button class="bn" id="bnr-home" onclick="switchTab('home')"><span class="bni">&#8962;</span>Home</button>
+    <button class="bn" id="bnr-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
+    <button class="bn" id="bnr-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
+    <button class="bn" id="bnr-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
+    <button class="bn" id="bnr-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
+    <button class="bn" id="bnr-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
+    <button class="bn on" id="bnr-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
+  </nav>
+</div>
+
 <div class="flash-overlay" id="flash">
   <div class="flash-icon" id="flash-icon">&#10003;</div>
   <div class="flash-msg" id="flash-msg"></div>
@@ -899,8 +942,8 @@ function showScreen(id){
 }
 
 function switchTab(tab){
-  stopCamera(); if(typeof dlvStopCamera==='function') dlvStopCamera();
-  ['home','attendance','scan','queue','history','deliver'].forEach(t=>{
+  stopCamera(); if(typeof dlvStopCamera==='function') dlvStopCamera(); if(typeof remStopCamera==='function') remStopCamera();
+  ['home','attendance','scan','queue','history','deliver','rem'].forEach(t=>{
     const s=document.getElementById('scr-'+t); if(s) s.classList.remove('on');
   });
   const target=document.getElementById('scr-'+tab);
@@ -917,6 +960,7 @@ function switchTab(tab){
   if(tab==='attendance') loadAttendance();
   if(tab==='home')       loadHomeStatus();
   if(tab==='deliver')    dlvInit();
+  if(tab==='rem')        remInit();
 }
 
 // ════════════════════════════════════════════════════════
@@ -1401,6 +1445,10 @@ function handleQRResult(rawText){
   lastScanned=uid;
   scanCooldown=true;
   setTimeout(()=>{ scanCooldown=false; lastScanned=null; },2500);
+  if(/REMNANT\s*ID[:\s]/i.test(rawText)){
+    var rmm=rawText.match(/REMNANT\s*ID[:\s]+([^\n\r]+)/i);
+    if(rmm){ setScanStatus('Remnant: '+rmm[1].trim(),'ok'); if(typeof vibrate==='function') vibrate([30]); remOpenFromScan(rmm[1].trim()); return; }
+  }
   setScanStatus('QR detected: '+uid,'ok');
   lookupPiece(uid);
 }
@@ -2453,7 +2501,7 @@ async function unmarkProcess(uid, pid){
 <script>
 (function(){
   if(window.__R5_INSTALLED) return; window.__R5_INSTALLED=true;
-  var TAB_PERM={ attendance:'workerapp.attend', deliver:'workerapp.deliver' }; // tabs not listed = core; add future gated tabs here
+  var TAB_PERM={ attendance:'workerapp.attend', deliver:'workerapp.deliver', rem:'workerapp.remnants' }; // tabs not listed = core; add future gated tabs here
   var perms={}, superadmin=false, loaded=false;
   function CAN(k){ return superadmin || perms[k]===true; }
   function tok(){ try{ if(window.AGI&&AGI.getToken){ var t=AGI.getToken(); if(t) return t; } }catch(e){} return localStorage.getItem('agi_token'); }
@@ -2484,6 +2532,382 @@ async function unmarkProcess(uid, pid){
   if(window.doLogin && !window.doLogin.__r5wrap){ var _l=window.doLogin; window.doLogin=function(){ var rv=_l.apply(this,arguments); Promise.resolve(rv).then(function(){ setTimeout(function(){ loadPerms().then(reconcile); },800); }).catch(function(){}); return rv; }; window.doLogin.__r5wrap=true; }
   window.addEventListener('load',function(){ setTimeout(function(){ loaded?reconcile():start(); },600); });
 })();
+
+
+// ==== REM (Remnants) R1 - skeleton (flows in R1c-2) ====
+var _remPane=null;
+function remInit(){
+  var wn=document.getElementById('wn-rem'); var wh=document.getElementById('wn-home');
+  if(wn&&wh) wn.textContent=wh.textContent;
+  remShowHome();
+}
+function remShowHome(){
+  _remPane=null;
+  document.getElementById('rem-home').style.display='flex';
+  document.getElementById('rem-pane').style.display='none';
+}
+function remShowPane(name){
+  _remPane=name;
+  document.getElementById('rem-home').style.display='none';
+  var p=document.getElementById('rem-pane'); p.style.display='block';
+  var back='<button onclick="remShowHome()" style="background:none;border:none;color:var(--a);font-size:.85rem;cursor:pointer;padding:4px 0;margin-bottom:8px">&#8592; Back</button>';
+  if(typeof window['remPane_'+name]==='function'){ window['remPane_'+name](p, back); }
+  else p.innerHTML=back+'<div style="color:var(--tx2);padding:24px 8px;text-align:center">'+name+' - coming in the next step</div>';
+}
+function remStopCamera(){ /* wired in R1c-2 */ }
+
+
+// ==== REM R1c-2: flows ====
+var _remSessionObj=null,_remSlotCache=null,_remCam=null,_remScanUid=null,_remUseRem=null,_remUseSel={},_remUseOrders=[],_remAddCount=0,_remLastUids=[],_remChildN=0,_remManualCb=null,_remList=[];
+async function remApi(p,o){o=o||{};o.headers=Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')},o.headers||{});
+  if(o.body&&typeof o.body!=='string')o.body=JSON.stringify(o.body);
+  var r=await fetch(p,o);
+  if(!r.ok){var e='HTTP '+r.status;try{e=(await r.json()).error||e;}catch(_){ }throw new Error(e);}
+  return r.json();}
+async function remSlotsLoad(){ if(_remSlotCache) return _remSlotCache; try{ _remSlotCache=await remApi('/api/remnants/slots'); }catch(e){ _remSlotCache=[]; } return _remSlotCache; }
+function remSlotOpts(sel){ return '<option value="">- no slot -</option>'+(_remSlotCache||[]).filter(function(x){return x.active!==0;}).map(function(x){return '<option value="'+x.id+'|'+x.code+'"'+(sel&&String(sel)===String(x.id)?' selected':'')+'>'+x.code+'</option>';}).join(''); }
+function remSel(id){ var v=(document.getElementById(id)||{}).value||''; var p=v.split('|'); return { id:p[0]?+p[0]:null, code:p[1]||null }; }
+function remFld(l,inner){ return '<div style="margin-bottom:8px"><div style="font-size:.68rem;color:var(--tx2);margin-bottom:3px">'+l+'</div>'+inner+'</div>'; }
+var REM_INP='style="width:100%;padding:10px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;color:var(--tx);font-size:.85rem"';
+var REM_BTN='style="width:100%;padding:13px;background:rgba(0,204,255,.12);border:1.5px solid rgba(0,204,255,.4);border-radius:10px;color:var(--tx);font-weight:700;font-size:.85rem;cursor:pointer"';
+
+var _remRawCatalog=null;
+async function remRawLoad(){ if(_remRawCatalog) return _remRawCatalog; try{ _remRawCatalog=await remApi('/api/rawsheets'); }catch(e){ _remRawCatalog=[]; } return _remRawCatalog; }
+function remSrcOptions(){
+  var thk=(document.getElementById('rs2-thk')||{}).value; thk=thk?+thk:null;
+  var typ=((document.getElementById('rs2-type')||{}).value||'').toLowerCase();
+  var fam=((document.getElementById('rs2-fam')||{}).value||'').toLowerCase();
+  var pat=((document.getElementById('rs2-pat')||{}).value||'').trim().toLowerCase();
+  var col=((document.getElementById('rs2-col')||{}).value||'').toLowerCase();
+  // Strict: filter ONLY on fields the user has chosen (blank = any).
+  var cat=(_remRawCatalog||[]).filter(function(x){
+    var xt=(x.glass_type||x.type||'glass').toLowerCase();
+    var xf=(x.family||'float').toLowerCase();
+    var xp=(x.pattern||'').toLowerCase();
+    var xc=(x.color||'').toLowerCase();
+    if(thk && +x.thickness!==thk) return false;
+    if(typ && xt!==typ) return false;
+    if(fam && xf!==fam) return false;
+    if(pat && xp!==pat) return false;
+    if(col && xc!==col) return false;
+    return true;
+  });
+  cat.sort(function(a,b){ return String(a.code||'').localeCompare(String(b.code||'')); });
+  var opt=function(x){ var desc=(x.notes&&x.notes.trim())?x.notes.trim():(x.code||('#'+x.id)); var mfr=[x.company,x.origin].filter(function(v){return v&&String(v).trim();}).join(' - '); return '<option value="'+x.id+'|'+(x.code||'').replace(/"/g,'')+'">'+desc+(mfr?(' | '+mfr):'')+'</option>'; };
+  return '<option value="">- no source sheet -</option>'+cat.map(opt).join('');
+}
+function remSrcRefresh(){ var el=document.getElementById('rs2-src'); if(el) el.innerHTML=remSrcOptions(); }
+async function remPane_add(p,back){
+  await remSlotsLoad(); await remRawLoad();
+  if(!_remSessionObj){
+    p.innerHTML=back+'<div style="font-weight:700;margin-bottom:10px">New Stock-Take Session</div>'
+      +remFld('Thickness (mm)','<select id="rs2-thk" '+REM_INP+' onchange="remSrcRefresh()"><option value="">- select -</option>'+[4,5,5.5,6,8,10,12,15,19].map(function(t){return '<option>'+t+'</option>';}).join('')+'</select>')
+      +remFld('Type','<select id="rs2-type" '+REM_INP+' onchange="remSrcRefresh()"><option value="">- select -</option><option value="glass">Glass</option><option value="mirror">Mirror</option><option value="lacobel">Lacobel</option><option value="laminated">Laminated</option><option value="tempered">Tempered</option></select>')
+      +remFld('Family','<select id="rs2-fam" '+REM_INP+' onchange="remSrcRefresh()"><option value="">- select -</option><option value="float">Float</option><option value="patterned">Patterned</option><option value="tinted">Tinted</option><option value="reflective">Reflective</option><option value="antique">Antique</option></select>')
+      +remFld('Color','<select id="rs2-col" '+REM_INP+' onchange="remSrcRefresh()"><option value="">- select -</option>'+['clear','low-iron','bronze','grey','green','blue','black','white','silver','gold'].map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+'</select>')
+      +remFld('Pattern (fluted / s201... only Patterned or Antique)','<input id="rs2-pat" '+REM_INP+' placeholder="optional">')
+      +remFld('Source sheet (optional)','<select id="rs2-src" '+REM_INP.replace('font-size:.85rem','font-size:.75rem')+'>'+remSrcOptions()+'</select>')
+      +remFld('Default slot','<select id="rs2-slot" '+REM_INP+'>'+remSlotOpts()+'</select>')
+      +'<button onclick="remStartSession()" '+REM_BTN+'>START SESSION</button>';
+    return;
+  }
+  var se=_remSessionObj;
+  p.innerHTML=back+'<div style="font-weight:700">Session #'+se.id+' - '+se.thickness+'mm '+se.family+(se.pattern?'/'+se.pattern:'')+' '+(se.color||'')+' '+se.glass_type+'</div>'
+    +'<div style="font-size:.7rem;color:var(--tx2);margin-bottom:10px">Added: <span id="rs2-count">'+_remAddCount+'</span></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:8px"><input id="rs2-w" type="number" inputmode="numeric" placeholder="Width mm" '+REM_INP+'><input id="rs2-h" type="number" inputmode="numeric" placeholder="Height mm" '+REM_INP+'></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:8px"><input id="rs2-qty" type="number" inputmode="numeric" value="1" min="1" max="50" '+REM_INP+'><select id="rs2-rowslot" '+REM_INP+'>'+remSlotOpts(se.slot_id)+'</select></div>'
+    +'<button onclick="remAddRow()" '+REM_BTN+'>ADD REMNANT(S)</button>'
+    +'<div id="rs2-last" style="margin-top:10px;font-size:.68rem;color:var(--tx2)">'+_remLastUids.map(function(u){return '<div>&#10003; '+u+'</div>';}).join('')+'</div>'
+    +'<button onclick="remEndSession()" style="width:100%;margin-top:14px;padding:12px;background:rgba(255,120,0,.12);border:1.5px solid rgba(255,120,0,.4);border-radius:10px;color:var(--tx);font-weight:700;cursor:pointer">END SESSION</button>';
+  setTimeout(function(){var w=document.getElementById('rs2-w');if(w)w.focus();},50);
+}
+async function remStartSession(){
+  try{
+    if(!(document.getElementById('rs2-thk').value)){ alert('Select a thickness'); return; }
+    if(!(document.getElementById('rs2-type').value)){ alert('Select a type'); return; }
+    if(!(document.getElementById('rs2-fam').value)){ alert('Select a family'); return; }
+    var slot=remSel('rs2-slot');
+    _remSessionObj=await remApi('/api/remnants/sessions',{method:'POST',body:{
+      thickness:+document.getElementById('rs2-thk').value, glass_type:document.getElementById('rs2-type').value,
+      family:document.getElementById('rs2-fam').value, color:document.getElementById('rs2-col').value,
+      pattern:(document.getElementById('rs2-pat').value||'').trim().toLowerCase()||null,
+      raw_sheet_id:(function(){var v=(document.getElementById('rs2-src').value||'').split('|');return v[0]?+v[0]:null;})(),
+      raw_sheet_label:(function(){var v=(document.getElementById('rs2-src').value||'').split('|');return v[1]||null;})(),
+      slot_id:slot.id, slot_code:slot.code }});
+    _remAddCount=0; _remLastUids=[];
+    remShowPane('add');
+  }catch(e){ alert('Error: '+e.message); }
+}
+async function remAddRow(){
+  var w=+document.getElementById('rs2-w').value, h=+document.getElementById('rs2-h').value, q=+document.getElementById('rs2-qty').value||1;
+  if(!w||!h){ alert('Enter width and height'); return; }
+  try{
+    var slot=remSel('rs2-rowslot'); var se=_remSessionObj;
+    var res=await remApi('/api/remnants',{method:'POST',body:{ w:w,h:h,qty:q,thickness:se.thickness,glass_type:se.glass_type,
+      color:se.color,family:se.family,pattern:se.pattern,raw_sheet_id:se.raw_sheet_id,raw_sheet_label:se.raw_sheet_label,
+      slot_id:slot.id,slot_code:slot.code,source:'manual',session_id:se.id }});
+    var arr=Array.isArray(res)?res:[res];
+    _remAddCount+=arr.length;
+    arr.forEach(function(r){ _remLastUids.unshift(r.uid+' ('+r.w+'x'+r.h+')'); });
+    _remLastUids=_remLastUids.slice(0,8);
+    if(typeof showFlash==='function') showFlash('&#10003;','Added',arr.length+' remnant(s)','var(--a3)');
+    document.getElementById('rs2-count').textContent=_remAddCount;
+    document.getElementById('rs2-last').innerHTML=_remLastUids.map(function(u){return '<div>&#10003; '+u+'</div>';}).join('');
+    document.getElementById('rs2-w').value=''; document.getElementById('rs2-h').value=''; document.getElementById('rs2-qty').value='1';
+    document.getElementById('rs2-w').focus();
+  }catch(e){ alert('Error: '+e.message); }
+}
+async function remEndSession(){
+  if(!_remSessionObj) return;
+  try{ await remApi('/api/remnants/sessions/'+_remSessionObj.id+'/end',{method:'PUT'}); }catch(e){}
+  alert('Session #'+_remSessionObj.id+' ended. '+_remAddCount+' remnants added.\nPrint labels from the portal (filter by session '+_remSessionObj.id+').');
+  _remSessionObj=null; _remAddCount=0; _remLastUids=[];
+  remShowHome();
+}
+
+async function remPane_view(p,back){
+  await remSlotsLoad();
+  p.innerHTML=back+'<div style="display:flex;gap:6px;margin-bottom:8px">'
+    +'<select id="rv-status" '+REM_INP+' onchange="remLoadList()"><option value="available">Available</option><option value="">All</option><option value="used">Used</option><option value="discarded">Discarded</option></select>'
+    +'<select id="rv-fam" '+REM_INP+' onchange="remLoadList()"><option value="">All families</option><option>float</option><option>patterned</option><option>tinted</option><option>reflective</option><option>antique</option></select></div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:8px">'
+    +'<select id="rv-slot" '+REM_INP+' onchange="remLoadList()">'+remSlotOpts()+'</select>'
+    +'<input id="rv-q" '+REM_INP+' placeholder="search..." oninput="remRenderList()"></div>'
+    +'<div id="rv-list" style="font-size:.78rem">Loading...</div>';
+  remLoadList();
+}
+async function remLoadList(){
+  try{
+    var st=(document.getElementById('rv-status')||{}).value; var fam=(document.getElementById('rv-fam')||{}).value; var slot=remSel('rv-slot');
+    var qs=[]; if(st)qs.push('status='+st); if(fam)qs.push('family='+fam); if(slot.id)qs.push('slot_id='+slot.id);
+    _remList=await remApi('/api/remnants'+(qs.length?'?'+qs.join('&'):''));
+    remRenderList();
+    if(_remScanUid){ var r=_remList.find(function(x){return x.uid===_remScanUid;}); _remScanUid=null; if(r) remShowDetail(r.id); }
+  }catch(e){ var el=document.getElementById('rv-list'); if(el) el.textContent='Error: '+e.message; }
+}
+function remRenderList(){
+  var q=((document.getElementById('rv-q')||{}).value||'').toLowerCase();
+  var el=document.getElementById('rv-list'); if(!el) return;
+  var rows=_remList.filter(function(r){ if(!q) return true; return (r.uid+' '+r.w+'x'+r.h+' '+(r.slot_code||'')+' '+(r.raw_sheet_label||'')).toLowerCase().indexOf(q)>=0; });
+  if(!rows.length){ el.innerHTML='<div style="color:var(--tx2);text-align:center;padding:20px">No remnants</div>'; return; }
+  el.innerHTML=rows.slice(0,200).map(function(r){
+    var sc={available:'var(--a3)',used:'var(--a2)',discarded:'#888'}[r.status]||'#888';
+    return '<div onclick="remShowDetail('+r.id+')" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer">'
+      +'<div style="display:flex;justify-content:space-between"><b>'+r.w+'&times;'+r.h+'</b><span style="color:'+sc+'">'+r.status+'</span></div>'
+      +'<div style="color:var(--tx2);font-size:.68rem">'+r.thickness+'mm '+(r.family||'')+(r.pattern?'/'+r.pattern:'')+' '+(r.color||'')+' &bull; '+(r.slot_code||'no slot')+'</div>'
+      +'<div style="color:var(--tx2);font-size:.62rem">'+r.uid+'</div></div>';
+  }).join('');
+}
+function remShowDetail(id){
+  var r=_remList.find(function(x){return x.id===id;}); if(!r) return;
+  var p=document.getElementById('rem-pane');
+  var back='<button onclick="remShowPane(\'view\')" style="background:none;border:none;color:var(--a);font-size:.85rem;cursor:pointer;padding:4px 0;margin-bottom:8px">&#8592; Back to list</button>';
+  p.innerHTML=back+'<div style="font-weight:700;font-size:1rem">'+r.uid+'</div>'
+    +'<div style="margin:8px 0;font-size:.82rem">'+r.w+' &times; '+r.h+' mm &bull; '+r.thickness+'mm<br>'+(r.family||'')+(r.pattern?'/'+r.pattern:'')+' '+(r.color||'')+' '+(r.glass_type||'')+'<br>Slot: '+(r.slot_code||'-')+' &bull; Status: '+r.status+'<br>Source: '+(r.raw_sheet_label||r.source||'-')+'<br>Created: '+(r.created_at||'')+' by '+(r.created_by||'-')+(r.status==='discarded'?('<br>Discarded: '+(r.discarded_at||'')+' by '+(r.discarded_by||'')):'')+'</div>'
+    +(r.status==='available'?('<button onclick="remUseFromDetail('+r.id+')" '+REM_BTN+'>USE FOR ORDER PIECES</button>'
+    +'<button onclick="remEditRemnant('+r.id+')" style="width:100%;margin-top:8px;padding:11px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--tx);cursor:pointer">EDIT</button>'
+    +'<button onclick="remDiscard('+r.id+')" style="width:100%;margin-top:8px;padding:11px;background:rgba(255,60,60,.1);border:1px solid rgba(255,60,60,.35);border-radius:10px;color:#ff9a9a;cursor:pointer">DISCARD (used - unknown where)</button>'):'');
+}
+function remUseFromDetail(id){ var r=_remList.find(function(x){return x.id===id;}); if(r){ remShowPane('use'); setTimeout(function(){ remUseLoad(r.uid); },150); } }
+function remEditRemnant(id){
+  var r=_remList.find(function(x){return x.id===id;}); if(!r) return;
+  var w=prompt('Width mm:',r.w); if(w===null) return;
+  var h=prompt('Height mm:',r.h); if(h===null) return;
+  var fam=prompt('Family (float/patterned/tinted/reflective/antique):',r.family||'float'); if(fam===null) return;
+  var pat=prompt('Pattern (empty = none):',r.pattern||''); if(pat===null) return;
+  remApi('/api/remnants/'+id,{method:'PUT',body:{w:+w,h:+h,family:fam.trim().toLowerCase(),pattern:pat.trim().toLowerCase()||''}})
+    .then(function(){ if(typeof showFlash==='function') showFlash('&#10003;','Updated','','var(--a3)'); remLoadList(); })
+    .catch(function(e){ alert('Error: '+e.message); });
+}
+function remDiscard(id){
+  if(!confirm('Discard this remnant? (used somewhere unknown / no longer exists)')) return;
+  remApi('/api/remnants/'+id,{method:'DELETE'})
+    .then(function(){ if(typeof showFlash==='function') showFlash('&#128465;','Discarded','','var(--a2)'); remShowPane('view'); })
+    .catch(function(e){ alert('Error: '+e.message); });
+}
+
+function remCamStart(cb){
+  var v=document.getElementById('rem-video'); if(!v) return;
+  loadJsQR().then(function(){
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(st){
+      _remCam=st; v.srcObject=st; v.setAttribute('playsinline',''); v.play();
+      var c=document.createElement('canvas'); var g=c.getContext('2d');
+      function tick(){
+        if(!_remCam) return;
+        if(v.readyState===v.HAVE_ENOUGH_DATA){
+          c.width=v.videoWidth; c.height=v.videoHeight;
+          g.drawImage(v,0,0,c.width,c.height);
+          var idt=g.getImageData(0,0,c.width,c.height);
+          var code=window.jsQR&&window.jsQR(idt.data,c.width,c.height);
+          if(code&&code.data){
+            var m=code.data.match(/REMNANT\s*ID[:\s]+([^\n\r]+)/i);
+            if(m){ remStopCamera(); if(typeof vibrate==='function') vibrate([30]); cb(m[1].trim()); return; }
+          }
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }).catch(function(e){ var st2=document.getElementById('rem-scan-status'); if(st2) st2.textContent='Camera error: '+e.message; });
+  });
+}
+function remStopCamera(){ if(_remCam){ _remCam.getTracks().forEach(function(t){t.stop();}); _remCam=null; } }
+function remScannerHtml(hint){
+  return '<video id="rem-video" style="width:100%;border-radius:10px;background:#000;max-height:40vh" muted playsinline></video>'
+    +'<div id="rem-scan-status" style="font-size:.72rem;color:var(--tx2);margin:6px 0">'+hint+'</div>'
+    +'<input id="rem-manual" '+REM_INP+' placeholder="Or type remnant ID..." style="margin-top:4px">'
+    +'<button onclick="remManualGo()" style="width:100%;margin-top:8px;padding:10px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--tx);cursor:pointer">LOOK UP</button>';
+}
+function remManualGo(){ var u=((document.getElementById('rem-manual')||{}).value||'').trim().toUpperCase(); if(u&&_remManualCb){ remStopCamera(); _remManualCb(u); } }
+
+function remPane_use(p,back){
+  _remUseRem=null; _remUseSel={}; _remChildN=0;
+  p.innerHTML=back+'<div style="font-weight:700;margin-bottom:8px">Scan remnant QR</div>'+remScannerHtml('Point camera at a REMNANT label')+'<div id="rem-use-body"></div>';
+  _remManualCb=remUseLoad;
+  remCamStart(remUseLoad);
+}
+async function remUseLoad(uid){
+  var body=document.getElementById('rem-use-body'); if(!body){ return; }
+  body.innerHTML='<div style="color:var(--tx2)">Loading '+uid+'...</div>';
+  try{
+    var all=await remApi('/api/remnants?status=available');
+    var rem=all.find(function(r){return r.uid.toUpperCase()===uid.toUpperCase();});
+    if(!rem){ body.innerHTML='<div style="color:#ff9a9a">Remnant "'+uid+'" not found or not available.</div>'; return; }
+    _remUseRem=rem;
+    var v=document.getElementById('rem-video'); if(v) v.style.display='none';
+    var data=await remApi('/api/remnants/open-orders-fit?remnant_id='+rem.id);
+    _remUseOrders=data.orders||[];
+    var hd='<div style="padding:10px;border:1.5px solid rgba(0,204,255,.4);border-radius:10px;margin:8px 0"><b>'+rem.uid+'</b><br><span style="font-size:.74rem">'+rem.w+'&times;'+rem.h+' mm &bull; '+rem.thickness+'mm '+(rem.family||'')+(rem.pattern?'/'+rem.pattern:'')+' '+(rem.color||'')+' &bull; '+(rem.slot_code||'no slot')+'</span></div>';
+    body.innerHTML=hd+'<input id="ru-q" '+REM_INP+' placeholder="filter orders (e.g. 200)..." oninput="remUseRender()">'
+      +'<div id="ru-list" style="margin-top:8px;font-size:.78rem"></div>'
+      +'<div id="ru-fit" style="margin:8px 0;font-size:.74rem"></div>'
+      +'<div id="ru-children"></div>'
+      +'<button id="ru-confirm" onclick="remConfirmUse()" '+REM_BTN+' disabled>CONFIRM USE</button>';
+    remUseRender();
+  }catch(e){ body.innerHTML='<div style="color:#ff9a9a">Error: '+e.message+'</div>'; }
+}
+function remUseRender(){
+  var el=document.getElementById('ru-list'); if(!el) return;
+  var q=((document.getElementById('ru-q')||{}).value||'').toLowerCase();
+  var ords=_remUseOrders.filter(function(o){
+    if(!q) return true;
+    var hay=(o.order_num+' '+o.items.map(function(i){return i.code||'';}).join(' ')).toLowerCase();
+    return hay.indexOf(q)>=0; });
+  if(!ords.length){ el.innerHTML='<div style="color:var(--tx2);padding:12px;text-align:center">No matching open orders with fitting pieces</div>'; }
+  else el.innerHTML=ords.slice(0,40).map(function(o){
+    return '<div style="border:1px solid var(--border);border-radius:8px;margin-bottom:6px;padding:8px"><b>'+o.order_num+'</b> <span style="color:var(--tx2);font-size:.66rem">'+(o.date||'')+'</span>'
+      +o.items.map(function(it){
+        var uids=(it.piece_uids&&it.piece_uids.length)?it.piece_uids:[];
+        if(!uids.length){ for(var k2=0;k2<it.qty;k2++) uids.push(o.order_num+'-PC'+(k2+1)); }
+        return uids.map(function(u){
+          var on=!!_remUseSel[u];
+          return '<div onclick="remTogglePiece(\''+String(u).replace(/'/g,'')+'\','+o.order_id+',\''+String(o.order_num).replace(/'/g,'')+'\','+it.w+','+it.h+')" style="display:flex;justify-content:space-between;padding:6px 4px;border-top:1px solid rgba(255,255,255,.06);cursor:pointer">'
+            +'<span>'+(on?'&#9745;':'&#9744;')+' '+u+'</span><span style="color:var(--tx2)">'+it.w+'&times;'+it.h+(it.code&&it.code!=='PC'?' &bull; '+it.code:'')+'</span></div>';
+        }).join('');
+      }).join('')+'</div>';
+  }).join('');
+  remUseFitUpdate();
+}
+function remTogglePiece(uid,oid,onum,w,h){
+  if(_remUseSel[uid]) delete _remUseSel[uid];
+  else _remUseSel[uid]={piece_uid:uid,order_id:oid,order_num:onum,w:w,h:h};
+  remUseRender();
+}
+function remFitCheck(pieces,W,H){
+  var ps=pieces.map(function(p){return {w:+p.w,h:+p.h};});
+  ps.sort(function(a,b){ return Math.max(b.w,b.h)-Math.max(a.w,a.h); });
+  var shelves=[],yCur=0;
+  for(var i=0;i<ps.length;i++){
+    var pc=ps[i],placed=false;
+    for(var s2=0;s2<shelves.length&&!placed;s2++){
+      var sh=shelves[s2],ori=null;
+      if(pc.h<=sh.h&&sh.x+pc.w<=W)ori={w:pc.w,h:pc.h};
+      else if(pc.w<=sh.h&&sh.x+pc.h<=W)ori={w:pc.h,h:pc.w};
+      if(ori){sh.x+=ori.w;placed=true;}
+    }
+    if(!placed){
+      var pick=null;
+      [{w:pc.w,h:pc.h},{w:pc.h,h:pc.w}].forEach(function(o){ if(o.w<=W&&yCur+o.h<=H){ if(!pick||o.h<pick.h)pick=o; } });
+      if(!pick) return {ok:false};
+      shelves.push({h:pick.h,x:pick.w}); yCur+=pick.h;
+    }
+  }
+  return {ok:true};
+}
+function remUseFitUpdate(){
+  var f=document.getElementById('ru-fit'), btn=document.getElementById('ru-confirm'); if(!f||!btn) return;
+  var sel=Object.keys(_remUseSel).map(function(k){return _remUseSel[k];});
+  if(!sel.length){ f.innerHTML=''; btn.disabled=true; remChildrenRender(false); return; }
+  var r=remFitCheck(sel,_remUseRem.w,_remUseRem.h);
+  f.innerHTML=r.ok?('<span style="color:var(--a3)">&#10003; '+sel.length+' piece(s) fit (approximate - cutter judgment applies)</span>')
+    :('<span style="color:#ff9a9a">&#10007; Selected pieces cannot fit this remnant</span>');
+  btn.disabled=!r.ok;
+  remChildrenRender(r.ok);
+}
+function remChildrenRender(show){
+  var c=document.getElementById('ru-children'); if(!c) return;
+  if(!show){ c.innerHTML=''; c.removeAttribute('data-on'); return; }
+  if(c.getAttribute('data-on')==='1') return;
+  c.setAttribute('data-on','1');
+  c.innerHTML='<div style="font-size:.74rem;color:var(--tx2);margin:8px 0 4px">Remaining offcut(s) after cutting (optional):</div><div id="ru-childrows"></div>'
+    +'<button onclick="remChildAdd()" style="padding:8px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;color:var(--tx);font-size:.74rem;cursor:pointer;margin-bottom:8px">+ add offcut</button>';
+  remChildAdd();
+}
+function remChildAdd(){
+  var rows=document.getElementById('ru-childrows'); if(!rows) return;
+  var n=++_remChildN;
+  var d=document.createElement('div'); d.style.cssText='display:flex;gap:6px;margin-bottom:6px'; d.id='ru-child-'+n;
+  d.innerHTML='<input type="number" id="ru-cw-'+n+'" placeholder="W" '+REM_INP+'><input type="number" id="ru-ch-'+n+'" placeholder="H" '+REM_INP+'>'
+    +'<select id="ru-cs-'+n+'" '+REM_INP+'>'+remSlotOpts(_remUseRem?_remUseRem.slot_id:null)+'</select>'
+    +'<button onclick="document.getElementById(\'ru-child-'+n+'\').remove()" style="background:none;border:none;color:#ff9a9a;cursor:pointer">&times;</button>';
+  rows.appendChild(d);
+}
+async function remConfirmUse(){
+  var sel=Object.keys(_remUseSel).map(function(k){return _remUseSel[k];});
+  if(!sel.length||!_remUseRem) return;
+  var children=[];
+  var kids=document.querySelectorAll('[id^="ru-child-"]');
+  for(var i=0;i<kids.length;i++){
+    var n=kids[i].id.split('-')[2];
+    var w=+((document.getElementById('ru-cw-'+n)||{}).value||0), h=+((document.getElementById('ru-ch-'+n)||{}).value||0);
+    if(w&&h){ var slot=remSel('ru-cs-'+n); children.push({w:w,h:h,slot_id:slot.id,slot_code:slot.code}); }
+  }
+  try{
+    var res=await remApi('/api/remnants/'+_remUseRem.id+'/consume',{method:'POST',body:{pieces:sel.map(function(p){return {piece_uid:p.piece_uid,order_id:p.order_id,order_num:p.order_num};}),children:children}});
+    var msg=sel.length+' piece(s) recorded.'+(res.children&&res.children.length?('\nChildren: '+res.children.map(function(c){return c.uid;}).join(', ')+'\nPrint child labels from the portal.'):'');
+    alert('Remnant '+_remUseRem.uid+' used.\n'+msg);
+    _remUseRem=null;_remUseSel={};_remChildN=0;
+    remShowHome();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+function remPane_move(p,back){
+  p.innerHTML=back+'<div style="font-weight:700;margin-bottom:8px">Scan remnant to move</div>'+remScannerHtml('Point camera at a REMNANT label')+'<div id="rem-move-body"></div>';
+  _remManualCb=remMoveLoad;
+  remCamStart(remMoveLoad);
+}
+async function remMoveLoad(uid){
+  var body=document.getElementById('rem-move-body'); if(!body) return;
+  try{
+    await remSlotsLoad();
+    var all=await remApi('/api/remnants');
+    var rem=all.find(function(r){return r.uid.toUpperCase()===uid.toUpperCase();});
+    if(!rem){ body.innerHTML='<div style="color:#ff9a9a">"'+uid+'" not found.</div>'; return; }
+    var v=document.getElementById('rem-video'); if(v) v.style.display='none';
+    body.innerHTML='<div style="padding:10px;border:1.5px solid rgba(0,204,255,.4);border-radius:10px;margin:8px 0"><b>'+rem.uid+'</b><br><span style="font-size:.74rem">'+rem.w+'&times;'+rem.h+' &bull; current slot: <b>'+(rem.slot_code||'-')+'</b></span></div>'
+      +remFld('New slot','<select id="rm-slot" '+REM_INP+'>'+remSlotOpts(rem.slot_id)+'</select>')
+      +'<button onclick="remMoveGo('+rem.id+')" '+REM_BTN+'>MOVE</button>';
+  }catch(e){ body.innerHTML='<div style="color:#ff9a9a">Error: '+e.message+'</div>'; }
+}
+async function remMoveGo(id){
+  try{
+    var slot=remSel('rm-slot');
+    await remApi('/api/remnants/'+id+'/move',{method:'PUT',body:{slot_id:slot.id,slot_code:slot.code}});
+    if(typeof showFlash==='function') showFlash('&#128230;','Moved',slot.code||'-','var(--a3)');
+    remShowHome();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+function remOpenFromScan(uid){ _remScanUid=uid; switchTab('rem'); remShowPane('view'); }
 
 </script>
 <!-- R5-WORKERAPP-GATING END -->

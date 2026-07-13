@@ -1625,6 +1625,12 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <select id="rem-filter-slot" class="inp" style="width:120px;padding:5px 8px;font-size:.75rem" onchange="renderRemnants()">
           <option value="" data-i18n="All Slots">All Slots</option>
         </select>
+        <select id="rem-filter-user" class="inp" style="width:140px;padding:5px 8px;font-size:.75rem" onchange="renderRemnants()"><option value="" data-i18n="All Users">All Users</option></select>
+        <select id="rem-filter-session" class="inp" style="width:150px;padding:5px 8px;font-size:.75rem" onchange="renderRemnants()">
+          <option value="">All Sessions</option>
+        </select>
+        <button class="btn bg bsm" onclick="exportRemnantsCSV()" title="Export the filtered table to CSV" data-i18n-title="Export table to CSV" style="font-size:.72rem">&#11123; <span data-i18n="Export">Export</span></button>
+        <button class="btn bs bsm" onclick="remPrintSessionLabels()" title="Print all labels of the selected session" style="font-size:.72rem">&#128424; Print Session Labels</button>
         <span id="rem-count" style="font-size:.68rem;color:var(--mu);margin-left:auto"></span>
       </div>
     </div>
@@ -1640,6 +1646,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <th data-i18n="Type/Color">Type/Color</th>
           <th style="cursor:pointer" onclick="remSort('slot_code')" data-i18n="Slot &#8597;">Slot &#8597;</th>
           <th data-i18n="Source">Source</th>
+          <th style="cursor:pointer" onclick="remSort('session_id')" data-i18n="Session &#8597;">Session &#8597;</th>
+          <th style="cursor:pointer" onclick="remSort('created_by')" data-i18n="Added By &#8597;">Added By &#8597;</th>
           <th style="cursor:pointer" onclick="remSort('created_at')" data-i18n="Date Added &#8597;">Date Added &#8597;</th>
           <th data-i18n="Date Used">Date Used</th>
           <th data-i18n="Piece Ref">Piece Ref</th>
@@ -4206,6 +4214,7 @@ let purchases  = [];
 let _purid     = 1;
 let _optid     = 1;
 let activeOptId= null;
+let _optDirty=false; // unsaved cut-session changes
 let rawSheetCatalog = [];
 let glassFamilies  = [];
 let finalProducts  = [];
@@ -4571,6 +4580,14 @@ function isOrderAllProcessesDone(o){
 
 function renderOrderMatrix(containerId, compact=false){
   const el=document.getElementById(containerId); if(!el) return;
+  // Coverage set: order IDs that appear in ANY optimization file (order_ids or cut_pieces).
+  const _optCovSet=new Set();
+  (optFiles||[]).forEach(f=>{
+    const ids=Array.isArray(f.order_ids)?f.order_ids:(Array.isArray(f.orderIds)?f.orderIds:[]);
+    ids.forEach(id=>{ if(id) _optCovSet.add(+id); });
+    const pcs=Array.isArray(f.cut_pieces)?f.cut_pieces:(Array.isArray(f.cutPieces)?f.cutPieces:[]);
+    pcs.forEach(p=>{ const oid=p.orderId||p.order_id; if(oid) _optCovSet.add(+oid); });
+  });
   const statusF=document.getElementById('track-status-filter')?.value||'open';
   const custF=document.getElementById('track-cust-filter')?.value||'';
   let filtered;
@@ -4628,7 +4645,7 @@ function renderOrderMatrix(containerId, compact=false){
     const isDone=o.status==='done';
     html+=`<tr style="${isCancelled?'opacity:.65':''}">
       <td style="font-size:.72rem;white-space:nowrap">${(o.date||'').slice(0,10)}${!compact?`<div style="margin-top:3px;display:flex;gap:3px"><button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="View order" data-i18n-title="View order" style="font-size:.6rem">&#128065;</button>${(o.attachments&&o.attachments.length)?`<button class="btn bg bsm" onclick="viewOrderAttachments(${o.id})" title="${o.attachments.length} attachment(s)" style="font-size:.6rem">&#128206; ${o.attachments.length}</button>`:''}</div>`:''}</td>
-      <td class="mn" style="color:var(--a);cursor:pointer" onclick="showOrderDetail(${o.id})">${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}</td>
+      <td class="mn" style="color:var(--a);cursor:pointer" onclick="showOrderDetail(${o.id})">${((o.status==='cutting'||o.status==='done')&&!_optCovSet.has(+o.id))?`<span title="No optimization file - this order was cut outside the optimizer" style="cursor:help;margin-right:3px">&#8252;&#65039;</span>`:''}${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}</td>
       <td class="mn" style="font-size:.72rem;color:var(--mu)">${o.extref||'—'}</td>
       <td style="font-size:.72rem">${(()=>{const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));return fp?`<span style="color:var(--a4);font-size:.68rem">${fp.label}</span>`:'<span style="color:var(--mu)">—</span>';})()}</td>
       <td><span class="bge" style="background:${isDone?'rgba(54,255,138,.15)':isCancelled?'rgba(255,90,90,.15)':'rgba(0,204,255,.1)'};color:${isDone?'var(--a3)':isCancelled?'var(--a2)':'var(--a)'};font-size:.6rem;padding:2px 6px;border-radius:3px">${isDone?'Done':isCancelled?'Cancelled':o.status==='cutting'?'In Progress':'Pending'}</span></td>
@@ -7418,6 +7435,7 @@ function addOrderToCutQueue(o, filterThick, filterColor){
     }
     uids.forEach(uid=>{
       if(cutPieces.some(p=>p.uid===uid)) return; // avoid dups
+      _optDirty=true;
       cutPieces.push({
         id:_cpid++, uid, code:item.code, orderNum:o.num, orderId:o.id,
         w:item.w, h:item.h, cutW:item.w+cw, cutH:item.h+ch,
@@ -9475,6 +9493,7 @@ function promptSaveOptFile(){
 }
 
 async function saveOptFile(name){
+  _optDirty=false;
   const existing=activeOptId?optFiles.find(f=>f.id===activeOptId):null;
   const snapshot={
     name,
@@ -13109,17 +13128,53 @@ async function loadRemnants(){
   }catch(e){ console.warn('loadRemnants:',e.message); }
 }
 
+function exportRemnantsCSV(){
+  // Export the CURRENTLY FILTERED list - mirror renderRemnants' filter chain.
+  const search = (document.getElementById('rem-search')?.value||'').toLowerCase();
+  const _sessF = document.getElementById('rem-filter-session')?.value;
+  const _userF = document.getElementById('rem-filter-user')?.value;
+  let list = remnants.slice();
+  if(_userF) list = list.filter(r => (r.created_by||'')===_userF);
+  if(_sessF) list = list.filter(r => String(r.session_id)===String(_sessF));
+  if(search) list = list.filter(r =>
+    (r.uid||'').toLowerCase().includes(search) ||
+    (r.slot_code||'').toLowerCase().includes(search) ||
+    (r.opt_file_name||'').toLowerCase().includes(search) ||
+    (r.notes||'').toLowerCase().includes(search) ||
+    ((r.family||'')+' '+(r.pattern||'')+' '+(r.source||'')+' '+(r.created_by||'')+' s'+(r.session_id||'')).toLowerCase().includes(search)
+  );
+  if(!list.length){ alert('No remnants to export'); return; }
+  const rows = [['UID','Width','Height','SQM','Thickness','Type','Color','Family','Pattern','Slot','Source','Source Sheet','Optimization ID','Optimization Name','Session','Added By','Date Added','Time Added','Date Used','Piece Ref','Status']];
+  list.forEach(r=>{
+    rows.push([
+      r.uid||'', Math.round(r.w)||'', Math.round(r.h)||'', (+r.sqm||0).toFixed(3),
+      r.thickness||'', r.glass_type||'', r.color||'', r.family||'', r.pattern||'',
+      r.slot_code||'', (r.source||''), (r.raw_sheet_label||''), (r.opt_file_id||''), (r.opt_file_name||''),
+      r.session_id?('S#'+r.session_id):'', r.created_by||'',
+      (r.created_at||'').slice(0,10), (r.created_at||'').slice(11,16), r.used_at?(r.used_at||'').slice(0,10):'',
+      r.used_for_piece||r.used_for_order||'', r.status||''
+    ]);
+  });
+  const dt = new Date().toISOString().slice(0,10);
+  downloadCSV(rows, `remnants-${dt}.csv`);
+}
+
 async function renderRemnants(){
   await loadRemnants();
   renderRemStats();
   populateRemFilters();
   const search = (document.getElementById('rem-search')?.value||'').toLowerCase();
   let list = remnants.slice();
+  const _userF = document.getElementById('rem-filter-user')?.value;
+  if(_userF) list = list.filter(r => (r.created_by||'')===_userF);
+  const _sessF = document.getElementById('rem-filter-session')?.value;
+  if(_sessF) list = list.filter(r => String(r.session_id)===String(_sessF));
   if(search) list = list.filter(r =>
     (r.uid||'').toLowerCase().includes(search) ||
     (r.slot_code||'').toLowerCase().includes(search) ||
     (r.opt_file_name||'').toLowerCase().includes(search) ||
-    (r.notes||'').toLowerCase().includes(search)
+    (r.notes||'').toLowerCase().includes(search) ||
+    ((r.family||'')+' '+(r.pattern||'')+' '+(r.source||'')+' '+(r.created_by||'')+' s'+(r.session_id||'')).toLowerCase().includes(search)
   );
   // Sort
   list.sort((a,b) => {
@@ -13131,7 +13186,7 @@ async function renderRemnants(){
   const tbody = document.getElementById('rem-body');
   if(!tbody) return;
   if(!list.length){
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--mu);padding:20px">No remnant plates found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--mu);padding:20px">No remnant plates found</td></tr>';
     return;
   }
   const statusColor = {available:'var(--a3)', used:'var(--mu)', discarded:'#ff6464'};
@@ -13140,19 +13195,22 @@ async function renderRemnants(){
     <td class="mn">${Math.round(r.w)} × ${Math.round(r.h)}</td>
     <td class="mn" style="color:var(--a3)">${(+r.sqm||0).toFixed(3)}</td>
     <td class="mn">${r.thickness}mm</td>
-    <td class="mn" style="font-size:.7rem">${r.glass_type||''} ${r.color||''}${r.brand?' &bull; '+r.brand:''} ${r.origin?'('+r.origin+')':''}</td>
+    <td class="mn" style="font-size:.7rem">${r.glass_type||''} ${r.color||''}${r.family&&r.family!=='float'?' &bull; '+r.family:''}${r.pattern?'/'+r.pattern:''}${r.brand?' &bull; '+r.brand:''} ${r.origin?'('+r.origin+')':''}</td>
     <td class="mn">
       ${r.status==='available'
         ? `<button style="font-weight:700;color:${r.slot_code?'var(--a4)':'var(--mu)'};background:none;border:none;cursor:pointer;font-size:.75rem;padding:2px 4px" onclick="openAssignSlot(${r.id},'${r.uid}')">${r.slot_code||'+ Assign'}</button>`
         : `<span style="color:var(--mu)">${r.slot_code||'—'}</span>`}
     </td>
-    <td class="mn" style="font-size:.65rem;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.opt_file_name||r.notes||''}">${r.opt_file_name||r.notes||'—'}</td>
+    <td class="mn" style="font-size:.65rem;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.source==='manual'?('Manual'+(r.session_id?' - S#'+r.session_id:'')+(r.created_by?' by '+r.created_by:'')+' | '):'')+''}${r.opt_file_name||r.notes||''}">${r.opt_file_name||r.notes||'—'}</td>
+    <td class="mn" style="font-size:.7rem;color:var(--a4)">${r.session_id?('S#'+r.session_id):'&mdash;'}</td>
+    <td class="mn" style="font-size:.68rem;color:var(--tx2)">${r.created_by||'&mdash;'}</td>
     <td class="mn" style="color:var(--mu)">${(r.created_at||'').slice(0,10)}</td>
     <td class="mn" style="color:${r.used_at?'var(--tx2)':'var(--mu)'}">${r.used_at?(r.used_at||'').slice(0,10):'—'}</td>
     <td class="mn" style="color:${r.used_for_piece?'var(--a)':'var(--mu)'}">${r.used_for_piece||r.used_for_order||'—'}</td>
     <td class="mn"><span style="color:${statusColor[r.status]||'var(--tx)'}">${r.status}</span></td>
     <td style="white-space:nowrap">
       <button class="btn bs bsm" onclick="printRemnantLabel(${r.id})" title="Print 100x50mm label" data-i18n-title="Print 100x50mm label" style="margin-right:3px"><span data-i18n="Print Label">&#128438; Print Label</span></button>
+      <button class="btn bg bsm" onclick="openRemEdit(${r.id})" title="Edit remnant" data-i18n-title="Edit remnant" style="margin-right:3px">&#9998;</button>
       <button class="btn bg bsm" onclick="openRemHistory(${r.id},'${r.uid}')" title="View history" data-i18n-title="View history" style="margin-right:3px">&#128337; <span data-i18n="History">History</span></button>
       ${r.status==='available'?`
         <button class="btn ba bsm" onclick="openMarkRemnantUsed(${r.id},'${r.uid}')" data-i18n="Mark Used">Mark Used</button>
@@ -13192,6 +13250,23 @@ function populateRemFilters(){
   colorSel.innerHTML = '<option value="" data-i18n="All Colors">All Colors</option>' + colors.map(col=>`<option value="${col}">${col}</option>`).join('');
   slotSel.innerHTML  = '<option value="" data-i18n="All Slots">All Slots</option>' + remnantSlots.map(s=>`<option value="${s.id}">${s.code}${s.description?' — '+s.description:''}</option>`).join('');
   thickSel.value = curThick; colorSel.value = curColor; slotSel.value = curSlot;
+  const sessSel = document.getElementById('rem-filter-session');
+  if(sessSel){
+    const curSess = sessSel.value;
+    const sess = [...new Set(remnants.map(r=>r.session_id).filter(Boolean))].sort((a,b)=>b-a);
+    sessSel.innerHTML = '<option value="">All Sessions</option>' + sess.map(sid=>{
+      const n = remnants.filter(r=>r.session_id===sid).length;
+      return `<option value="${sid}">S#${sid} (${n})</option>`;
+    }).join('');
+    sessSel.value = curSess;
+  }
+  const userSel = document.getElementById('rem-filter-user');
+  if(userSel){
+    const curUser = userSel.value;
+    const users = [...new Set(remnants.map(r=>r.created_by).filter(Boolean))].sort();
+    userSel.innerHTML = '<option value="">All Users</option>' + users.map(u=>`<option value="${u}">${u}</option>`).join('');
+    userSel.value = curUser;
+  }
 }
 
 // ── Remnant Bulk Import ────────────────────────────────────────────────────
@@ -13288,6 +13363,16 @@ function openAddRemnantModal(prefill){
   document.getElementById('rem-notes').value = prefill?.notes||'';
   // Reset the raw-sheet picker
   _remRsClear();
+  if(!document.getElementById('rem-family')){
+    const _nb=document.getElementById('rem-notes');
+    const _wrap=_nb?(_nb.closest('.fg')||_nb.parentElement):null;
+    if(_wrap) _wrap.insertAdjacentHTML('beforebegin',
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+
+      '<div class="fg"><label class="lbl">Family</label><select id="rem-family" class="inp">'+
+      '<option value="float">Float</option><option value="patterned">Patterned</option><option value="tinted">Tinted</option><option value="reflective">Reflective</option><option value="antique">Antique</option></select></div>'+
+      '<div class="fg"><label class="lbl">Pattern</label><input id="rem-pattern" class="inp" placeholder="fluted / s201..."></div></div>');
+  }
+  if(document.getElementById('rem-family')){ document.getElementById('rem-family').value='float'; document.getElementById('rem-pattern').value=''; }
   // Search box value — prefilled if a sheet was passed in via prefill.raw_sheet_id
   document.getElementById('rem-rs-search').value = '';
   document.getElementById('rem-rs-results').style.display = 'none';
@@ -13398,6 +13483,53 @@ function _remRsClear(){
   document.getElementById('rem-rs-results').style.display = 'none';
 }
 
+let _editRemFullId = null;
+function openRemEdit(id){
+  const r = remnants.find(x=>x.id===id); if(!r){ alert('Remnant not found'); return; }
+  _editRemFullId = id;
+  document.getElementById('re-uid').textContent = r.uid||'';
+  document.getElementById('re-w').value = Math.round(r.w)||'';
+  document.getElementById('re-h').value = Math.round(r.h)||'';
+  document.getElementById('re-thick').value = r.thickness||'';
+  document.getElementById('re-gtype').value = r.glass_type||'glass';
+  document.getElementById('re-family').value = r.family||'float';
+  document.getElementById('re-color').value = (r.color!=null?r.color:'clear');
+  document.getElementById('re-pattern').value = r.pattern||'';
+  document.getElementById('re-status').value = r.status||'available';
+  document.getElementById('re-notes').value = r.notes||'';
+  // populate slot dropdown
+  const slotSel = document.getElementById('re-slot');
+  slotSel.innerHTML = '<option value="">- No slot -</option>' + (remnantSlots||[]).map(sl=>`<option value="${sl.id}"${String(r.slot_id)===String(sl.id)?' selected':''}>${sl.code}</option>`).join('');
+  OM('m-rem-edit');
+}
+async function saveRemEdit(){
+  if(!_editRemFullId) return;
+  const w = +document.getElementById('re-w').value;
+  const h = +document.getElementById('re-h').value;
+  const thickness = +document.getElementById('re-thick').value;
+  if(!w||!h){ alert('Width and height are required'); return; }
+  if(!thickness){ alert('Thickness is required'); return; }
+  const slotVal = document.getElementById('re-slot').value;
+  const slotObj = slotVal ? (remnantSlots||[]).find(sl=>String(sl.id)===String(slotVal)) : null;
+  const d = {
+    w, h, thickness,
+    glass_type: document.getElementById('re-gtype').value,
+    family: document.getElementById('re-family').value,
+    color: document.getElementById('re-color').value,
+    pattern: (document.getElementById('re-pattern').value||'').trim().toLowerCase(),
+    status: document.getElementById('re-status').value,
+    notes: document.getElementById('re-notes').value.trim(),
+    slot_id: slotVal?+slotVal:null,
+    slot_code: slotObj?slotObj.code:null
+  };
+  try{
+    await AGI.Remnants.update(_editRemFullId, d);
+    CM('m-rem-edit');
+    if(typeof showToast==='function') showToast('Remnant updated'); else if(typeof toast==='function') toast('Remnant updated');
+    renderRemnants();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
 async function saveRemnant(){
   // Required: width, height, and a chosen raw sheet (which provides
   // thickness/type/color/brand/origin)
@@ -13414,6 +13546,10 @@ async function saveRemnant(){
     origin:     document.getElementById('rem-origin').value || '',
     notes:      document.getElementById('rem-notes').value.trim()
   };
+  const _famEl=document.getElementById('rem-family'), _patEl=document.getElementById('rem-pattern');
+  if(_famEl) d.family=_famEl.value||'float';
+  if(_patEl) d.pattern=(_patEl.value||'').trim().toLowerCase()||null;
+  d.source='manual';
   // Pass the raw_sheet_id forward so the server records the source of this
   // remnant. The remnants schema already has raw_sheet_id + raw_sheet_label
   // columns from optimizations — we reuse them here for manual remnants too.
@@ -13530,10 +13666,14 @@ async function printRemnantLabel(id){
   qrText += 'REMNANT ID:' + r.uid + '\n';
   qrText += 'SIZE:' + r.w + 'x' + r.h + 'mm\n';
   qrText += 'THK:' + r.thickness + 'mm\n';
-  qrText += 'GLASS:' + typeStr + '/' + colorStr + '\n';
-  if(r.brand)  qrText += 'BRAND:' + r.brand + '\n';
-  if(r.origin) qrText += 'ORIGIN:' + r.origin + '\n';
-  if(rawCode)  qrText += 'SOURCE:' + rawCode + '\n';
+  const remPat=(r.pattern||'').trim();
+  const remPatStr=remPat?(/^s\d{3}$/i.test(remPat)?remPat.toUpperCase():remPat.charAt(0).toUpperCase()+remPat.slice(1)):'';
+  qrText += 'GLASS:' + typeStr + '/' + colorStr + (remPatStr?'/'+remPatStr:'') + '\n';
+  if(r.created_at) qrText += 'DATE:' + String(r.created_at).slice(0,10) + '\n';
+var _isAscii=function(v){ return v!=null && /^[\x00-\x7F]*$/.test(String(v)); };
+  if(r.brand && _isAscii(r.brand))  qrText += 'BRAND:' + r.brand + '\n';
+  if(r.origin && _isAscii(r.origin)) qrText += 'ORIGIN:' + r.origin + '\n';
+  if(rawCode && _isAscii(rawCode))  qrText += 'SOURCE:' + rawCode + '\n';
   if(r.slot_code) qrText += 'SLOT:' + r.slot_code + '\n';
   qrText += 'STATUS:' + (r.status || 'available').toUpperCase() + '\n';
   qrText += 'AGI GLASS';
@@ -13559,7 +13699,8 @@ async function printRemnantLabel(id){
       <div class="lbl-info">
         <div class="lbl-uid">${r.uid}<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span></div>
         <div class="lbl-size">&#9632; ${r.w} &times; ${r.h} mm</div>
-        <div class="lbl-glass">${r.thickness}mm ${typeStr} &bull; ${colorStr}</div>
+        <div class="lbl-glass">${r.thickness}mm ${typeStr} &bull; ${colorStr}${remPatStr?' &bull; '+remPatStr:''}</div>
+        ${r.slot_code?`<div style="font-size:1.4rem;font-weight:800;letter-spacing:.5px;color:#000;margin:3px 0;text-align:center">&#128205; ${r.slot_code}</div>`:''}
         <hr class="lbl-divider">
         <div class="lbl-procs">${[r.brand, r.origin].filter(Boolean).join(' &mdash; ') || '—'}</div>
         ${rawCode ? `<div class="lbl-rawcode">${rawCode}</div>` : ''}
@@ -13651,6 +13792,75 @@ async function printRemnantLabel(id){
   };
   // 300ms is plenty for QRCode.js to finish drawing into the canvas.
   setTimeout(proceed, 300);
+}
+
+// ---- R1: batch-print all labels of a session (one print run, N pages) ----
+async function remPrintSessionLabels(){
+  const sessSel = document.getElementById('rem-filter-session');
+  const sid = sessSel?.value;
+  if(!sid){ alert('Pick a session in the Sessions filter first.'); return; }
+  const all = await AGI.Remnants.list();
+  const rows = all.filter(r => String(r.session_id)===String(sid));
+  if(!rows.length){ alert('No remnants in session '+sid); return; }
+  if(!confirm('Print '+rows.length+' label(s) for session S#'+sid+'?')) return;
+  if(typeof QRCode === 'undefined'){ alert('QRCode library not loaded. Refresh and retry.'); return; }
+  const cap = t => t ? String(t).charAt(0).toUpperCase() + String(t).slice(1) : '';
+  let stage = document.getElementById('rem-print-stage');
+  if(!stage){ stage=document.createElement('div'); stage.id='rem-print-stage'; stage.style.cssText='position:fixed;left:-99999px;top:0;width:100mm'; document.body.appendChild(stage); }
+  stage.innerHTML='';
+  rows.forEach(r => {
+    const typeStr=cap(r.glass_type||'glass'), colorStr=cap(r.color||'clear');
+    const remPat=(r.pattern||'').trim();
+    const remPatStr=remPat?(/^s\d{3}$/i.test(remPat)?remPat.toUpperCase():remPat.charAt(0).toUpperCase()+remPat.slice(1)):'';
+    let rawCode=r.raw_sheet_label||'';
+    let qrText='REMNANT ID:'+r.uid+'\n'+'SIZE:'+r.w+'x'+r.h+'mm\n'+'THK:'+r.thickness+'mm\n'
+      +'GLASS:'+typeStr+'/'+colorStr+(remPatStr?'/'+remPatStr:'')+'\n'
+      +(r.created_at?('DATE:'+String(r.created_at).slice(0,10)+'\n'):'')
+      +((rawCode && /^[\x00-\x7F]*$/.test(String(rawCode)))?('SOURCE:'+rawCode+'\n'):'')+(r.slot_code?('SLOT:'+r.slot_code+'\n'):'')+'AGI GLASS';
+    const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
+    const logoBarHtml=logoSrc?`<div class="lbl-logo-bar"><img src="${logoSrc}" class="lbl-logo-img" style="max-width:100%;max-height:100%"></div>`:`<div class="lbl-logo-bar"><span class="lbl-logo-txt">AGI GLASS</span></div>`;
+    const card=document.createElement('div'); card.className='lcard lcard-piece';
+    const qid='qr-batch-'+r.uid.replace(/[^a-z0-9]/gi,'_');
+    card.innerHTML=`<div class="lbl-inner"><div class="lbl-qr">${logoBarHtml}<div id="${qid}"></div></div><div class="lbl-sep"></div><div class="lbl-info">`
+      +`<div class="lbl-uid">${r.uid}<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px">REM</span></div>`
+      +`<div class="lbl-size">&#9632; ${r.w} &times; ${r.h} mm</div>`
+      +`<div class="lbl-glass">${r.thickness}mm ${typeStr} &bull; ${colorStr}${remPatStr?' &bull; '+remPatStr:''}</div>`
+      +(r.slot_code?`<div style="font-size:1.4rem;font-weight:800;letter-spacing:.5px;color:#000;margin:3px 0;text-align:center">&#128205; ${r.slot_code}</div>`:'')
+      +`<hr class="lbl-divider">`
+      +`<div class="lbl-procs">${[r.brand,r.origin].filter(Boolean).join(' &mdash; ')||(String(r.created_at||'').slice(0,10))}</div>`
+      +`${rawCode?`<div class="lbl-rawcode">${rawCode}</div>`:''}`
+      +`</div></div>`;
+    stage.appendChild(card);
+    const qrEl=card.querySelector('#'+qid);
+    try{ new QRCode(qrEl,{text:qrText,width:152,height:152,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M}); }
+    catch(e){ try{ new QRCode(qrEl,{text:qrText,width:152,height:152,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.L}); }catch(e2){} }
+  });
+  setTimeout(()=>{
+    const old=document.getElementById('label-print-root'); if(old) old.remove();
+    const root=document.createElement('div'); root.id='label-print-root';
+    stage.querySelectorAll('.lcard').forEach(card=>{
+      const clone=card.cloneNode(true);
+      const oc=card.querySelectorAll('canvas'), cc=clone.querySelectorAll('canvas');
+      oc.forEach((o,i)=>{ const c=cc[i]; if(!c) return; try{ const img=document.createElement('img'); img.src=o.toDataURL('image/png'); img.style.cssText=o.style.cssText||'display:block;width:100%;height:100%;object-fit:contain'; img.width=o.width; img.height=o.height; c.parentNode.replaceChild(img,c); }catch(e){} });
+      clone.style.pageBreakAfter='always';
+      root.appendChild(clone);
+    });
+    let styleEl=document.getElementById('print-page-style');
+    if(!styleEl){ styleEl=document.createElement('style'); styleEl.id='print-page-style'; document.head.appendChild(styleEl); }
+    styleEl.textContent='@media print { @page { size: 100mm 50mm; margin: 0; } }';
+    document.body.appendChild(root);
+    document.body.classList.remove('print-opt','print-labels','print-pieces-only');
+    document.body.classList.add('print-via-root');
+    setTimeout(()=>{
+      window.print();
+      setTimeout(()=>{
+        document.body.classList.remove('print-via-root');
+        const rPR=document.getElementById('label-print-root'); if(rPR) rPR.remove();
+        if(stage) stage.remove();
+        styleEl.textContent='@page{size:A4 portrait;margin:5mm}';
+      },1500);
+    },250);
+  },400);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -22084,8 +22294,16 @@ function printOptPNG(){
   w.document.close();
 }
 
-function printMode(mode){
+async function printMode(mode){
   const isLabels = (mode === 'labels' || mode === 'pieces-only');
+  // Auto-save the optimization before printing labels: printing is proof the
+  // optimization is real, so it must be persisted (prevents label-print-without-save).
+  if(isLabels && typeof cutPieces!=='undefined' && cutPieces && cutPieces.length && !activeOptId){
+    try{
+      await saveOptFile(getDefaultOptName());
+      if(typeof toast==='function') toast('Optimization auto-saved before printing');
+    }catch(e){ console.warn('auto-save on print failed:',e.message); }
+  }
   // ═══════════════════════════════════════════════════════════════════
   // OPT MODE (cutting sheets) — unchanged: existing flow
   // ═══════════════════════════════════════════════════════════════════
@@ -22634,6 +22852,31 @@ function doLogout(){
     <div class="mf">
       <button class="btn" onclick="CM('m-finalproduct')" data-i18n="Cancel">Cancel</button>
       <button class="btn ba" onclick="saveFinalProd()" data-i18n="Save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Edit Remnant (admin edit-all) -->
+<div class="mbg" id="m-rem-edit" style="display:none">
+  <div class="mdl" style="max-width:520px">
+    <div class="mh"><span data-i18n="Edit Remnant">Edit Remnant</span> <span id="re-uid" style="font-family:monospace;color:var(--a);font-size:.8rem"></span><button class="mc" onclick="CM('m-rem-edit')">&#10005;</button></div>
+    <div class="mb">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label class="lbl">Width (mm) *</label><input type="number" id="re-w" class="inp"></div>
+        <div class="fg"><label class="lbl">Height (mm) *</label><input type="number" id="re-h" class="inp"></div>
+        <div class="fg"><label class="lbl">Thickness (mm) *</label><input type="number" step="0.5" id="re-thick" class="inp"></div>
+        <div class="fg"><label class="lbl">Type</label><select id="re-gtype" class="inp"><option value="glass">Glass</option><option value="mirror">Mirror</option><option value="lacobel">Lacobel</option><option value="laminated">Laminated</option><option value="tempered">Tempered</option></select></div>
+        <div class="fg"><label class="lbl">Family</label><select id="re-family" class="inp"><option value="float">Float</option><option value="patterned">Patterned</option><option value="tinted">Tinted</option><option value="reflective">Reflective</option><option value="antique">Antique</option></select></div>
+        <div class="fg"><label class="lbl">Color</label><select id="re-color" class="inp"><option value="clear">clear</option><option value="low-iron">low-iron</option><option value="bronze">bronze</option><option value="grey">grey</option><option value="green">green</option><option value="blue">blue</option><option value="black">black</option><option value="white">white</option><option value="silver">silver</option><option value="gold">gold</option><option value="other">other</option><option value="">(none)</option></select></div>
+        <div class="fg"><label class="lbl">Pattern</label><input type="text" id="re-pattern" class="inp" placeholder="fluted / s201... (blank = none)"></div>
+        <div class="fg"><label class="lbl">Slot</label><select id="re-slot" class="inp"><option value="">- No slot -</option></select></div>
+        <div class="fg"><label class="lbl">Status</label><select id="re-status" class="inp"><option value="available">available</option><option value="used">used</option><option value="discarded">discarded</option></select></div>
+      </div>
+      <div class="fg" style="margin-top:10px"><label class="lbl">Notes / Source</label><input type="text" id="re-notes" class="inp"></div>
+    </div>
+    <div class="mf">
+      <button class="btn bg" onclick="CM('m-rem-edit')" data-i18n="Cancel">Cancel</button>
+      <button class="btn bp" onclick="saveRemEdit()" data-i18n="Save Changes">Save Changes</button>
     </div>
   </div>
 </div>
@@ -23694,6 +23937,16 @@ function doLogout(){
   function ready(){ return document.getElementById('r4b-root') && tokf(); }
   var tries=0; (function boot(){ if(ready()){ buildSection(); return; } if(tries++<200) setTimeout(boot,300); })();
 })();
+
+
+// ---- Optimization safety: warn on unsaved cut session ----
+window.addEventListener('beforeunload', function(e){
+  var hasSession = (typeof cutPieces!=='undefined' && cutPieces && cutPieces.length>0);
+  if(hasSession && (_optDirty || !activeOptId)){
+    e.preventDefault(); e.returnValue='You have an unsaved optimization. Leave without saving?';
+    return e.returnValue;
+  }
+});
 
 </script>
 <!-- R6-OVERRIDES-UI END -->

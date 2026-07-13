@@ -91,8 +91,11 @@ router.post('/slots', requireAdmin, (req, res) => {
 router.put('/slots/:id', requireAdmin, (req, res) => {
   try {
     const { code, description, active } = req.body;
+    const _newCode = code?.trim().toUpperCase();
     db.prepare('UPDATE remnant_slots SET code=?,description=?,active=? WHERE id=?')
-      .run(code?.trim().toUpperCase(), description||'', active===false?0:1, +req.params.id);
+      .run(_newCode, description||'', active===false?0:1, +req.params.id);
+    // cascade slot rename to remnants' cached slot_code so they never go stale
+    if(_newCode) db.prepare('UPDATE remnants SET slot_code=? WHERE slot_id=?').run(_newCode, +req.params.id);
     res.json(db.prepare('SELECT * FROM remnant_slots WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -109,13 +112,16 @@ router.delete('/slots/:id', requireAdmin, (req, res) => {
 // ── REMNANTS ──────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   try {
-    const { status, thickness, color, slot_id } = req.query;
+    const { status, thickness, color, slot_id, family, source, session_id } = req.query;
     let sql = 'SELECT * FROM remnants WHERE 1=1';
     const p = [];
     if (status)    { sql += ' AND status=?';    p.push(status); }
     if (thickness) { sql += ' AND thickness=?'; p.push(+thickness); }
     if (color)     { sql += ' AND color=?';     p.push(color); }
     if (slot_id)   { sql += ' AND slot_id=?';   p.push(+slot_id); }
+    if (family)    { sql += ' AND family=?';    p.push(family); }
+    if (source)    { sql += ' AND source=?';    p.push(source); }
+    if (session_id){ sql += ' AND session_id=?';p.push(+session_id); }
     sql += ' ORDER BY created_at DESC';
     res.json(db.prepare(sql).all(...p));
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -141,37 +147,55 @@ router.get('/fit', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const { w, h, thickness, glass_type, color, brand, origin, opt_file_id, opt_file_name,
-            raw_sheet_id, raw_sheet_label, slot_id, slot_code, notes } = req.body;
+            raw_sheet_id, raw_sheet_label, slot_id, slot_code, notes,
+            family, pattern, source, session_id, parent_remnant_id, qty } = req.body;
     if (!w || !h || !thickness) return res.status(400).json({ error: 'w,h,thickness required' });
-    const uid = genUid(+thickness, color||'clear', brand||'', origin||'');
+    const n = Math.max(1, Math.min(50, +qty || 1));
+    const src = source || (opt_file_id ? 'optimization' : 'manual');
     const sqm = (w * h) / 1000000;
-    const r = db.prepare(`INSERT INTO remnants
-      (uid,w,h,thickness,glass_type,color,sqm,opt_file_id,opt_file_name,
-       raw_sheet_id,raw_sheet_label,brand,origin,slot_id,slot_code,notes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      uid, +w, +h, +thickness, glass_type||'glass', color||'clear', sqm,
-      opt_file_id||null, opt_file_name||null, raw_sheet_id||null, raw_sheet_label||null,
-      brand||null, origin||null, slot_id||null, slot_code||null, notes||''
-    );
-    // Log creation
-    db.prepare('INSERT INTO remnant_log (remnant_id,action,note,worker_id,worker_name) VALUES (?,?,?,?,?)')
-      .run(r.lastInsertRowid, 'created', 'From opt: '+(opt_file_name||'manual'), req.user.id, req.user.name);
-    res.status(201).json(db.prepare('SELECT * FROM remnants WHERE id=?').get(r.lastInsertRowid));
+    const created = [];
+    const tx = db.transaction(() => {
+      for (let i = 0; i < n; i++) {
+        const uid = genUid(+thickness, color||'clear', brand||'', origin||'');
+        const r = db.prepare(`INSERT INTO remnants
+          (uid,w,h,thickness,glass_type,color,sqm,opt_file_id,opt_file_name,
+           raw_sheet_id,raw_sheet_label,brand,origin,slot_id,slot_code,notes,
+           family,pattern,source,session_id,parent_remnant_id,created_by)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+          uid, +w, +h, +thickness, glass_type||'glass', color||'clear', sqm,
+          opt_file_id||null, opt_file_name||null, raw_sheet_id||null, raw_sheet_label||null,
+          brand||null, origin||null, slot_id||null, slot_code||null, notes||'',
+          (family||'float'), (pattern||null), src, session_id||null, parent_remnant_id||null,
+          req.user.name);
+        db.prepare('INSERT INTO remnant_log (remnant_id,action,note,worker_id,worker_name) VALUES (?,?,?,?,?)')
+          .run(r.lastInsertRowid, 'created', src==='optimization' ? ('From opt: '+(opt_file_name||'')) : 'Manual add', req.user.id, req.user.name);
+        created.push(db.prepare('SELECT * FROM remnants WHERE id=?').get(r.lastInsertRowid));
+        if (session_id) db.prepare('UPDATE remnant_sessions SET remnant_count=remnant_count+1 WHERE id=?').run(session_id);
+      }
+    });
+    tx();
+    res.status(201).json(n===1 ? created[0] : created);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 router.put('/:id', (req, res) => {
   try {
-    const { slot_id, slot_code, status, notes, w, h } = req.body;
+    const { slot_id, slot_code, status, notes, w, h, family, pattern, color, thickness } = req.body;
     const rem = db.prepare('SELECT * FROM remnants WHERE id=?').get(+req.params.id);
     if (!rem) return res.status(404).json({ error: 'Not found' });
     db.prepare(`UPDATE remnants SET slot_id=?,slot_code=?,status=?,notes=?,w=?,h=?,
-      sqm=? WHERE id=?`).run(
+      sqm=?,family=?,pattern=?,color=?,thickness=? WHERE id=?`).run(
       slot_id??rem.slot_id, slot_code??rem.slot_code,
       status??rem.status, notes??rem.notes,
       w??rem.w, h??rem.h, ((w??rem.w)*(h??rem.h))/1000000,
+      family??rem.family, pattern!==undefined?pattern:rem.pattern,
+      color??rem.color, thickness??rem.thickness,
       +req.params.id
     );
+    const changed=['slot_id','slot_code','status','notes','w','h','family','pattern','color','thickness']
+      .filter(k=>req.body[k]!==undefined && String(req.body[k])!==String(rem[k]));
+    if (changed.length) db.prepare('INSERT INTO remnant_log (remnant_id,action,note,worker_id,worker_name) VALUES (?,?,?,?,?)')
+      .run(+req.params.id, 'edited', 'Changed: '+changed.join(','), req.user.id, req.user.name);
     res.json(db.prepare('SELECT * FROM remnants WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -192,9 +216,10 @@ router.post('/:id/use', (req, res) => {
 });
 
 // DELETE /:id (discard)
-router.delete('/:id', requireAdmin, (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
-    db.prepare("UPDATE remnants SET status='discarded' WHERE id=?").run(+req.params.id);
+    db.prepare("UPDATE remnants SET status='discarded', discarded_at=datetime('now','localtime'), discarded_by=? WHERE id=?")
+      .run(req.user.name, +req.params.id);
     db.prepare('INSERT INTO remnant_log (remnant_id,action,worker_id,worker_name) VALUES (?,?,?,?)')
       .run(+req.params.id, 'discarded', req.user.id, req.user.name);
     res.json({ ok: true });
@@ -270,6 +295,113 @@ router.get('/log/workers', (req, res) => {
 router.get('/:id/log', (req, res) => {
   try {
     res.json(db.prepare('SELECT * FROM remnant_log WHERE remnant_id=? ORDER BY ts').all(+req.params.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ?? R1: sessions, consume, move, open-orders-fit ??????????????????????????
+router.post('/sessions', (req, res) => {
+  try {
+    const { thickness, glass_type, family, color, pattern, raw_sheet_id, raw_sheet_label, slot_id, slot_code } = req.body;
+    if (!thickness) return res.status(400).json({ error: 'thickness required' });
+    const r = db.prepare(`INSERT INTO remnant_sessions
+      (worker_id, worker_name, thickness, glass_type, family, color, pattern, raw_sheet_id, raw_sheet_label, slot_id, slot_code)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+      req.user.id, req.user.name, +thickness, glass_type||'glass', family||'float', color||'clear',
+      pattern||null, raw_sheet_id||null, raw_sheet_label||null, slot_id||null, slot_code||null);
+    res.status(201).json(db.prepare('SELECT * FROM remnant_sessions WHERE id=?').get(r.lastInsertRowid));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/sessions', (req, res) => {
+  try { res.json(db.prepare('SELECT * FROM remnant_sessions ORDER BY id DESC LIMIT 100').all()); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/sessions/:id/end', (req, res) => {
+  try {
+    db.prepare("UPDATE remnant_sessions SET ended_at=datetime('now','localtime') WHERE id=?").run(+req.params.id);
+    res.json(db.prepare('SELECT * FROM remnant_sessions WHERE id=?').get(+req.params.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// consume: mark used for one-or-many pieces; optionally create child remnants
+router.post('/:id/consume', (req, res) => {
+  try {
+    const remId = +req.params.id;
+    const rem = db.prepare('SELECT * FROM remnants WHERE id=?').get(remId);
+    if (!rem) return res.status(404).json({ error: 'Not found' });
+    if (rem.status !== 'available') return res.status(400).json({ error: 'Remnant is '+rem.status });
+    const pieces = Array.isArray(req.body.pieces) ? req.body.pieces : [];
+    const children = Array.isArray(req.body.children) ? req.body.children : (req.body.child ? [req.body.child] : []);
+    if (!pieces.length) return res.status(400).json({ error: 'pieces[] required' });
+    const createdChildren = [];
+    const tx = db.transaction(() => {
+      db.prepare(`UPDATE remnants SET status='used', used_at=datetime('now','localtime'),
+        used_for_order=?, used_for_piece=?, used_by_worker=? WHERE id=?`)
+        .run(pieces[0].order_num||null, pieces.map(p=>p.piece_uid).filter(Boolean).join(', ').slice(0,200), req.user.name, remId);
+      pieces.forEach(p => {
+        db.prepare(`INSERT INTO remnant_log (remnant_id,action,order_id,order_num,piece_uid,worker_id,worker_name)
+          VALUES (?,?,?,?,?,?,?)`)
+          .run(remId, 'consume', p.order_id||null, p.order_num||null, p.piece_uid||null, req.user.id, req.user.name);
+      });
+      children.forEach(c => {
+        if (!c || !c.w || !c.h) return;
+        const uid = genUid(+rem.thickness, rem.color||'clear', rem.brand||'', rem.origin||'');
+        const csqm = (c.w * c.h) / 1000000;
+        const r = db.prepare(`INSERT INTO remnants
+          (uid,w,h,thickness,glass_type,color,sqm,raw_sheet_id,raw_sheet_label,brand,origin,
+           slot_id,slot_code,notes,family,pattern,source,parent_remnant_id,created_by)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+          uid, +c.w, +c.h, rem.thickness, rem.glass_type, rem.color, csqm,
+          rem.raw_sheet_id, rem.raw_sheet_label, rem.brand, rem.origin,
+          c.slot_id||rem.slot_id||null, c.slot_code||rem.slot_code||null,
+          'Child of '+rem.uid, rem.family||'float', rem.pattern||null, 'manual', remId, req.user.name);
+        db.prepare('INSERT INTO remnant_log (remnant_id,action,note,worker_id,worker_name) VALUES (?,?,?,?,?)')
+          .run(r.lastInsertRowid, 'created', 'Child of '+rem.uid, req.user.id, req.user.name);
+        createdChildren.push(db.prepare('SELECT * FROM remnants WHERE id=?').get(r.lastInsertRowid));
+      });
+    });
+    tx();
+    res.json({ ok:true, consumed: pieces.length, children: createdChildren });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/:id/move', (req, res) => {
+  try {
+    const rem = db.prepare('SELECT * FROM remnants WHERE id=?').get(+req.params.id);
+    if (!rem) return res.status(404).json({ error: 'Not found' });
+    const { slot_id, slot_code } = req.body;
+    db.prepare('UPDATE remnants SET slot_id=?, slot_code=? WHERE id=?').run(slot_id||null, slot_code||null, +req.params.id);
+    db.prepare('INSERT INTO remnant_log (remnant_id,action,note,worker_id,worker_name) VALUES (?,?,?,?,?)')
+      .run(+req.params.id, 'moved', 'From '+(rem.slot_code||'-')+' to '+(slot_code||'-'), req.user.id, req.user.name);
+    res.json(db.prepare('SELECT * FROM remnants WHERE id=?').get(+req.params.id));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// open orders with pieces matching this remnant's identity AND fitting its dimensions
+router.get('/open-orders-fit', (req, res) => {
+  try {
+    const rem = db.prepare('SELECT * FROM remnants WHERE id=?').get(+req.query.remnant_id);
+    if (!rem) return res.status(404).json({ error: 'Remnant not found' });
+    const rf = String(rem.family||'float').toLowerCase(), rp = String(rem.pattern||'').toLowerCase();
+    const RW = rem.w, RH = rem.h;
+    const orders = db.prepare(`SELECT id, num, customer_id, status, date FROM orders
+      WHERE status NOT IN ('done','cancelled') ORDER BY id DESC`).all();
+    const out = [];
+    orders.forEach(o => {
+      const items = db.prepare(`SELECT id, code, w, h, qty, thickness, glass_type, color, family, pattern, piece_uids
+        FROM order_items WHERE order_id=?`).all(o.id);
+      const fit = items.filter(it =>
+        Number(it.thickness) === Number(rem.thickness) &&
+        String(it.glass_type||'glass').toLowerCase() === String(rem.glass_type||'glass').toLowerCase() &&
+        String(it.family||'float').toLowerCase() === rf &&
+        String(it.pattern||'').toLowerCase() === rp &&
+        ((it.w <= RW && it.h <= RH) || (it.h <= RW && it.w <= RH))
+      ).map(it => { let u=[]; try{ u=JSON.parse(it.piece_uids||'[]'); }catch(e){} return Object.assign({}, it, { piece_uids: u }); });
+      if (fit.length) out.push({ order_id:o.id, order_num:o.num, customer_id:o.customer_id, status:o.status, date:o.date, items: fit });
+    });
+    res.json({ remnant: rem, orders: out });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
