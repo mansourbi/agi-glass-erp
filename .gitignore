@@ -27,3 +27,5 @@ public/patch_label_*.js
 
 # Local DB checkpoints (binary snapshots — never commit)
 _checkpoints/
+
+print-agent-token.txt

@@ -88,6 +88,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="/qrcode.min.js"></script>
+<script src="/html2canvas.min.js"></script>
 <script src="/agi-api.js?v=2"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -13209,7 +13210,7 @@ async function renderRemnants(){
     <td class="mn" style="color:${r.used_for_piece?'var(--a)':'var(--mu)'}">${r.used_for_piece||r.used_for_order||'—'}</td>
     <td class="mn"><span style="color:${statusColor[r.status]||'var(--tx)'}">${r.status}</span></td>
     <td style="white-space:nowrap">
-      <button class="btn bs bsm" onclick="printRemnantLabel(${r.id})" title="Print 100x50mm label" data-i18n-title="Print 100x50mm label" style="margin-right:3px"><span data-i18n="Print Label">&#128438; Print Label</span></button>
+      <button class="btn bs bsm" onclick="printRemnantLabel(${r.id})" title="Print 100x50mm label" data-i18n-title="Print 100x50mm label" style="margin-right:3px"><span data-i18n="Print Label">&#128438; Print Label</span></button><button class="btn bs bsm" onclick="printRemnantNetwork(${r.id})" title="Print via network printer (no browser)" style="margin-right:3px">&#128424; Print (net)</button>
       <button class="btn bg bsm" onclick="openRemEdit(${r.id})" title="Edit remnant" data-i18n-title="Edit remnant" style="margin-right:3px">&#9998;</button>
       <button class="btn bg bsm" onclick="openRemHistory(${r.id},'${r.uid}')" title="View history" data-i18n-title="View history" style="margin-right:3px">&#128337; <span data-i18n="History">History</span></button>
       ${r.status==='available'?`
@@ -13644,7 +13645,12 @@ async function discardRemnant(id){
 //   4. Wait for the QR queue to drain
 //   5. Move the card into a temporary #label-print-root, set the
 //      print-via-root body class, call window.print(), then clean up
-async function printRemnantLabel(id){
+AGI.Print = {
+  async remnant(id){ const r=await fetch('/api/print/remnant/'+id,{method:'POST',headers:{'Authorization':'Bearer '+AGI.getToken()}}); if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error||r.status); return r.json(); },
+  async remnants(ids){ const r=await fetch('/api/print/remnants',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+AGI.getToken()},body:JSON.stringify({ids})}); if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error||r.status); return r.json(); }
+};
+async function printRemnantNetwork(id){ return printRemnantLabel(id, 'network'); }
+async function printRemnantLabel(id, mode){
   const all = await AGI.Remnants.list();
   const r = all.find(x => x.id === id);
   if(!r){ alert('Remnant not found.'); return; }
@@ -13791,7 +13797,38 @@ var _isAscii=function(v){ return v!=null && /^[\x00-\x7F]*$/.test(String(v)); };
     }, 200);
   };
   // 300ms is plenty for QRCode.js to finish drawing into the canvas.
-  setTimeout(proceed, 300);
+  if(mode === 'network'){
+    setTimeout(async () => {
+      let rootCap=null;
+      try{
+        // Same DOM setup as proceed(): clone card, swap QR canvas->img, mount in #label-print-root so the 100x50mm CSS applies.
+        const oldR=document.getElementById('label-print-root'); if(oldR) oldR.remove();
+        rootCap=document.createElement('div'); rootCap.id='label-print-root';
+        const clone=card.cloneNode(true);
+        const oc=card.querySelectorAll('canvas'), cc=clone.querySelectorAll('canvas');
+        oc.forEach((o, i)=>{ const c=cc[i]; if(!c) return; try{ const p=o.toDataURL('image/png'); const im=document.createElement('img'); im.src=p; im.style.cssText=o.style.cssText||'display:block;width:100%;height:100%;object-fit:contain'; im.width=o.width; im.height=o.height; c.parentNode.replaceChild(im, c); }catch(e){} });
+        rootCap.appendChild(clone);
+        // mount off-screen but RENDERED (not display:none) so html2canvas sees real geometry
+        rootCap.style.cssText='position:fixed;left:-99999px;top:0;background:#fff';
+        document.body.appendChild(rootCap);
+        await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+        await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+        await new Promise(r=>setTimeout(r,250));
+        const tgt=rootCap.firstChild;
+        const scale=800/(tgt.offsetWidth||378);
+        const canvas=await html2canvas(tgt, { backgroundColor:'#ffffff', scale:scale, width:tgt.offsetWidth, height:tgt.offsetHeight, windowWidth:tgt.offsetWidth, windowHeight:tgt.offsetHeight, logging:false });
+        const png=canvas.toDataURL('image/png');
+        const res=await fetch('/api/print/image',{method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+AGI.getToken()}, body:JSON.stringify({png_base64:png, label_type:'remnant', ref:String(id)})});
+        if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error||res.status);
+        const j=await res.json();
+        showToast('Sent to printer (job #'+j.job_id+')');
+      }catch(e){ alert('Network print failed: '+e.message); }
+      finally{ if(rootCap) rootCap.remove(); if(stage) stage.remove(); }
+    }, 300);
+  } else {
+
+    setTimeout(proceed, 300);
+  }
 }
 
 // ---- R1: batch-print all labels of a session (one print run, N pages) ----
