@@ -2728,27 +2728,41 @@ function remDiscard(id){
 
 function remCamStart(cb){
   var v=document.getElementById('rem-video'); if(!v) return;
-  loadJsQR().then(function(){
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(st){
-      _remCam=st; v.srcObject=st; v.setAttribute('playsinline',''); v.play();
-      var c=document.createElement('canvas'); var g=c.getContext('2d');
-      function tick(){
+  function onHit(data){
+    var m=data.match(/REMNANT\s*ID[:\s]+([^\n\r]+)/i);
+    if(m){ remStopCamera(); if(typeof vibrate==='function') vibrate([30]); cb(m[1].trim()); return true; }
+    return false;
+  }
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(st){
+    _remCam=st; v.srcObject=st; v.setAttribute('playsinline',''); v.play();
+    if('BarcodeDetector' in window){
+      var detector=new BarcodeDetector({formats:['qr_code']});
+      function tickBD(){
         if(!_remCam) return;
-        if(v.readyState===v.HAVE_ENOUGH_DATA){
-          c.width=v.videoWidth; c.height=v.videoHeight;
-          g.drawImage(v,0,0,c.width,c.height);
-          var idt=g.getImageData(0,0,c.width,c.height);
-          var code=window.jsQR&&window.jsQR(idt.data,c.width,c.height);
-          if(code&&code.data){
-            var m=code.data.match(/REMNANT\s*ID[:\s]+([^\n\r]+)/i);
-            if(m){ remStopCamera(); if(typeof vibrate==='function') vibrate([30]); cb(m[1].trim()); return; }
-          }
-        }
-        requestAnimationFrame(tick);
+        detector.detect(v).then(function(codes){
+          for(var i=0;i<codes.length;i++){ if(onHit(codes[i].rawValue)) return; }
+          requestAnimationFrame(tickBD);
+        }).catch(function(){ requestAnimationFrame(tickBD); });
       }
-      requestAnimationFrame(tick);
-    }).catch(function(e){ var st2=document.getElementById('rem-scan-status'); if(st2) st2.textContent='Camera error: '+e.message; });
-  });
+      requestAnimationFrame(tickBD);
+    } else {
+      loadJsQR().then(function(){
+        var c=document.createElement('canvas'); var g=c.getContext('2d');
+        function tickJS(){
+          if(!_remCam) return;
+          if(v.readyState===v.HAVE_ENOUGH_DATA){
+            c.width=v.videoWidth; c.height=v.videoHeight;
+            g.drawImage(v,0,0,c.width,c.height);
+            var idt=g.getImageData(0,0,c.width,c.height);
+            var code=window.jsQR&&window.jsQR(idt.data,c.width,c.height);
+            if(code&&code.data&&onHit(code.data)) return;
+          }
+          requestAnimationFrame(tickJS);
+        }
+        requestAnimationFrame(tickJS);
+      }).catch(function(e){ var st2=document.getElementById('rem-scan-status'); if(st2) st2.textContent='Scanner load failed: '+e.message; });
+    }
+  }).catch(function(e){ var st2=document.getElementById('rem-scan-status'); if(st2) st2.textContent='Camera error: '+e.message; });
 }
 function remStopCamera(){ if(_remCam){ _remCam.getTracks().forEach(function(t){t.stop();}); _remCam=null; } }
 function remScannerHtml(hint){

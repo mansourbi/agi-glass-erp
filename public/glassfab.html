@@ -1273,7 +1273,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
         <button class="btn bg bsm" onclick="exportTableCSV('labels')" style="font-size:.65rem">&#11015; <span data-i18n="CSV">CSV</span></button>
         <button class="btn bg bsm" onclick="exportTableCSV('labels-excel')" style="font-size:.65rem">&#11015; <span data-i18n="Excel">Excel</span></button>
         <button class="btn bp bsm" onclick="printMode('labels')">&#128438; <span data-i18n="Print Labels">Print Labels</span></button>
-        <button class="btn ba bsm" onclick="printMode('pieces-only')" title="Prints only piece labels — no remnants, no sheet titles">&#128438; <span data-i18n="Print Pieces Only">Print Pieces Only</span></button>
+        <button class="btn ba bsm" onclick="printMode('pieces-only')" title="Prints only piece labels — no remnants, no sheet titles">&#128438; <span data-i18n="Print Pieces Only">Print Pieces Only</span></button><button class="btn ba bsm" onclick="printPiecesNetwork()" title="Send all shown piece labels to the network printer" style="margin-left:3px">&#128424; Pieces (net)</button>
       </div>
     </div>
     <div id="cut-lbl-grid" class="lg"></div>
@@ -1631,7 +1631,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <option value="">All Sessions</option>
         </select>
         <button class="btn bg bsm" onclick="exportRemnantsCSV()" title="Export the filtered table to CSV" data-i18n-title="Export table to CSV" style="font-size:.72rem">&#11123; <span data-i18n="Export">Export</span></button>
-        <button class="btn bs bsm" onclick="remPrintSessionLabels()" title="Print all labels of the selected session" style="font-size:.72rem">&#128424; Print Session Labels</button>
+        <button class="btn bs bsm" onclick="remPrintSessionLabels()" title="Print all labels of the selected session" style="font-size:.72rem">&#128424; Print Session Labels</button><button class="btn bs bsm" onclick="remPrintSessionNetwork()" title="Send all session remnant labels to the network printer" style="font-size:.72rem;margin-left:3px">&#128424; Session (net)</button>
         <span id="rem-count" style="font-size:.68rem;color:var(--mu);margin-left:auto"></span>
       </div>
     </div>
@@ -11162,7 +11162,7 @@ function renderCutLabels(){
   }
 
   // Remnant plate cards at the end
-  const remForOpt=remnants.filter(r=>r.status==='available'&&r.opt_file_id===activeOptId);
+  const remForOpt=remnants.filter(r=>r.status==='available'&&activeOptId&&r.opt_file_id===activeOptId);
   if(remForOpt.length){
     const remnantWrap=document.createElement('div');
     remnantWrap.className='lbl-sheet-group lbl-sheet-group-remnant';
@@ -11237,7 +11237,7 @@ function renderCutLabels(){
   // These are the leftover pieces from cutting. Worker prints label, sticks on
   // the remnant plate and stores it in the assigned slot.
   const storeRems = remnants.filter(r =>
-    r.opt_file_id === activeOptId && r.status === 'available'
+    activeOptId && r.opt_file_id === activeOptId && r.status === 'available'
   );
   if(storeRems.length){
     const storeWrap = document.createElement('div');
@@ -13649,6 +13649,40 @@ AGI.Print = {
   async remnant(id){ const r=await fetch('/api/print/remnant/'+id,{method:'POST',headers:{'Authorization':'Bearer '+AGI.getToken()}}); if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error||r.status); return r.json(); },
   async remnants(ids){ const r=await fetch('/api/print/remnants',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+AGI.getToken()},body:JSON.stringify({ids})}); if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error||r.status); return r.json(); }
 };
+AGI.Print.html = async function(cardEl, label_type, ref){
+  const clone = cardEl.cloneNode(true);
+  const ocs = cardEl.querySelectorAll('canvas'), ccs = clone.querySelectorAll('canvas');
+  ocs.forEach((oc,i)=>{ const cc=ccs[i]; if(!cc) return; try{ const img=document.createElement('img'); img.src=oc.toDataURL('image/png'); img.style.cssText=oc.style.cssText||''; img.width=oc.width; img.height=oc.height; cc.parentNode.replaceChild(img,cc); }catch(e){} });
+  const html = clone.outerHTML;
+  const r = await fetch('/api/print/html',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+AGI.getToken()},body:JSON.stringify({html, label_type, ref})});
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error||r.status);
+  return r.json();
+};
+async function remPrintSessionNetwork(){
+  // Print exactly what the filtered table shows: read the rendered rows' Print(net) ids.
+  const tbody = document.getElementById('rem-body');
+  const ids = tbody ? [...tbody.querySelectorAll('button[onclick^="printRemnantNetwork("]')]
+    .map(b => { const m = (b.getAttribute('onclick')||'').match(/printRemnantNetwork\((\d+)\)/); return m?+m[1]:null; })
+    .filter(x => x!=null) : [];
+  if(!ids.length){ alert('No remnants shown. Adjust the filters so the labels you want are visible.'); return; }
+  if(!confirm('Send '+ids.length+' remnant label(s) (current filter) to the network printer?')) return;
+  let ok=0;
+  for(const id of ids){
+    try{ await AGI.Print.remnant(id); ok++; }catch(e){ console.warn('session remnant', id, e); }
+  }
+  showToast('Sent '+ok+'/'+ids.length+' remnant label(s) to printer');
+}
+async function printPiecesNetwork(){
+  const cards = [...document.querySelectorAll('#cut-lbl-grid .lcard-piece:not(.lcard-remnant)')];
+  if(!cards.length){ alert('No piece labels shown. Open an optimization and view its labels first.'); return; }
+  if(!confirm('Send '+cards.length+' piece label(s) to the network printer?')) return;
+  let ok=0;
+  for(const card of cards){
+    const uid = (card.querySelector('.lbl-uid')?.textContent||'').trim();
+    try{ await AGI.Print.html(card, 'piece', uid); ok++; }catch(e){ console.warn('piece print', uid, e); }
+  }
+  showToast('Sent '+ok+'/'+cards.length+' piece label(s) to printer');
+}
 async function printRemnantNetwork(id){ return printRemnantLabel(id, 'network'); }
 async function printRemnantLabel(id, mode){
   const all = await AGI.Remnants.list();

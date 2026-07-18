@@ -56,10 +56,10 @@ html,body{margin:0;padding:0;background:#fff;width:100mm;height:50mm;overflow:hi
 #label-print-root .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100mm;height:50mm;padding:0;margin:0;box-sizing:border-box}
 #label-print-root .lbl-qr{width:38mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0;margin:0;box-sizing:border-box}
 #label-print-root .lbl-logo-bar{order:0;width:38mm;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:1mm 0 0 0;margin:0 0 3mm 0}
-#label-print-root .lbl-logo-img{width:10mm;height:10mm;max-width:10mm;max-height:10mm;object-fit:contain;display:block}
+#label-print-root .lbl-logo-img{width:10mm!important;height:10mm!important;max-width:10mm!important;max-height:10mm!important;object-fit:contain;display:block}
 #label-print-root .lbl-logo-txt{font-family:'Cairo','DM Mono',Courier,monospace;font-size:9pt;font-weight:700;color:#111;letter-spacing:0.5mm}
 #label-print-root .lbl-qr-wrap{order:1;flex:1;width:38mm;display:flex;align-items:center;justify-content:center;padding:0 0 1.5mm 0;margin:0}
-#label-print-root .lbl-qr canvas,#label-print-root .lbl-qr img{display:block;width:32mm;height:32mm}
+#label-print-root .lbl-qr canvas,#label-print-root .lbl-qr img{display:block;width:32mm!important;height:32mm!important}
 #label-print-root .lbl-sep{width:0.3mm;background:#ccc;flex-shrink:0;margin:0}
 #label-print-root .lbl-info{flex:1;display:flex;flex-direction:column;justify-content:center;overflow:hidden;min-width:0;gap:0.2mm;line-height:1.1;padding:1mm 2mm;box-sizing:border-box;width:0}
 #label-print-root .lbl-uid{font-family:'Cairo','DM Mono',Courier,monospace;font-size:11.5pt;font-weight:700;background:#111;color:#fff;padding:0.8mm 1.5mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center}
@@ -102,6 +102,43 @@ html,body{margin:0;padding:0;background:#fff;width:100mm;height:50mm;overflow:hi
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   }catch(e){ res.status(500).send('error: ' + e.message); }
+});
+
+
+// serve a browser-rendered finished label (stored in print_jobs.tspl) wrapped in the same 100x50mm CSS shell
+const LABEL_CSS = `
+@page { size: 100mm 50mm; margin: 0; }
+html,body{margin:0;padding:0;background:#fff;width:100mm;height:50mm;overflow:hidden}
+#label-print-root{width:100mm;height:50mm;overflow:hidden}
+#label-print-root .lcard{width:100mm;height:50mm;overflow:hidden;padding:2mm;box-sizing:border-box}
+#label-print-root .lbl-inner{display:flex;flex-direction:row;align-items:stretch;width:100mm;height:50mm;padding:0;margin:0;box-sizing:border-box}
+#label-print-root .lbl-qr{width:38mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0;margin:0;box-sizing:border-box}
+#label-print-root .lbl-logo-bar{order:0;width:38mm;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:1mm 0 0 0;margin:0 0 3mm 0}
+#label-print-root .lbl-logo-img{width:10mm!important;height:10mm!important;max-width:10mm!important;max-height:10mm!important;object-fit:contain;display:block}
+#label-print-root .lbl-logo-txt{font-family:'Cairo','DM Mono',Courier,monospace;font-size:9pt;font-weight:700;color:#111;letter-spacing:0.5mm}
+#label-print-root .lbl-qr-wrap{order:1;flex:1;width:38mm;display:flex;align-items:center;justify-content:center;padding:0 0 1.5mm 0;margin:0}
+#label-print-root .lbl-qr canvas,#label-print-root .lbl-qr img{display:block;width:32mm!important;height:32mm!important}
+#label-print-root .lbl-sep{width:0.3mm;background:#ccc;flex-shrink:0;margin:0}
+#label-print-root .lbl-info{flex:1;display:flex;flex-direction:column;justify-content:center;overflow:hidden;min-width:0;gap:0.2mm;line-height:1.1;padding:1mm 2mm;box-sizing:border-box;width:0}
+#label-print-root .lbl-uid{font-family:'Cairo','DM Mono',Courier,monospace;font-size:11.5pt;font-weight:700;background:#111;color:#fff;padding:0.8mm 1.5mm;border-radius:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center}
+#label-print-root .lbl-size{font-family:'Cairo','DM Mono',Courier,monospace;font-size:13pt;font-weight:700;color:#111;text-align:center;display:block}
+#label-print-root .lbl-glass{font-family:'Cairo','DM Mono',Courier,monospace;font-size:10.5pt;font-weight:600;color:#111;text-align:center;display:block}
+#label-print-root .lbl-rawcode{font-family:'Cairo','DM Mono',Courier,monospace;font-size:8.5pt;background:#f0f0f0;border:0.2mm solid #ddd;border-radius:0.5mm;padding:0.3mm 1mm;color:#555;display:block;text-align:center}
+#label-print-root .lbl-divider{border:none;border-top:0.2mm solid #eee;margin:0}
+#label-print-root .lbl-procs{font-family:'Cairo','DM Sans',Arial,sans-serif;font-size:10pt;font-weight:600;color:#111;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#label-print-root .lbl-ext{font-weight:700}
+#label-print-root .lbl-desc{font-family:'Cairo','DM Sans',Arial,sans-serif;font-size:10pt;font-weight:600;color:#111;text-align:center;overflow:hidden}
+`;
+
+router.get('/job/:id', (req,res)=>{
+  try{
+    const j = db.prepare("SELECT tspl FROM print_jobs WHERE id=?").get(req.params.id);
+    if(!j) return res.status(404).send('job not found');
+    const inner = j.tspl || '';
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + LABEL_CSS + '</style></head><body><div id="label-print-root">' + inner + '</div></body></html>';
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  }catch(e){ res.status(500).send('err: '+e.message); }
 });
 
 module.exports = router;

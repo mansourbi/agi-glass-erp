@@ -168,4 +168,16 @@ router.post('/image', requireAuth, (req,res)=>{
   }catch(e){ res.status(500).json({error:e.message}); }
 });
 
+
+// ===== HTML (browser-rendered finished label) =====
+router.post('/html', requireAuth, (req,res)=>{
+  try{
+    const { html, label_type, ref } = req.body;
+    if(!html || typeof html !== 'string') return res.status(400).json({error:'html required'});
+    // store the finished HTML in the tspl column (it is just text); agent fetches /print-label/job/:id
+    const id = enqueue(label_type||'html', ref||null, html, req.user.name);
+    res.json({ ok:true, job_id:id });
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+
 module.exports = router;

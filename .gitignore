@@ -29,3 +29,5 @@ public/patch_label_*.js
 _checkpoints/
 
 print-agent-token.txt
+
+*.bak404
