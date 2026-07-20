@@ -1178,14 +1178,14 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <div class="plist" id="cut-piece-list"></div>
           <div class="dvd"></div>
           <!-- Manual add row -->
-          <div style="font-family:'Cairo','DM Mono',monospace;font-size:.62rem;color:var(--mu);letter-spacing:1px;margin-bottom:6px">MANUAL ADD</div>
-          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:5px;margin-bottom:6px">
+          <div style="display:none;font-family:'Cairo','DM Mono',monospace;font-size:.62rem;color:var(--mu);letter-spacing:1px;margin-bottom:6px">MANUAL ADD</div>
+          <div style="display:none;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:5px;margin-bottom:6px">
             <input type="text" id="pc" placeholder="Code" data-i18n-placeholder="Code" style="font-size:.75rem;text-transform:uppercase">
             <input type="number" id="pw" placeholder="W" min="1" style="font-size:.75rem">
             <input type="number" id="ph" placeholder="H" min="1" style="font-size:.75rem">
             <input type="number" id="pq" placeholder="Qty" data-i18n-placeholder="Qty" min="1" value="1" style="font-size:.75rem">
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div style="display:none;grid-template-columns:1fr 1fr;gap:6px">
             <button class="btn bg bsm" style="width:100%" onclick="addCutPiece()">+ Add Piece</button>
             <label class="btn bg bsm" for="cut-xl" style="width:100%;justify-content:center;cursor:pointer">&#128194; Excel</label>
             <input type="file" id="cut-xl" accept=".xlsx,.xls,.csv" onchange="importCutExcel(this)" style="display:none">
@@ -1206,17 +1206,17 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 
       <!-- Optimization Strategy -->
       <div class="card" style="margin-bottom:8px">
-        <div class="ch"><span class="ct" style="color:var(--a)">&#9881; <span data-i18n="Optimization Strategy">Optimization Strategy</span></span></div>
+        <div class="ch"><span class="ct" style="color:var(--a)">&#9881; <span data-i18n="Cut Settings">Cut Settings</span></span></div>
         <div class="cb" style="display:flex;flex-direction:column;gap:8px">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
+          <div style="display:none;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
             <button id="opt-strat-efficiency" class="btn bp bsm on" onclick="setOptStrategy('efficiency')" style="font-size:.65rem;padding:6px 4px">&#9889; <span data-i18n="Max Efficiency">Max Efficiency</span></button>
             <button id="opt-strat-balanced" class="btn bg bsm" onclick="setOptStrategy('balanced')" style="font-size:.65rem;padding:6px 4px">&#9878; <span data-i18n="Balanced">Balanced</span></button>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+          <div style="display:none;grid-template-columns:1fr 1fr;gap:5px">
             <button id="opt-strat-remnant" class="btn bg bsm" onclick="setOptStrategy('remnant')" style="font-size:.65rem;padding:6px 4px">&#8594; <span data-i18n="Preserve Width">Preserve Width</span></button>
             <button id="opt-strat-remnant-len" class="btn bg bsm" onclick="setOptStrategy('remnant-len')" style="font-size:.65rem;padding:6px 4px">&#8595; <span data-i18n="Preserve Length">Preserve Length</span></button>
           </div>
-          <div style="font-family:'Cairo','DM Mono',monospace;font-size:.6rem;color:var(--mu);line-height:1.5" id="opt-strat-desc">Max piece efficiency — minimize sheet waste</div>
+          <div style="display:none;font-family:'Cairo','DM Mono',monospace;font-size:.6rem;color:var(--mu);line-height:1.5" id="opt-strat-desc">Max piece efficiency — minimize sheet waste</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div class="fg"><label class="lbl" data-i18n="Edge Trim (mm)">Edge Trim (mm)</label>
               <input type="number" id="opt-edge-trim" value="30" min="0" max="100" step="5" style="font-size:.75rem"></div>
@@ -7897,6 +7897,7 @@ function importCutExcel(input){
 let _optStrategy = 'efficiency'; // 'efficiency' | 'balanced' | 'remnant'
 
 function setOptStrategy(s){
+  s = 'efficiency'; // strategy selector removed - always max efficiency
   _optStrategy = s;
   ['efficiency','balanced','remnant','remnant-len'].forEach(x=>{
     const btn = document.getElementById('opt-strat-'+x);
@@ -8266,7 +8267,7 @@ function packSheetBest(W, H, items) {
     [...items],                                               // 8. original order
   ];
 
-  const heuristics = ['bssf', 'blsf', 'area'];
+  const heuristics = ['bssf', 'blsf', 'area', 'baf'];
 
   let best = null, bestScore = -1;
   for (const order of sortOrders) {
@@ -8375,13 +8376,11 @@ async function runOptimize(){
         const alignedUA = aligned.reduce((a,p)=>a+p.w*p.h,0);
 
         // Score both options
-        const effScore0 = placed0.length*1e12 + ua/(s.w*s.h)*1e6;
         const remScore0 = remQualityScore(finalFree, s.w, s.h, remMode);
-        const score0 = effScore0*(1-remWeight) + remScore0*1e12*remWeight;
+        const score0 = placed0.length*1e12 + ((ua/(s.w*s.h))*(1-remWeight) + remScore0*remWeight)*1e9;
 
-        const effScore1 = aligned.length*1e12 + alignedUA/(s.w*s.h)*1e6;
         const remScore1 = remQualityScore(alignedFree, s.w, s.h, remMode);
-        const score1 = effScore1*(1-remWeight) + remScore1*1e12*remWeight;
+        const score1 = aligned.length*1e12 + ((alignedUA/(s.w*s.h))*(1-remWeight) + remScore1*remWeight)*1e9;
 
         if(score1 > score0){
           finalPlaced = aligned;
@@ -8392,7 +8391,7 @@ async function runOptimize(){
 
       const ua2 = finalPlaced.reduce((a,p)=>a+p.w*p.h,0);
       const remQ = remQualityScore(finalFree, s.w, s.h, remMode);
-      const sc = finalPlaced.length*1e12 + ua2/(s.w*s.h)*1e6*(1-remWeight) + remQ*1e12*remWeight;
+      const sc = finalPlaced.length*1e12 + ((ua2/(s.w*s.h))*(1-remWeight) + remQ*remWeight)*1e9;
 
       if(sc>bsc){bsc=sc;br={placed:finalPlaced,free:finalFree};bs=s;bStrategy=usedStrategy;bTrim=sheetTrimSides;}
     }
@@ -8459,6 +8458,79 @@ async function runOptimize(){
   }
   // ── End consolidation ─────────────────────────────────────────────────────
 
+  // ---- Piece-migration post-pass ----------------------------------------
+  // Generalises consolidation: a low-utilisation sheet's pieces may be
+  // rehomed into the free space of SEVERAL other sheets (not just one
+  // receiver). If every piece of a donor sheet fits elsewhere, the donor
+  // sheet is eliminated. Repeats until no further sheet can be removed.
+  {
+    let migImproved = true, migGuard = 0;
+    while (migImproved && results.length > 1 && migGuard++ < 20) {
+      migImproved = false;
+      const donors = [...results].sort((a,b) => (a.ua/a.sa) - (b.ua/b.sa));
+      for (const donor of donors) {
+        const didx = results.indexOf(donor);
+        if (didx < 0) continue;
+        const donorPieces = donor.placed.map(p => cutPieces.find(cp => cp.uid === p.uid) || p);
+        const tentative = results.filter((r,i) => i !== didx).map(r => ({
+          ref: r,
+          sh: r.sh,
+          trim: trimAmounts(r.edgeTrim || edgeTrim, r.trimSides || trimSides),
+          placedSrc: r.placed.map(p => cutPieces.find(cp => cp.uid === p.uid) || p),
+          freeArea: r.sa - r.ua,
+          repack: null
+        })).sort((a,b) => b.freeArea - a.freeArea);
+        let ok = true;
+        const queue = [...donorPieces].sort((a,b) =>
+          ((b.cutW||b.w)*(b.cutH||b.h)) - ((a.cutW||a.w)*(a.cutH||a.h)));
+        for (const piece of queue) {
+          const pieceArea = (piece.cutW||piece.w)*(piece.cutH||piece.h);
+          let homed = false;
+          for (const t of tentative) {
+            if (t.freeArea < pieceArea) continue;
+            const uw = t.sh.w - t.trim.l - t.trim.r;
+            const uh = t.sh.h - t.trim.t - t.trim.b;
+            if (uw <= 0 || uh <= 0) continue;
+            const tryPieces = [...t.placedSrc, piece];
+            const rp = packSheetBest(uw, uh, tryPieces);
+            if (rp.placed.length === tryPieces.length) {
+              t.placedSrc = tryPieces;
+              t.repack = rp;
+              t.freeArea -= pieceArea;
+              homed = true;
+              break;
+            }
+          }
+          if (!homed) { ok = false; break; }
+        }
+        if (ok) {
+          for (const t of tentative) {
+            if (!t.repack) continue;
+            let offPlaced = t.repack.placed.map(p => ({...p, x: p.x + t.trim.l, y: p.y + t.trim.t}));
+            const _alg = alignStrips(offPlaced, t.sh.w, t.sh.h, effectiveMinCut);
+            const _algOk = _alg.every(function(a,i){
+              if(a.x < -0.5 || a.y < -0.5 || a.x+a.w > t.sh.w+0.5 || a.y+a.h > t.sh.h+0.5) return false;
+              return _alg.every(function(b,j){ return j===i || a.x+a.w<=b.x+0.5 || b.x+b.w<=a.x+0.5 || a.y+a.h<=b.y+0.5 || b.y+b.h<=a.y+0.5; });
+            });
+            if(_algOk) offPlaced = _alg;
+            const offFree   = t.repack.free.map(f => ({...f, x: f.x + t.trim.l, y: f.y + t.trim.t}));
+            const ridx = results.indexOf(t.ref);
+            if (ridx >= 0) results[ridx] = {...t.ref, placed: offPlaced, free: offFree,
+              ua: offPlaced.reduce((s2,p) => s2 + p.w*p.h, 0)};
+          }
+          const dNow = results.indexOf(donor);
+          if (dNow >= 0) results.splice(dNow, 1);
+          results.forEach((r,i) => { r.idx = i + 1; });
+          tu = results.reduce((s2,r) => s2 + r.ua, 0);
+          ts = results.reduce((s2,r) => s2 + r.sa, 0);
+          tp = results.reduce((s2,r) => s2 + r.placed.length, 0);
+          migImproved = true;
+          break;
+        }
+      }
+    }
+  }
+
   // Build label items — saved separately from opt file
   const labelsToSave = [];
   results.forEach(r=>r.placed.forEach(p=>{
@@ -8508,6 +8580,7 @@ async function runOptimize(){
       try{ labelItems=await AGI.Labels.list({optFileId:activeOptId}); }catch(e){}
     }
   }catch(e){ console.warn('[optimize] label save error:',e.message); }
+  window._lastOptParams = {edgeTrim, minCut:effectiveMinCut, strategy, trimSides:{...trimSides}};
   renderCutResultsUI(results,tp,cutPieces.length,tu,ts,rem);
   renderCutLabels();
   }catch(e){ console.error('[runOptimize CRASH]',e); alert('Optimization error: '+e.message); }
@@ -8717,6 +8790,7 @@ function renderCutResultsUI(results,placed,total,tu,ts,unplaced){
   const printDate=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
 
   window._lastOptResults={results,placed,total,tu,ts,unplaced,
+    optParams:(function(){var _p=window._lastOptParams||null;window._lastOptParams=null;return _p||(window._lastOptResults&&window._lastOptResults.optParams)||null;})(),
     rawSheet:activeRawSheet?{...activeRawSheet}:null,
     jobName, rsLabel, printDate,
     date:new Date().toISOString()};
@@ -9631,7 +9705,22 @@ async function loadOptFile(id){
       rawSheet: f.rawSheet||f.raw_sheet_snap||null,
       date: f.date||f.createdAt||f.created_at||new Date().toISOString()
     };
-    const r=f.results;
+    // Restore the optimizer settings this file was saved with.
+  // New files carry optParams; older files fall back to per-sheet edgeTrim/trimSides.
+  try{
+    const _op=(f.results&&f.results.optParams)||null;
+    const _r0=(f.results&&f.results.results&&f.results.results[0])||null;
+    const _set=function(id,v){var el=document.getElementById(id); if(el&&v!=null) el.value=String(v);};
+    const _setck=function(id,v){var el=document.getElementById(id); if(el&&typeof v==='boolean') el.checked=v;};
+    const _applyTS=function(ts){if(!ts)return;_setck('opt-trim-t',ts.t);_setck('opt-trim-r',ts.r);_setck('opt-trim-b',ts.b);_setck('opt-trim-l',ts.l);};
+    if(_op){
+      _set('opt-edge-trim',_op.edgeTrim); _set('opt-min-cut',_op.minCut); _applyTS(_op.trimSides);
+    } else if(_r0){
+      if(_r0.edgeTrim!=null) _set('opt-edge-trim',_r0.edgeTrim);
+      _applyTS(_r0.trimSides);
+    }
+  }catch(_e){}
+  const r=f.results;
     renderCutResultsUI(r.results,r.placed,r.total,r.tu,r.ts,r.unplaced||[]);
     document.getElementById('cut-stats').style.display='grid';
     renderCutLabels();
