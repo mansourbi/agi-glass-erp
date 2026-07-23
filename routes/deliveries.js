@@ -70,8 +70,11 @@ function genSerial(customerId, customerCode) {
   return serial;
 }
 function genPieceCode(deliveryId, deliverySerial) {
-  const n = db.prepare("SELECT COUNT(*) AS c FROM delivery_items WHERE delivery_id=?").get(deliveryId).c + 1;
-  return deliverySerial + '-' + n;
+  // MAX(existing serial)+1, not COUNT+1: deletions must never cause code reuse
+  const rows = db.prepare("SELECT piece_code FROM delivery_items WHERE delivery_id=?").all(deliveryId);
+  let max = 0;
+  for (const r of rows){ const m = /-(\d+)$/.exec(r.piece_code||''); if (m){ const v = +m[1]; if (v > max) max = v; } }
+  return deliverySerial + '-' + (max + 1);
 }
 function parseItems(rows) {
   return rows.map(i => ({ ...i, processes: JSON.parse(i.processes || '[]') }));
