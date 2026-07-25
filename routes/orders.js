@@ -287,7 +287,23 @@ router.put('/:id', (req, res) => {
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(+req.params.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const newNum = (num && num.trim() && num.trim() !== order.num) ? num.trim() : order.num;
+    // Customer changed + no deliberate custom number -> regenerate in the NEW
+    // customer's series (max serial + 1), preserving remake-suffix series.
+    let effNum = num;
+    if (+customerId !== order.customer_id && (!num || !num.trim() || num.trim() === order.num)) {
+      const parts = order.num.split('-');
+      const sfx = parts.length === 3 ? parts[1] : null;
+      const rows = sfx
+        ? db.prepare("SELECT num FROM orders WHERE customer_id=? AND order_type=?").all(+customerId, order.order_type || 'normal')
+        : db.prepare("SELECT num FROM orders WHERE customer_id=? AND (order_type='normal' OR order_type IS NULL)").all(+customerId);
+      let maxN = 0;
+      rows.forEach(r => { const x = parseInt(r.num.split('-').pop()); if (!isNaN(x) && x > maxN) maxN = x; });
+      let nextN = maxN + 1;
+      let cand = sfx ? (customer.code + '-' + sfx + '-' + nextN) : (customer.code + '-' + nextN);
+      while (db.prepare('SELECT id FROM orders WHERE num=?').get(cand)) { nextN++; cand = sfx ? (customer.code+'-'+sfx+'-'+nextN) : (customer.code+'-'+nextN); }
+      effNum = cand;
+    }
+    const newNum = (effNum && effNum.trim() && effNum.trim() !== order.num) ? effNum.trim() : order.num;
     if (newNum !== order.num) {
       const conflict = db.prepare('SELECT id FROM orders WHERE num=? AND id!=?').get(newNum, +req.params.id);
       if (conflict) return res.status(409).json({ error: `Order number ${newNum} already exists` });

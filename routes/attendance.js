@@ -23,6 +23,7 @@ try {
 ['punch_in','punch_out','total_mins','date','day_type','late_reason','early_leave_reason'].forEach(col => {
   try { db.prepare(`ALTER TABLE attendance ADD COLUMN ${col} TEXT`).run(); } catch(e) {}
 });
+try { db.prepare('ALTER TABLE attendance ADD COLUMN early_leave_mins INTEGER DEFAULT 0').run(); } catch(e) {}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const TZ_OFFSET = 3; // UTC+3
@@ -110,6 +111,7 @@ function recomputeAutoOT(attendanceId, opts = {}) {
   // Weekend/holiday OT is handled by its own (existing) logic and pay rates.
   // Per business rule it is NOT recomputed here — leave whatever is stored.
   if (row.day_type === 'weekend' || row.day_type === 'holiday') {
+    try { db.prepare('UPDATE attendance SET early_leave_mins=0 WHERE id=?').run(row.id); } catch(e) {}
     return;
   }
 
@@ -124,6 +126,24 @@ function recomputeAutoOT(attendanceId, opts = {}) {
       overMins = (raw > grace) ? raw : 0;
     }
     autoDesc = autoDesc || 'Auto: worked beyond ' + endStr;
+  }
+
+  // Early-leave mirror (stored on attendance; display/tracking only)
+  {
+    const endStr = (dow === 4) ? thuEnd : endTime;
+    const endMin = toMin(endStr);
+    const outMin = toMin(hhmm(row.punch_out));
+    let el = 0;
+    if (outMin != null && endMin != null) {
+      const rawE = endMin - outMin;
+      if (rawE > grace) {
+        try {
+          const lv = db.prepare("SELECT id FROM leave_requests WHERE worker_id=? AND status='approved' AND leave_kind!='hourly' AND date_from<=? AND COALESCE(date_to,date_from)>=? LIMIT 1").get(row.worker_id, row.date, row.date);
+          if (!lv) el = rawE;
+        } catch(e) { el = rawE; }
+      }
+    }
+    try { db.prepare('UPDATE attendance SET early_leave_mins=? WHERE id=?').run(el, row.id); } catch(e) {}
   }
 
   // Update attendance.overtime_mins (punch-based value only)
@@ -267,6 +287,15 @@ router.post('/punch-out', (req, res) => {
         const overMins = (ph*60+pm) - (eh*60+em);
         // Early departure: minutes before shift end (mirror of overtime)
         const early_mins = (eh*60+em) - (ph*60+pm);
+        // Store early-leave minutes: normal days, beyond grace, no approved day-leave
+        let _elStore = 0;
+        if ((row.day_type||'normal')==='normal' && early_mins > grace) {
+          try {
+            const _lv = db.prepare("SELECT id FROM leave_requests WHERE worker_id=? AND status='approved' AND leave_kind!='hourly' AND date_from<=? AND COALESCE(date_to,date_from)>=? LIMIT 1").get(req.user.id, today, today);
+            if (!_lv) _elStore = early_mins;
+          } catch(e) { _elStore = early_mins; }
+        }
+        try { db.prepare('UPDATE attendance SET early_leave_mins=? WHERE id=?').run(_elStore, updated.id); updated.early_leave_mins = _elStore; } catch(e) {}
         // Return overtime info to worker app so it can prompt
         const overtimeDetected = overMins > grace;
         let edgeLeaveOut = null;

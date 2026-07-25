@@ -2084,7 +2084,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <div class="tw"><table id="pd-items-table" style="font-size:.7rem">
         <thead><tr>
           <th style="width:8%" data-i18n="Category">Category</th>
-          <th style="width:16%" data-i18n="Raw Sheet">Raw Sheet</th>
+          <th style="width:10%" data-i18n="Raw Sheet">Raw Sheet</th>
+          <th style="width:12%" data-i18n="Description">Description</th>
           <th style="width:10%" data-i18n="Manufacturer">Manufacturer</th>
           <th style="width:6%" data-i18n="Qty">Qty</th>
           <th style="width:7%" data-i18n="W (mm)">W (mm)</th>
@@ -2855,7 +2856,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           </div>
         </div>
         <div class="tw"><table>
-          <thead><tr><th data-i18n="Date">Date</th><th data-i18n="Worker">Worker</th><th data-i18n="Punch In">Punch In</th><th data-i18n="Punch Out">Punch Out</th><th data-i18n="Total">Total</th><th data-i18n="OT">OT</th><th data-i18n="Late">Late</th><th data-i18n="Day Type">Day Type</th><th data-i18n="Status">Status</th><th></th></tr></thead>
+          <thead><tr><th data-i18n="Date">Date</th><th data-i18n="Worker">Worker</th><th data-i18n="Punch In">Punch In</th><th data-i18n="Punch Out">Punch Out</th><th data-i18n="Total">Total</th><th data-i18n="OT">OT</th><th data-i18n="Late">Late</th><th data-i18n="Early Leave">Early Leave</th><th data-i18n="Day Type">Day Type</th><th data-i18n="Status">Status</th><th></th></tr></thead>
           <tbody id="hr-att-body"></tbody>
         </table></div>
       </div>
@@ -16297,7 +16298,7 @@ function _purRenderItems(){
   const tbody = document.getElementById('pd-items-tbody');
   const locked = !!po.locked;
   if (!po.items.length) {
-    tbody.innerHTML = `<tr><td colspan="13" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No items yet. Click + Add Item.">No items yet. Click + Add Item.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" style="padding:24px;text-align:center;color:var(--mu)" data-i18n="No items yet. Click + Add Item.">No items yet. Click + Add Item.</td></tr>`;
     return;
   }
   // Build raw_sheet picker options once (used in every row).
@@ -16325,6 +16326,16 @@ function _purRenderItems(){
     return sheet.brand ? `<span style="color:var(--mu)">${sheet.brand}</span>` : '<span style="color:var(--mu)">—</span>';
   };
 
+  // PUR_DESC v1: description helpers + searchable sheet datalist
+  const _shLabel = (sh) => sh ? (sh.code + ' \u00b7 ' + (sh.notes || (sh.thickness + 'mm ' + (sh.color || '')))) : '';
+  const _sheetByLabel = {};
+  const _dlOpts = rawSheetCatalog.map(sh => { const L = _shLabel(sh); _sheetByLabel[L.toLowerCase()] = sh.id; return '<option value="' + L.replace(/"/g,'&quot;') + '"></option>'; }).join('');
+  window._pur._sheetByLabel = _sheetByLabel;
+  let _dl = document.getElementById('pur-sheet-dl');
+  if (!_dl) { _dl = document.createElement('datalist'); _dl.id = 'pur-sheet-dl'; document.body.appendChild(_dl); }
+  _dl.innerHTML = _dlOpts;
+  const _labelFor = (rid) => { const sh = rawSheetCatalog.find(x => x.id === rid); return sh ? _shLabel(sh) : ''; };
+  const _descFor = (rid) => { const sh = rawSheetCatalog.find(x => x.id === rid); return (sh && sh.notes) ? sh.notes : '<span style="color:var(--mu)">\u2014</span>'; };
   const dis = locked ? 'disabled style="opacity:0.6"' : '';
   // Grand total footer
   const tfoot = document.getElementById('pd-items-tfoot');
@@ -16343,17 +16354,18 @@ function _purRenderItems(){
 
   tbody.innerHTML = po.items.map(it => `<tr data-item-id="${it.id}">
     <td><select ${dis} onchange="purUpdateItem(${it.id},'category_id',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px">${catOpts.replace('value="' + (it.category_id || '') + '"', 'value="' + (it.category_id || '') + '" selected')}</select></td>
-    <td><select ${dis} onchange="purItemSheetChanged(${it.id},this.value)" class="inp" style="font-size:.65rem;padding:3px 4px">${_purInjectSelected(sheetOpts, it.raw_sheet_id)}</select></td>
+    <td><input ${dis} list="pur-sheet-dl" value="${_labelFor(it.raw_sheet_id).replace(/"/g,'&quot;')}" onchange="purSheetPicked(${it.id},this)" class="inp" style="font-size:.62rem;padding:3px 4px"></td>
+    <td style="font-size:.62rem">${_descFor(it.raw_sheet_id)}</td>
     <td style="font-size:.65rem">${mfgLabelFor(it.raw_sheet_id)}</td>
-    <td><input ${dis} type="number" step="1" value="${it.qty_ordered ?? ''}" onchange="purUpdateItem(${it.id},'qty_ordered',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
+    <td><input ${dis} type="number" step="1" value="${it.qty_ordered ?? ''}" onchange="purUpdateItem(${it.id},'qty_ordered',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right">${it.qty_received!=null ? '<div style="font-size:.58rem;margin-top:2px;text-align:right;font-weight:600;color:'+(+it.qty_received!==+(it.qty_ordered||0)?'#ffb02e':'var(--mu)')+'">'+t('Received')+': '+it.qty_received+'</div>' : ''}</td>
     <td><input ${dis} type="number" step="1" value="${it.dimensions_w_mm ?? ''}" onchange="purItemDimChanged(${it.id},'w',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
     <td><input ${dis} type="number" step="1" value="${it.dimensions_h_mm ?? ''}" onchange="purItemDimChanged(${it.id},'h',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
     <td><input ${dis} type="number" step="0.0001" value="${(+it.unit_size||0).toFixed(4)}" onchange="purUpdateItem(${it.id},'unit_size',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right" title="Computed from dimensions for sheets, or enter manually"></td>
     <td class="mn" style="text-align:right;color:var(--mu);font-size:.65rem">${(()=>{const ts=+(it.total_size||0)||(+(it.qty_ordered||it.qty||0)*(+(it.sheet_w||0))*(+(it.sheet_h||0))/1e6);return ts?_purFmtNum(ts,2):'—';})()}</td>
     <td><input ${dis} type="number" step="0.001" value="${it.price_per_unit ?? ''}" onchange="purUpdateItem(${it.id},'price_per_unit',+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
     <td><input ${dis} type="number" step="0.01" value="${((+it.vat_rate||0)*100).toFixed(2)}" onchange="purUpdateItem(${it.id},'vat_rate',+this.value/100)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right"></td>
-    <td><input ${dis} type="number" step="0.01" value="${+(it.line_subtotal_goods||0) ? _purFmtNum(it.line_subtotal_goods, 2) : (+(it.price_per_unit||0) && +(it.total_size||0) ? _purFmtNum(+(it.price_per_unit)*+(it.total_size), 2) : '')}" onchange="purFromSubtotal(${it.id}, +this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right" placeholder="Subtotal" title="Enter subtotal → computes Price/Unit"></td>
-    <td><input ${dis} type="number" step="0.01" value="${+(it.price_per_unit||0) && +(it.total_size||0) ? _purFmtNum(+(it.price_per_unit) * (1 + +(it.vat_rate||0)) * +(it.total_size), 2) : ''}" onchange="purFromLineTotal(${it.id}, +this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right;color:var(--a4);font-weight:600" placeholder="Total incl. VAT" title="Enter total incl. VAT → computes Price/Unit"></td>
+    <td><input ${dis} type="number" step="0.01" value="${+(it.line_subtotal_goods||0) ? (+it.line_subtotal_goods).toFixed(2) : (+(it.price_per_unit||0) && +(it.total_size||0) ? (+(it.price_per_unit)*+(it.total_size)).toFixed(2) : '')}" onchange="purFromSubtotal(${it.id}, +this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right" placeholder="Subtotal" title="Enter subtotal → computes Price/Unit"></td>
+    <td><input ${dis} type="number" step="0.01" value="${+(it.price_per_unit||0) && +(it.total_size||0) ? (+(it.price_per_unit) * (1 + +(it.vat_rate||0)) * +(it.total_size)).toFixed(2) : ''}" onchange="purFromLineTotal(${it.id}, +this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right;color:var(--a4);font-weight:600" placeholder="Total incl. VAT" title="Enter total incl. VAT → computes Price/Unit"></td>
     <td><input ${dis} type="number" step="0.01" value="${it.customs_value_override_goods ?? ''}" onchange="purUpdateItem(${it.id},'customs_value_override_goods',this.value===''?null:+this.value)" class="inp" style="font-size:.65rem;padding:3px 4px;text-align:right" placeholder="auto"></td>
     <td>${locked ? '' : `<button class="btn br bsm" onclick="purDeleteItem(${it.id})" style="font-size:.55rem;padding:2px 6px">&#10005;</button>`}</td>
   </tr>`).join('');
@@ -16399,7 +16411,7 @@ function _purRenderBatches(){
   const tbody = document.getElementById('pd-batches-tbody');
   tbody.innerHTML = po.batches.map(b => {
     const sheet = rawSheetCatalog.find(s => s.id === b.raw_sheet_id);
-    const sheetLbl = sheet ? `${sheet.code} (${sheet.thickness}mm)` : '#' + b.raw_sheet_id;
+    const sheetLbl = sheet ? `${sheet.code} (${sheet.thickness}mm)${sheet.notes ? ' \u2014 ' + sheet.notes : ''}` : '#' + b.raw_sheet_id;
     return `<tr>
       <td class="mn">${b.batch_code}</td>
       <td>${sheetLbl}</td>
@@ -16670,10 +16682,10 @@ async function purRefreshPreview(){
   const t = preview.totals;
   const itemRows = preview.items.map(it => {
     const sheet = it.raw_sheet_id && rawSheetCatalog.find(s => s.id === it.raw_sheet_id);
-    const lbl = sheet ? sheet.code : (it.description || '#' + it.id);
+    const lbl = sheet ? (sheet.code + (sheet.notes ? ' \u2014 ' + sheet.notes : '')) : (it.description || '#' + it.id);
     return `<tr>
       <td>${lbl}</td>
-      <td class="mn" style="text-align:right">${it.qty_ordered}</td>
+      <td class="mn" style="text-align:right${it.qty_received!=null && +it.qty_received !== +it.qty_ordered ? ';color:#ffb02e;font-weight:700' : ''}">${it.qty_received ?? it.qty_ordered}</td>
       <td class="mn" style="text-align:right">${_purFmtNum(it.total_size, 4)}</td>
       <td class="mn" style="text-align:right">${_purFmtNum(it.allocated_extras_jod, 2)}</td>
       <td class="mn" style="text-align:right;font-weight:700;color:var(--a)">${_purFmtNum(it.landed_cost_per_unit_jod, 4)}</td>
@@ -19201,6 +19213,11 @@ async function renderHRAttendance(){
       if(r.late_mins>0){ lateStr=r.late_mins+' min'; lateColor='var(--a2)'; }
       else lateStr='On time';
     }
+    let earlyStr='—', earlyColor='var(--mu)';
+    if(r.punch_out){
+      if(+r.early_leave_mins>0){ earlyStr=r.early_leave_mins+' min'; earlyColor='var(--a2)'; }
+      else earlyStr='On time';
+    }
     const status=!r.punch_in?'Absent':!r.punch_out?'Working':'Done';
     const statusColor={Absent:'#ff6464',Working:'var(--a3)',Done:'var(--mu)'}[status];
     const dayType=r.day_type||'normal';
@@ -19236,6 +19253,7 @@ async function renderHRAttendance(){
       <td class="mn">${totalH}${r.total_mins?' h':''}</td>
       <td class="mn">${otCell}</td>
       <td class="mn" style="color:${lateColor}">${lateStr}</td>
+      <td class="mn" style="color:${earlyColor}">${earlyStr}</td>
       <td class="mn" style="color:${dayTypeColor};text-transform:capitalize">${dayType}</td>
       <td class="mn" style="color:${statusColor};font-weight:700">${status}</td>
       <td class="mn" style="display:flex;gap:4px">
@@ -22753,7 +22771,7 @@ async function showLoginOverlay(){
   }
   ov = document.createElement('div');
   ov.id = 'agi-login-ov';
-  ov.style.cssText='position:fixed;inset:0;background:rgba(7,13,22,.97);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(7,13,22,.97);z-index:9999;display:'+(AGI.getToken()?'none':'flex')+';align-items:center;justify-content:center;flex-direction:column;gap:16px';
   // Logo served directly from /logo.png — no auth needed
   const loginLogoSrc = '/logo.png';
   const loginName = (typeof cfg!=='undefined' && cfg && cfg.factory) ? cfg.factory : 'AGI GLASS';
@@ -22847,8 +22865,8 @@ async function bootApp(){
   badges();
   renderDash();
   // Keyboard shortcuts
-  document.getElementById('sh').addEventListener('keydown',e=>{if(e.key==='Enter')addSheet()});
-  document.getElementById('ph').addEventListener('keydown',e=>{if(e.key==='Enter')addCutPiece()});
+  var _shEl=document.getElementById('sh'); if(_shEl) _shEl.addEventListener('keydown',e=>{if(e.key==='Enter')addSheet()});
+  var _phEl=document.getElementById('ph'); if(_phEl) _phEl.addEventListener('keydown',e=>{if(e.key==='Enter')addCutPiece()});
 }
 
 // Auto-refresh data — staggered to avoid flooding the server
@@ -22903,20 +22921,25 @@ function doLogout(){
         // Block non-admin workers
         if(res.worker.role !== 'admin'){
           AGI.clearToken();
+          const _lo1=document.getElementById('agi-login-ov'); if(_lo1) _lo1.style.display='flex';
           // Show error on login screen
           const errEl = document.getElementById('agi-l-err');
           if(errEl) errEl.textContent = 'Access denied. Use the Worker App.';
         } else {
           const emailEl = document.getElementById('agi-l-email');
           if(emailEl) emailEl.value = res.worker.email || '';
+          var _le=document.getElementById('agi-l-err'); if(_le) _le.textContent='';
           document.getElementById('agi-login-ov').style.display='none';
-          await bootApp();
+          try{ await bootApp(); }catch(_be){ console.error('[bootApp]', _be); }
         }
       } else {
         AGI.clearToken();
+        const _lo2=document.getElementById('agi-login-ov'); if(_lo2) _lo2.style.display='flex';
       }
     }catch(e){
-      if(e.status===401){ AGI.clearToken(); return; }
+      if(e.status===401){ AGI.clearToken(); const _lo3=document.getElementById('agi-login-ov'); if(_lo3) _lo3.style.display='flex'; return; }
+      console.error('[boot-me] status=', e && e.status, 'msg=', e && e.message, e);
+      var _lo4=document.getElementById('agi-login-ov'); if(_lo4) _lo4.style.display='flex';
       var errEl2=document.getElementById('agi-l-err');
       if(errEl2) errEl2.textContent='Server unreachable. Please try again.';
     }
@@ -24110,5 +24133,142 @@ window.addEventListener('beforeunload', function(e){
 
 </script>
 <!-- R6-OVERRIDES-UI END -->
+<script>
+/* PUR_UX v1: searchable sheet picker + tab-focus preservation + page persistence */
+(function(){
+  window.purSheetPicked = function(itemId, inp){
+    var v = (inp.value || '').trim();
+    if (!v) { purItemSheetChanged(itemId, ''); return; }
+    var map = (window._pur && window._pur._sheetByLabel) || {};
+    var id = map[v.toLowerCase()];
+    if (!id) {
+      var hits = Object.keys(map).filter(function(k){ return k.indexOf(v.toLowerCase()) >= 0; });
+      if (hits.length === 1) id = map[hits[0]];
+    }
+    if (id) purItemSheetChanged(itemId, id);
+    else { alert(t('No matching raw sheet')); _purRenderItems(); }
+  };
+  if (typeof _purRenderItems === 'function') {
+    var _origRI = _purRenderItems;
+    _purRenderItems = function(){
+      var tbody = document.getElementById('pd-items-tbody');
+      var saved = null, af = document.activeElement;
+      if (tbody && af && tbody.contains(af)) {
+        var td = af.closest('td'), tr = af.closest('tr');
+        if (td && tr) saved = { row: tr.getAttribute('data-item-id'),
+          cell: Array.prototype.indexOf.call(tr.children, td),
+          inner: Array.prototype.indexOf.call(td.querySelectorAll('input,select,button'), af) };
+      }
+      _origRI.apply(this, arguments);
+      if (saved && tbody) {
+        var tr2 = tbody.querySelector('tr[data-item-id="' + saved.row + '"]');
+        if (tr2 && tr2.children[saved.cell]) {
+          var inner = tr2.children[saved.cell].querySelectorAll('input,select,button');
+          var el = inner[saved.inner >= 0 ? saved.inner : 0] || inner[0];
+          if (el) { try { el.focus(); if (el.select) el.select(); } catch(e){} }
+        }
+      }
+    };
+  }
+  if (typeof SP === 'function') {
+    var _origSP = SP;
+    SP = function(id){ _origSP(id); try { history.replaceState(null, '', '#' + id); } catch(e){} };
+    var h = (location.hash || '').replace('#', '');
+    if (h && document.getElementById('pg-' + h) && document.getElementById('nt-' + h)) {
+      try { _origSP(h); } catch(e){}
+    }
+  }
+})();
+</script>
+<script>
+/* SETTINGS_AUTOLOAD v1: load Sheet Catalog data when Settings opens */
+(function(){
+  function loadIfCatalogVisible(){
+    try {
+      var rm = document.getElementById('stab-rawmat');
+      var cat = document.getElementById('rstab-catalog');
+      if (rm && rm.style.display !== 'none' && cat && cat.style.display !== 'none' &&
+          typeof renderSettingsRSCatalog === 'function') renderSettingsRSCatalog();
+    } catch(e){}
+  }
+  if (typeof SP === 'function') {
+    var _sp2 = SP;
+    SP = function(id){ _sp2(id); if (id === 'settings') loadIfCatalogVisible(); };
+  }
+  // also cover arriving at settings via boot hash-restore
+  if ((document.querySelector('.pg.on')||{}).id === 'pg-settings') loadIfCatalogVisible();
+})();
+</script>
+<script>
+/* RSCODE_AUTOGEN v2: convention-aware auto codes (org/company maps, self-loading catalog) */
+(function(){
+  var ORG={'china':'CHN','ksa':'KSA','saudi arabia':'KSA','saudi':'KSA','jordan':'JOR','belgium':'BEL','uae':'UAE','united arab emirates':'UAE','turkey':'TUR','egypt':'EGY','germany':'GER','india':'IND','malaysia':'MAL','indonesia':'IDN'};
+  var COMP={'qingdao jinjing':'QIN','jingrun':'JIN','obeikan':'OBK','agc':'AGC','guardian':'GUA','majed yacoub':'MJY','majdi yacoub':'MJY','xyg':'XYG'};
+  var COL={'clear':'CLR','low-iron':'LOI','bronze':'BRZ','silver':'SLV','grey':'GRY','gray':'GRY','green':'GRN','blue':'BLU','black':'BLK','extra-clear':'XCL','other':'GEN'};
+  var FAM={'float':'FLO','patterned':'PAT','mirror':'MIR','antique':'ANT'};
+  async function ensureCat(){
+    if (window.rawSheetCatalog && window.rawSheetCatalog.length) return window.rawSheetCatalog;
+    if (window._rsCatCache && window._rsCatCache.length) return window._rsCatCache;
+    try {
+      var r = await fetch('/api/rawsheets',{headers:{Authorization:'Bearer '+localStorage.getItem('agi_token')}});
+      if(r.ok){ var d = await r.json(); window._rsCatCache = Array.isArray(d)?d:(d.sheets||d.data||[]); return window._rsCatCache; }
+    } catch(e){}
+    return [];
+  }
+  window.rsMaybeAutoCode = async function(){
+    var codeEl=document.getElementById('rs-code'); if(!codeEl) return;
+    if(window._rsEditingId) return;
+    if(codeEl.dataset.manual==='1' && codeEl.value.trim()) return;
+    var g=function(id){var el=document.getElementById(id);return el?String(el.value||''):'';};
+    var cat=await ensureCat();
+    var t0=parseFloat(g('rs-thick'))||0;
+    var thk=(t0%1!==0)?String(t0).replace('.',''):String(t0).padStart(2,'0');
+    var fam=FAM[g('rs-family').toLowerCase()]||g('rs-family').slice(0,3).toUpperCase()||'FLO';
+    var comp=g('rs-company').trim(), org=g('rs-origin').trim();
+    var sib=cat.find(function(x){return x.company&&comp&&String(x.company).toLowerCase()===comp.toLowerCase()&&x.code&&x.code.split('-').length>=3&&x.code.split('-')[1].length>=6;});
+    var comp3=sib?sib.code.split('-')[1].slice(0,3):(COMP[comp.toLowerCase()]||comp.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()||'XXX');
+    var org3=ORG[org.toLowerCase()]||org.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()||'XXX';
+    var col=COL[g('rs-color').toLowerCase()]||g('rs-color').slice(0,3).toUpperCase()||'CLR';
+    var prefix=thk+fam+'-'+comp3+org3+'-'+col+'-';
+    var maxSeq=0;
+    cat.forEach(function(x){ if(x.code&&x.code.indexOf(prefix)===0){ var n=parseInt(x.code.slice(prefix.length)); if(!isNaN(n)&&n>maxSeq)maxSeq=n; } });
+    var code=prefix+String(maxSeq+1).padStart(2,'0');
+    while(cat.some(function(x){return x.code===code;})){ maxSeq++; code=prefix+String(maxSeq+1).padStart(2,'0'); }
+    codeEl.value=code; codeEl.dataset.manual='';
+  };
+  if (typeof openRawSheetModal === 'function') {
+    var _oRS = openRawSheetModal;
+    openRawSheetModal = function(id){
+      _oRS.apply(this, arguments);
+      window._rsEditingId = id || null;
+      var codeEl = document.getElementById('rs-code');
+      if (codeEl && !codeEl._autoHooked) { codeEl._autoHooked = true;
+        codeEl.addEventListener('input', function(){ codeEl.dataset.manual='1'; }); }
+      if (codeEl && !id) codeEl.dataset.manual='';
+      ['rs-thick','rs-family','rs-company','rs-origin','rs-color','rs-type'].forEach(function(fid){
+        var el=document.getElementById(fid);
+        if(el && !el._autoHooked){ el._autoHooked=true; el.addEventListener('change', function(){ window.rsMaybeAutoCode(); }); }
+      });
+      var mfgSel=document.querySelector('#rs-mfg, select[id*="mfg"], select[id*="manufacturer"]');
+      if(mfgSel && !mfgSel._autoHooked){ mfgSel._autoHooked=true; mfgSel.addEventListener('change', function(){ setTimeout(function(){ window.rsMaybeAutoCode(); }, 50); }); }
+      if (!id) setTimeout(function(){ window.rsMaybeAutoCode(); }, 80);
+    };
+  }
+  if (typeof saveRawSheet === 'function') {
+    var _sRS = saveRawSheet;
+    saveRawSheet = async function(){
+      var codeEl=document.getElementById('rs-code');
+      if(codeEl){
+        var v=(codeEl.value||'').trim().toUpperCase(); codeEl.value=v;
+        if(!v){ alert(t('Sheet code required')); return; }
+        var cat=(window.rawSheetCatalog&&window.rawSheetCatalog.length)?window.rawSheetCatalog:await ensureCat();
+        var dup=cat.find(function(x){return x.code===v && x.id!==window._rsEditingId;});
+        if(dup){ alert(t('Sheet code already exists')+': '+v); return; }
+      }
+      return _sRS.apply(this, arguments);
+    };
+  }
+})();
+</script>
 </body>
 </html>
