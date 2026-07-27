@@ -24556,7 +24556,7 @@ window.addEventListener('beforeunload', function(e){
   window.renderInventory = async function(tab){
     _invTab = tab || _invTab || 'items';
     const root = document.getElementById('inv-root'); if(!root) return;
-    const T = [['items','Items'],['receive','Receive'],['consume','Consumption'],['custody','Custody'],['alerts','Alerts']];
+    const T = [['items','Items'],['receive','Receive'],['consume','Consumption'],['custody','Custody'],['count','Count'],['alerts','Alerts']];
     root.innerHTML = `<div class="ph"><div><div class="pt" data-i18n="Inventory">Inventory</div>
       <div class="ps" data-i18n="Spare parts, tools and consumables">Spare parts, tools and consumables</div></div>
       <div>${T.map(t=>`<button class="btn ${_invTab===t[0]?'ba':''}" onclick="renderInventory('${t[0]}')" data-i18n="${t[1]}">${t[1]}</button>`).join(' ')}</div></div>
@@ -24572,6 +24572,7 @@ window.addEventListener('beforeunload', function(e){
     if(_invTab==='receive') invTabReceive(el);
     if(_invTab==='consume') invTabConsume(el);
     if(_invTab==='custody') invTabCustody(el);
+    if(_invTab==='count') invTabCount(el);
     if(_invTab==='alerts') invTabAlerts(el);
   };
 
@@ -24580,7 +24581,7 @@ window.addEventListener('beforeunload', function(e){
   function invTabItems(el){
     const cols = [['code','Code'],['name','Name'],['category','Category'],['spec','Spec'],['unit','Unit'],['machines','Machines'],['stock','Stock'],['min_stock','Min'],['location','Loc'],['unit_cost_jod','WAC']];
     el.innerHTML = `<div class="card"><div class="ch"><span>&#128295; <span data-i18n="Items">Items</span> (<span id="inv-count">${_items.length}</span>)</span>
-      <button class="btn ba bsm" onclick="invItemEdit(null)">+ <span data-i18n="Add Item">Add Item</span></button></div>
+      <button class="btn ba bsm" onclick="invItemModal(null)">+ <span data-i18n="Add Item">Add Item</span></button></div>
       <div class="tw"><table><thead>
         <tr>${cols.map(c=>`<th>${c[1]}</th>`).join('')}<th></th></tr>
         <tr>${cols.map(c=>`<th><input data-f="${c[0]}" oninput="invFilter()" style="width:95%;padding:3px;font-size:.7rem"></th>`).join('')}<th></th></tr>
@@ -24600,16 +24601,16 @@ window.addEventListener('beforeunload', function(e){
     });
     const b = document.getElementById('inv-items-body'); if(!b) return;
     document.getElementById('inv-count').textContent = rows.length;
-    b.innerHTML = rows.map(it=>`<tr ${it.active?'':'style="opacity:.45"'}>
-      <td class="mn" style="color:var(--a);font-weight:700">${esc(it.code)}</td>
+    b.innerHTML = rows.map(it=>`<tr ${it.active?'':'style="opacity:.45"'} style="cursor:pointer" onclick="invItemModal(${it.id})">
+      <td class="mn" style="color:var(--a);font-weight:700;white-space:nowrap">${it.has_photo?`<button class="btn bsm" style="padding:1px 5px;margin-right:4px" onclick="event.stopPropagation();invPhotoView(${it.id})" title="View photo">&#128247;</button>`:''}${esc(it.code)}</td>
       <td>${esc(it.name)}${it.name_ar?'<div style="color:var(--mu);font-size:.68rem">'+esc(it.name_ar)+'</div>':''}</td>
       <td>${esc(it.category)}</td><td style="font-size:.7rem">${esc(it.spec||'')}</td><td>${esc(it.unit)}</td>
       <td style="font-size:.68rem">${(it.machines||[]).map(m=>esc(m.machine_code)+(m.station?' ('+esc(m.station)+')':'')).join(', ')}</td>
       <td class="mn" style="${it.min_stock!=null&&it.stock<=it.min_stock?'color:#ff6464;font-weight:800':'font-weight:700'}">${it.stock}</td>
       <td class="mn" style="color:var(--mu)">${it.min_stock??''}</td>
       <td>${esc(it.location||'')}</td><td class="mn">${(+it.unit_cost_jod||0).toFixed(3)}</td>
-      <td style="white-space:nowrap"><button class="btn bsm" onclick="invLabel(${it.id})" title="Print label">&#128424;</button>
-        <button class="btn bsm" onclick="invItemEdit(${it.id})">&#9998;</button></td></tr>`).join('')
+      <td style="white-space:nowrap"><button class="btn bsm" onclick="event.stopPropagation();invLabel(${it.id})" title="Print label">&#128424;</button>
+        <button class="btn bsm" onclick="event.stopPropagation();invItemModal(${it.id})">&#9998;</button></td></tr>`).join('')
       || '<tr><td colspan="11" style="text-align:center;color:var(--mu);padding:16px">No items</td></tr>';
   };
   window.invItemEdit = function(id){
@@ -24875,6 +24876,83 @@ window.addEventListener('beforeunload', function(e){
     catch(e){ alert(e.message); }
   };
 
+  // ---------- STOCK COUNT ----------
+  let _countBlind = true;
+  function invTabCount(el){
+    el.innerHTML = '<div id="cnt-root"><div style="color:var(--mu)">loading...</div></div>';
+    invCountHome();
+  }
+  window.invCountHome = async function(){
+    const el = document.getElementById('cnt-root'); if(!el) return;
+    let list=[]; try{ list = await api('/inventory/counts'); }catch(e){ el.innerHTML='<div style="color:#ff6464">'+esc(e.message)+'</div>'; return; }
+    const open = list.find(c=>c.status==='open');
+    el.innerHTML = `<div class="card"><div class="ch"><span>&#128202; <span data-i18n="Stock Count">Stock Count</span></span>
+      ${open?'':'<span><select id="cnt-cat" style="padding:5px"><option value="">all items</option>'+CATS.map(c=>'<option>'+c+'</option>').join('')+'</select> <button class="btn ba bsm" onclick="invCountStart()" data-i18n="Start Count">Start Count</button></span>'}</div>
+    <div class="tw"><table><thead><tr><th>#</th><th>Name</th><th>Scope</th><th>Status</th><th>Created</th><th>Posted</th><th>Adjustments</th><th>Value JOD</th><th></th></tr></thead><tbody>
+    ${list.map(c=>`<tr><td class="mn">${c.id}</td><td>${esc(c.name||'')}</td><td style="font-size:.7rem">${esc(c.scope_note||'')}</td>
+      <td><span style="color:${c.status==='open'?'var(--a2)':c.status==='posted'?'var(--a3)':'var(--mu)'}">${c.status}</span></td>
+      <td class="mn" style="font-size:.7rem">${esc((c.created_at||'').slice(0,10))} ${esc(c.created_by||'')}</td>
+      <td class="mn" style="font-size:.7rem">${esc((c.posted_at||'').slice(0,10))}</td>
+      <td class="mn">${c.adj_count??''}</td><td class="mn">${c.adj_value_jod??''}</td>
+      <td>${c.status==='open'?'<button class="btn bsm ba" onclick="invCountOpen('+c.id+')" data-i18n="Continue">Continue</button>':'<button class="btn bsm" onclick="invCountOpen('+c.id+')" data-i18n="View">View</button>'+(c.status==='cancelled'?' <button class="btn bsm br" onclick="invCountDelete('+c.id+')" title="Delete">&#128465;</button>':'')}</td></tr>`).join('') || '<tr><td colspan="9" style="color:var(--mu);text-align:center;padding:14px">No counts yet</td></tr>'}
+    </tbody></table></div></div>`;
+  };
+  window.invCountStart = async function(){
+    const cat = document.getElementById('cnt-cat').value;
+    try{ const c = await api('/inventory/counts', {method:'POST', body:{category:cat||null}}); invCountOpen(c.id); }
+    catch(e){ alert(e.message); }
+  };
+  window.invCountOpen = async function(id){
+    const el = document.getElementById('cnt-root'); if(!el) return;
+    let c; try{ c = await api('/inventory/counts/'+id); }catch(e){ alert(e.message); return; }
+    const open = c.status==='open';
+    const counted = c.items.filter(i=>i.counted_qty!=null).length;
+    el.innerHTML = `<div class="card"><div class="ch"><span><button class="btn bsm" onclick="invCountHome()">&#8249; <span data-i18n="Back">Back</span></button>
+      Count #${c.id} <span style="color:var(--mu);font-size:.75rem">${esc(c.scope_note||'')} - ${c.status}</span></span>
+      <span>${open?`<label style="font-size:.7rem;color:var(--mu)"><input type="checkbox" ${_countBlind?'checked':''} onchange="_countBlind=this.checked;invCountOpen(${c.id})"> <span data-i18n="Blind count">Blind count</span></label>
+        <button class="btn bsm" onclick="invCountSave(${c.id})" data-i18n="Save Progress">Save Progress</button>
+        <button class="btn bsm ba" onclick="invCountPost(${c.id})" data-i18n="Post Adjustments">Post Adjustments</button>
+        <button class="btn bsm br" onclick="invCountCancel(${c.id})" data-i18n="Cancel Count">Cancel Count</button>`:''}</span></div>
+    <div style="padding:6px 12px;color:var(--mu);font-size:.72rem"><span data-i18n="Counted">Counted</span>: ${counted}/${c.items.length} ${open?'&middot; <span data-i18n="Uncounted items are skipped at posting">Uncounted items are skipped at posting</span>':''}</div>
+    <div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th>Unit</th><th>Loc</th>${_countBlind&&open?'':'<th data-i18n="System">System</th>'}<th data-i18n="Counted">Counted</th>${_countBlind&&open?'':'<th data-i18n="Variance">Variance</th>'}<th data-i18n="Note">Note</th></tr></thead><tbody>
+    ${c.items.map(i=>{
+      const v = (i.counted_qty!=null && !( _countBlind&&open)) ? (i.counted_qty - i.system_qty) : null;
+      return `<tr data-cid="${i.item_id}"><td class="mn" style="color:var(--a);white-space:nowrap">${i.has_photo?`<button class="btn bsm" style="padding:1px 5px;margin-right:4px" onclick="invPhotoView(${i.item_id})" title="View photo">&#128247;</button>`:''}${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.unit)}</td><td>${esc(i.location||'')}</td>
+      ${_countBlind&&open?'':'<td class="mn" style="color:var(--mu)">'+i.system_qty+'</td>'}
+      <td>${open?`<input type="number" step="0.01" value="${i.counted_qty??''}" style="width:80px;padding:4px" data-counted>`:`<span class="mn">${i.counted_qty??'-'}</span>`}</td>
+      ${_countBlind&&open?'':'<td class="mn" style="font-weight:700;color:'+(v==null?'var(--mu)':Math.abs(v)<0.0001?'var(--a3)':v>0?'var(--a2)':'#ff6464')+'">'+(v==null?'':(v>0?'+':'')+(+v.toFixed(2)))+'</td>'}
+      <td>${open?`<input value="${esc(i.note||'')}" style="width:130px;padding:4px;font-size:.7rem" data-cnote>`:`<span style="font-size:.7rem">${esc(i.note||'')}</span>`}</td></tr>`;
+    }).join('')}
+    </tbody></table></div></div>`;
+  };
+  function _collectCounts(){
+    return Array.from(document.querySelectorAll('#cnt-root [data-cid]')).map(tr=>{
+      const q = tr.querySelector('[data-counted]')?.value;
+      return { item_id:+tr.dataset.cid, counted_qty: q===''||q==null?null:+q, note: tr.querySelector('[data-cnote]')?.value?.trim()||null };
+    });
+  }
+  window.invCountSave = async function(id){
+    try{ await api('/inventory/counts/'+id+'/items', {method:'PUT', body:{items:_collectCounts()}}); invCountOpen(id); }
+    catch(e){ alert(e.message); }
+  };
+  window.invCountPost = async function(id){
+    try{ await api('/inventory/counts/'+id+'/items', {method:'PUT', body:{items:_collectCounts()}}); }catch(e){ alert(e.message); return; }
+    if(!(_nativeConfirm||window.confirm)('Post adjustments? Variances become adjust movements. This cannot be undone.')) return;
+    try{ const r = await api('/inventory/counts/'+id+'/post', {method:'POST'});
+      alert('Posted: '+r.adjustments+' adjustment(s), value '+r.value_jod+' JOD');
+      _items = await api('/inventory/items');
+      invCountOpen(id);
+    }catch(e){ alert(e.message); }
+  };
+  window.invCountDelete = async function(id){
+    if(!(_nativeConfirm||window.confirm)('Delete this cancelled count permanently?')) return;
+    try{ await api('/inventory/counts/'+id, {method:'DELETE'}); invCountHome(); }catch(e){ alert(e.message); }
+  };
+  window.invCountCancel = async function(id){
+    if(!(_nativeConfirm||window.confirm)('Cancel this count? Entered quantities are kept for reference but nothing is posted.')) return;
+    try{ await api('/inventory/counts/'+id+'/cancel', {method:'PUT'}); invCountHome(); }catch(e){ alert(e.message); }
+  };
+
   // ---------- ALERTS ----------
   function invTabAlerts(el){
     el.innerHTML = `<div class="card"><div class="ch"><span>&#9888; <span data-i18n="Below Minimum Stock">Below Minimum Stock</span></span></div>
@@ -24889,6 +24967,122 @@ window.addEventListener('beforeunload', function(e){
         || '<tr><td colspan="8" style="color:var(--a3);text-align:center;padding:14px">All stock levels OK</td></tr>';
     }).catch(()=>{});
   }
+
+  // ---------- ITEM PROFILE MODAL ----------
+  function invModal(html){
+    let m = document.getElementById('inv-modal');
+    if(!m){ m = document.createElement('div'); m.id='inv-modal';
+      m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:26px 10px';
+      m.addEventListener('click', e=>{ if(e.target===m) invModalClose(); });
+      document.body.appendChild(m); }
+    m.innerHTML = '<div style="background:var(--bg,#0d1420);border:1px solid var(--border);border-radius:10px;max-width:980px;width:100%;padding:0 0 14px">'+html+'</div>';
+    m.style.display='flex';
+  }
+  window.invModalClose = function(){ const m=document.getElementById('inv-modal'); if(m) m.style.display='none'; };
+
+  window.invPhotoView = async function(id){
+    try{
+      const it = await api('/inventory/items/'+id);
+      if(!it.photo){ alert('No photo'); return; }
+      invModal(`<div class="ch"><span>${esc(it.code)} - ${esc(it.name)}</span><button class="btn bsm" onclick="invModalClose()">&#10005;</button></div>
+        <div style="padding:12px;text-align:center"><img src="${it.photo}" style="max-width:100%;max-height:75vh;border-radius:6px"></div>`);
+    }catch(e){ alert(e.message); }
+  };
+
+  function _resizeImage(file, cb){
+    const rd = new FileReader();
+    rd.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 800;
+        let w = img.width, h = img.height;
+        if(w > MAX || h > MAX){ const k = Math.min(MAX/w, MAX/h); w = Math.round(w*k); h = Math.round(h*k); }
+        const c = document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        cb(c.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  }
+  window.invPhotoPick = function(id){
+    const inp = document.createElement('input'); inp.type='file'; inp.accept='image/*';
+    inp.onchange = () => {
+      if(!inp.files[0]) return;
+      _resizeImage(inp.files[0], async data => {
+        try{ await api('/inventory/items/'+id+'/photo', {method:'POST', body:{photo:data}}); _items = await api('/inventory/items'); invItemModal(id); }
+        catch(e){ alert(e.message); }
+      });
+    };
+    inp.click();
+  };
+  window.invPhotoRemove = async function(id){
+    if(!(_nativeConfirm||window.confirm)('Remove photo?')) return;
+    try{ await api('/inventory/items/'+id+'/photo', {method:'POST', body:{photo:null}}); _items = await api('/inventory/items'); invItemModal(id); }
+    catch(e){ alert(e.message); }
+  };
+
+  window.invItemModal = async function(id){
+    let it = { category:'spare_part', unit:'pc', criticality:'normal', active:1, machines:[], purchases:[], recent:[], stock:0 };
+    if(id){ try{ it = await api('/inventory/items/'+id); }catch(e){ alert(e.message); return; } }
+    const F = [['name','Name'],['name_ar','Name (ar)'],['company','Company'],['origin','Origin'],['spec','Spec'],['unit','Unit'],['lead_time_days','Lead days'],['min_stock','Min stock'],['reorder_level','Reorder'],['location','Location'],['notes','Notes']];
+    const mm = Object.fromEntries(_machs.map(m=>[m.id,m.code]));
+    invModal(`
+      <div class="ch"><span><span class="mn" style="color:var(--a);font-weight:800">${esc(it.code||'NEW ITEM')}</span> ${esc(it.name||'')}
+        <span style="color:var(--mu);font-size:.72rem;margin-left:8px">stock: <b>${it.stock}</b> ${esc(it.unit||'')}</span></span>
+        <button class="btn bsm" onclick="invModalClose()">&#10005;</button></div>
+      <div style="display:flex;gap:14px;padding:10px 14px;flex-wrap:wrap">
+        <div style="width:170px">
+          ${it.photo?`<img src="${it.photo}" onclick="invPhotoView(${it.id})" style="width:160px;height:160px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--border)">`:`<div style="width:160px;height:160px;border:1px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--mu);font-size:.7rem">no photo</div>`}
+          ${id?`<div style="margin-top:6px;display:flex;gap:4px"><button class="btn bsm" onclick="invPhotoPick(${it.id})">${it.photo?'Replace':'Add'} &#128247;</button>${it.photo?`<button class="btn bsm br" onclick="invPhotoRemove(${it.id})">&#10005;</button>`:''}</div>`:''}
+        </div>
+        <div style="flex:1;min-width:340px">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">
+            ${F.map(([f,l])=>`<label style="font-size:.66rem;color:var(--mu)">${l}<input id="im-${f}" value="${esc(it[f]??'')}" style="width:100%;padding:5px"></label>`).join('')}
+            <label style="font-size:.66rem;color:var(--mu)">Category<select id="im-category" style="width:100%;padding:5px">${CATS.map(c=>`<option ${it.category===c?'selected':''}>${c}</option>`).join('')}</select></label>
+            <label style="font-size:.66rem;color:var(--mu)">Criticality<select id="im-criticality" style="width:100%;padding:5px">${['critical','normal','low'].map(c=>`<option ${it.criticality===c?'selected':''}>${c}</option>`).join('')}</select></label>
+            <label style="font-size:.66rem;color:var(--mu)">Active<select id="im-active" style="width:100%;padding:5px"><option value="1" ${it.active?'selected':''}>yes</option><option value="0" ${!it.active?'selected':''}>no</option></select></label>
+          </div>
+          <div style="font-size:.68rem;color:var(--mu);margin:8px 0 3px">Machine links</div>
+          <div id="im-links">${(it.machines||[]).map(m=>imLinkRow(m.machine_id, m.station)).join('')}</div>
+          <button class="btn bsm" onclick="imAddLink()">+ machine</button>
+          <div style="margin-top:10px"><button class="btn ba" onclick="invModalSave(${id||'null'})" data-i18n="Save">Save</button>
+          <span style="color:var(--mu);font-size:.68rem;margin-left:10px">WAC: <b class="mn">${(+it.unit_cost_jod||0).toFixed(3)}</b> JOD</span></div>
+        </div>
+      </div>
+      ${id?`
+      <div style="padding:0 14px"><div style="font-weight:700;font-size:.74rem;margin:8px 0 4px" data-i18n="Purchases">Purchases</div>
+      <div class="tw"><table><thead><tr><th>Invoice</th><th>Supplier</th><th>Date</th><th>Qty</th><th>Unit price</th><th>Landed/unit JOD</th><th>Line JOD</th></tr></thead><tbody>
+      ${(it.purchases||[]).map(p=>`<tr><td class="mn">${esc(p.invoice_no||'')}</td><td>${esc(p.supplier||'')}</td><td class="mn">${esc(p.date||'')}</td><td class="mn">${p.qty}</td><td class="mn">${p.unit_price} ${esc(p.goods_currency)}</td><td class="mn">${p.landed_unit_jod}</td><td class="mn">${p.line_landed_jod}</td></tr>`).join('') || '<tr><td colspan="7" style="color:var(--mu);text-align:center">no purchases</td></tr>'}
+      </tbody></table></div>
+      <div style="font-weight:700;font-size:.74rem;margin:10px 0 4px" data-i18n="Movement History">Movement History</div>
+      <div class="tw" style="max-height:260px;overflow:auto"><table><thead><tr><th>Date</th><th>Kind</th><th>Qty</th><th>Machine</th><th>Worker</th><th>Note</th><th>By</th></tr></thead><tbody>
+      ${(it.recent||[]).map(r=>`<tr><td class="mn">${esc(r.date)}</td><td style="color:${['in','custody_return'].includes(r.kind)?'var(--a3)':r.kind==='adjust'?'var(--a2)':'#ff6464'}">${esc(r.kind)}</td><td class="mn">${r.qty}</td><td class="mn">${esc(mm[r.machine_id]||'')}</td><td>${esc(r.worker_name||'')}</td><td style="font-size:.68rem">${esc(r.note||'')}</td><td style="font-size:.68rem;color:var(--mu)">${esc(r.created_by||'')}</td></tr>`).join('') || '<tr><td colspan="7" style="color:var(--mu);text-align:center">no movements</td></tr>'}
+      </tbody></table></div></div>`:''}
+    `);
+  };
+  function imLinkRow(mid, station){
+    return `<div style="display:flex;gap:6px;margin-bottom:4px" data-imlink>
+      <select style="padding:5px">${_machs.map(m=>`<option value="${m.id}" ${m.id===mid?'selected':''}>${esc(m.code)} ${esc(m.name)}</option>`).join('')}</select>
+      <input placeholder="station" value="${esc(station||'')}" style="padding:5px;width:110px">
+      <button class="btn bsm br" onclick="this.parentNode.remove()">&#10005;</button></div>`;
+  }
+  window.imAddLink = function(){ document.getElementById('im-links').insertAdjacentHTML('beforeend', imLinkRow(null,'')); };
+  window.invModalSave = async function(id){
+    const g = f => document.getElementById('im-'+f)?.value?.trim();
+    const b = {};
+    ['name','name_ar','company','origin','category','spec','unit','criticality','lead_time_days','min_stock','reorder_level','location','notes'].forEach(f=>{ const v=g(f); b[f]=v===''?null:v; });
+    b.active = +g('active');
+    if(!b.name){ alert('Name required'); return; }
+    b.machine_links = Array.from(document.querySelectorAll('#im-links [data-imlink]')).map(r=>({ machine_id:+r.querySelector('select').value, station:r.querySelector('input').value.trim()||null }));
+    try{
+      if(id){ await api('/inventory/items/'+id, {method:'PUT', body:b}); }
+      else { const created = await api('/inventory/items', {method:'POST', body:b}); id = created.id; }
+      _items = await api('/inventory/items');
+      invFilter();
+      invItemModal(id);
+    }catch(e){ alert(e.message); }
+  };
 })();
 </script>
 
