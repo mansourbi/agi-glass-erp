@@ -806,6 +806,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="nt"    onclick="SP('aframes')" id="nt-aframes">&#128230; <span data-i18n="A-Frames">A-Frames</span></button>
     <button class="nt"    onclick="SP('layout')" id="nt-layout">&#128507; <span data-i18n="Layout">Layout</span></button>
     <button class="nt"    onclick="SP('purchasing')" id="nt-purchasing">&#128722; <span data-i18n="Purchasing">Purchasing</span></button>
+    <button class="nt"    onclick="SP('inventory')" id="nt-inventory">&#128295; <span data-i18n="Inventory">Inventory</span></button>
     <button class="nt"    onclick="SP('settings')"id="nt-settings">&#9881; <span data-i18n="Settings">Settings</span></button>
   </div>
   <!-- Language toggle (EN / AR) — appears in nav after login -->
@@ -1969,6 +1970,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 <!-- ═══════════════════════════════════════════════════════════════════════
      PURCHASING — list view + detail view in one page, toggled by JS
      ═══════════════════════════════════════════════════════════════════════ -->
+<div class="pg" id="pg-inventory"><div id="inv-root" style="padding:0 4px"></div></div>
+
 <div class="pg" id="pg-purchasing">
 
   <!-- ── List view ── -->
@@ -2429,7 +2432,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="rtab" onclick="showSettingsTab('factories')">&#127981; <span data-i18n="Factories">Factories</span></button>
     <button class="rtab" onclick="showSettingsTab('translations')">&#127760; <span data-i18n="Translations">Translations</span></button>
     <button class="rtab" onclick="showSettingsTab('logs')">&#128203; <span data-i18n="Logs">Logs</span></button>
+    <button class="rtab" onclick="showSettingsTab('machines')">&#9881; <span data-i18n="Machines">Machines</span></button>
   </div>
+
+  <!-- Tab: Machines -->
+  <div id="stab-machines" class="stab" style="display:none"><div id="mach-root"></div></div>
 
   <!-- Tab: Activity Logs -->
   <div id="stab-logs" class="stab" style="display:none">
@@ -4456,7 +4463,7 @@ async function SP(id){
   try{ AGI.logEvent && AGI.logEvent(id); }catch(e){}
   const r={dash:renderDash,crm:renderCust,orders:renderOrders,cutting:renderCutUI,
            track:renderTrack,labels:renderLabels,reports:renderReports,settings:renderSettings,aframes:renderAFrames,
-           layout:renderFactoryLayout,purchasing:renderPurchasing};
+           layout:renderFactoryLayout,purchasing:renderPurchasing,inventory:renderInventory};
   if(r[id]) r[id]();
   if(id==='remnants'){ remnantSlots=await AGI.Remnants.slots.list().catch(()=>[]); await renderRemnants(); }
   if(id==='deliveries') await renderDeliveriesPage();
@@ -12764,6 +12771,7 @@ async function showSettingsTab(id){
   document.querySelectorAll('.rtab').forEach(t=>t.classList.remove('on'));
   const el=document.getElementById('stab-'+id); if(el) el.style.display='';
   if(id==='extprocs') renderExtProcList();
+  if(id==='machines') renderMachinesTab();
   if(id==='factories') renderFactoryList();
   // Mark active tab button
   document.querySelectorAll('.rtab').forEach(t=>{
@@ -24333,5 +24341,556 @@ window.addEventListener('beforeunload', function(e){
   if ((document.querySelector('.pg.on')||{}).id === 'pg-dash') try{ renderDashV2(); }catch(e){}
 })();
 </script>
+﻿<script>
+/* MACH_UI v1: Settings > Machines - list, profile (info/costs/maintenance/parts/workers) */
+(function(){
+  const api = async (p, opts={}) => {
+    const r = await fetch('/api'+p, { method: opts.method||'GET',
+      headers: { 'Authorization':'Bearer '+localStorage.getItem('agi_token'), ...(opts.body?{'Content-Type':'application/json'}:{}) },
+      body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    return j;
+  };
+  const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let _machines = [], _cur = null, _workers = [];
+
+  window.renderMachinesTab = async function(){
+    const el = document.getElementById('mach-root'); if(!el) return;
+    try{ _machines = await api('/machines'); }catch(e){ el.innerHTML = '<div style="color:var(--mu)">'+esc(e.message)+'</div>'; return; }
+    try{ _workers = await AGI.Workers.list(); }catch(e){ _workers = []; }
+    el.innerHTML = `
+    <div class="card"><div class="ch"><span>&#9881; <span data-i18n="Machines">Machines</span> (${_machines.length})</span>
+      <button class="btn ba bsm" onclick="machShowAdd()">+ <span data-i18n="Add Machine">Add Machine</span></button></div>
+    <div class="tw"><table><thead><tr><th data-i18n="Code">Code</th><th data-i18n="Name">Name</th><th data-i18n="Type">Type</th><th data-i18n="Brand">Brand</th><th data-i18n="Model">Model</th><th data-i18n="Status">Status</th><th data-i18n="Responsible">Responsible</th><th data-i18n="Total Cost">Total Cost</th><th></th></tr></thead><tbody>
+    ${_machines.map(m=>`<tr style="cursor:pointer" onclick="machProfile(${m.id})">
+      <td class="mn" style="color:var(--a);font-weight:700">${esc(m.code)}</td><td>${esc(m.name)}</td>
+      <td>${esc(m.type||'')}</td><td>${esc(m.brand||'')}</td><td class="mn">${esc(m.model||'')}</td>
+      <td><span class="bge" style="${m.status==='active'?'color:var(--a3)':m.status==='retired'?'color:var(--mu)':'color:var(--a2)'}">${esc(m.status)}</span>${m.plans_due?' <span style="color:#ff6464" title="maintenance due">&#9888;'+m.plans_due+'</span>':''}</td>
+      <td>${esc((m.responsible||[]).map(r=>r.worker_name).join(', '))}</td>
+      <td class="mn">${(+m.total_cost_jod||0).toFixed(2)}</td><td style="color:var(--mu)">&#8250;</td></tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--mu);padding:16px" data-i18n="No machines yet">No machines yet</td></tr>'}
+    </tbody></table></div></div>
+    <div id="mach-detail"></div>`;
+  };
+
+  window.machShowAdd = function(){
+    const d = document.getElementById('mach-detail');
+    d.innerHTML = `<div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Add Machine">Add Machine</span></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px">
+      ${['name','name_ar','model','serial_no','type','brand','origin','supplier'].map(f=>`<input id="ma-${f}" placeholder="${f}" style="padding:6px">`).join('')}
+      <input id="ma-purchase_date" type="date" style="padding:6px">
+      ${['dims_l_mm','dims_w_mm','dims_h_mm','weight_kg','power_kw','voltage'].map(f=>`<input id="ma-${f}" placeholder="${f}" style="padding:6px">`).join('')}
+    </div>
+    <div style="padding:0 12px"><textarea id="ma-specs" placeholder="specs" style="width:100%;height:60px"></textarea></div>
+    <div style="padding:12px"><button class="btn ba" onclick="machAdd()" data-i18n="Save">Save</button></div></div>`;
+    d.scrollIntoView({behavior:'smooth'});
+  };
+  window.machAdd = async function(){
+    const g = id => document.getElementById('ma-'+id)?.value?.trim()||null;
+    const b = {};
+    ['name','name_ar','model','serial_no','type','brand','origin','supplier','purchase_date','dims_l_mm','dims_w_mm','dims_h_mm','weight_kg','power_kw','voltage','specs'].forEach(f=>b[f]=g(f));
+    if(!b.name){ alert('Name required'); return; }
+    try{ const m = await api('/machines', {method:'POST', body:b}); await renderMachinesTab(); machProfile(m.id); }
+    catch(e){ alert(e.message); }
+  };
+
+  window.machProfile = async function(id, tab){
+    let m; try{ m = await api('/machines/'+id); }catch(e){ alert(e.message); return; }
+    _cur = m; tab = tab || 'info';
+    const d = document.getElementById('mach-detail');
+    const tabs = [['info','Info'],['costs','Costs'],['maint','Maintenance'],['parts','Spare Parts'],['workers','Workers']];
+    d.innerHTML = `<div class="card" style="margin-top:12px">
+      <div class="ch"><span><span class="mn" style="color:var(--a)">${esc(m.code)}</span> ${esc(m.name)} <span style="color:var(--mu);font-size:.75rem">${esc(m.model||'')}</span></span>
+      <span>${tabs.map(t=>`<button class="btn bsm ${tab===t[0]?'ba':''}" onclick="machProfile(${id},'${t[0]}')" data-i18n="${t[1]}">${t[1]}</button>`).join(' ')}</span></div>
+      <div id="mach-tab" style="padding:12px"></div></div>`;
+    const el = document.getElementById('mach-tab');
+    if(tab==='info') machTabInfo(el, m);
+    if(tab==='costs') machTabCosts(el, m);
+    if(tab==='maint') machTabMaint(el, m);
+    if(tab==='parts') machTabParts(el, m);
+    if(tab==='workers') machTabWorkers(el, m);
+    d.scrollIntoView({behavior:'smooth'});
+  };
+
+  function machTabInfo(el, m){
+    const F = [['name','Name'],['name_ar','Name (ar)'],['model','Model'],['serial_no','Serial'],['type','Type'],['brand','Brand'],['origin','Origin'],['supplier','Supplier'],['purchase_date','Purchase Date'],['dims_l_mm','L mm'],['dims_w_mm','W mm'],['dims_h_mm','H mm'],['weight_kg','Weight kg'],['power_kw','Power kW'],['voltage','Voltage'],['status','Status']];
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+      ${F.map(([f,l])=> f==='status'
+        ? `<label style="font-size:.7rem;color:var(--mu)">${l}<select id="mi-${f}" style="width:100%;padding:6px">${['active','maintenance','retired'].map(s=>`<option ${m[f]===s?'selected':''}>${s}</option>`).join('')}</select></label>`
+        : `<label style="font-size:.7rem;color:var(--mu)">${l}<input id="mi-${f}" value="${esc(m[f]??'')}" ${f==='purchase_date'?'type="date"':''} style="width:100%;padding:6px"></label>`).join('')}
+    </div>
+    <label style="font-size:.7rem;color:var(--mu);display:block;margin-top:8px">Specs<textarea id="mi-specs" style="width:100%;height:70px">${esc(m.specs??'')}</textarea></label>
+    <label style="font-size:.7rem;color:var(--mu);display:block;margin-top:4px">Notes<textarea id="mi-notes" style="width:100%;height:40px">${esc(m.notes??'')}</textarea></label>
+    <div style="margin-top:8px"><button class="btn ba" onclick="machSaveInfo(${m.id})" data-i18n="Save">Save</button>
+    <span style="color:var(--mu);font-size:.72rem;margin-left:12px" data-i18n="Total Cost">Total Cost</span> <b class="mn">${(+m.total_cost_jod||0).toFixed(2)} JOD</b></div>`;
+  }
+  window.machSaveInfo = async function(id){
+    const b={};
+    ['name','name_ar','model','serial_no','type','brand','origin','supplier','purchase_date','dims_l_mm','dims_w_mm','dims_h_mm','weight_kg','power_kw','voltage','status','specs','notes'].forEach(f=>{
+      const e=document.getElementById('mi-'+f); if(e) b[f]=e.value.trim()||null; });
+    try{ await api('/machines/'+id, {method:'PUT', body:b}); await renderMachinesTab(); machProfile(id,'info'); }catch(e){ alert(e.message); }
+  };
+
+  function machTabCosts(el, m){
+    el.innerHTML = `<div class="tw"><table><thead><tr><th>Type</th><th>Description</th><th>Amount</th><th>Curr</th><th>Rate</th><th>JOD</th><th>Date</th><th></th></tr></thead><tbody>
+    ${m.costs.map(c=>`<tr><td>${esc(c.cost_type)}</td><td>${esc(c.description||'')}</td><td class="mn">${(+c.amount).toFixed(2)}</td><td>${esc(c.currency)}</td><td class="mn">${c.exchange_rate_to_jod}</td><td class="mn" style="font-weight:700">${(+c.amount_jod).toFixed(2)}</td><td class="mn">${esc(c.date||'')}</td>
+    <td><button class="btn bsm br" onclick="machDelCost(${m.id},${c.id})">&#10005;</button></td></tr>`).join('')}
+    <tr style="border-top:2px solid var(--border);font-weight:800"><td colspan="5">Total</td><td class="mn">${(+m.total_cost_jod||0).toFixed(2)}</td><td colspan="2"></td></tr>
+    </tbody></table></div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <select id="mc-type" style="padding:6px">${['purchase','shipping','customs','clearance','installation','other'].map(t=>`<option>${t}</option>`).join('')}</select>
+      <input id="mc-desc" placeholder="description" style="padding:6px">
+      <input id="mc-amount" type="number" placeholder="amount" style="padding:6px;width:100px">
+      <input id="mc-curr" value="JOD" style="padding:6px;width:70px">
+      <input id="mc-rate" type="number" value="1" step="0.001" style="padding:6px;width:80px">
+      <input id="mc-date" type="date" style="padding:6px">
+      <button class="btn ba bsm" onclick="machAddCost(${m.id})" data-i18n="Add">Add</button></div>`;
+  }
+  window.machAddCost = async function(id){
+    const g=x=>document.getElementById('mc-'+x).value;
+    if(!g('amount')){ alert('amount required'); return; }
+    try{ await api('/machines/'+id+'/costs', {method:'POST', body:{cost_type:g('type'),description:g('desc'),amount:+g('amount'),currency:g('curr')||'JOD',exchange_rate_to_jod:+g('rate')||1,date:g('date')||null}}); machProfile(id,'costs'); }catch(e){ alert(e.message); }
+  };
+  window.machDelCost = async function(id,cid){
+    if(!(_nativeConfirm||window.confirm)('Delete cost line?')) return;
+    try{ await api('/machines/costs/'+cid, {method:'DELETE'}); machProfile(id,'costs'); }catch(e){ alert(e.message); }
+  };
+
+  function machTabMaint(el, m){
+    el.innerHTML = `<div style="font-weight:700;font-size:.75rem;margin-bottom:4px" data-i18n="Plans">Plans</div>
+    <div class="tw"><table><thead><tr><th>Title</th><th>Checklist</th><th>Interval (days)</th><th>Next Due</th><th></th></tr></thead><tbody>
+    ${m.plans.map(p=>`<tr ${p.active?'':'style="opacity:.5"'}><td>${esc(p.title||'')}</td><td>${esc(p.checklist_name||'-')}</td><td class="mn">${p.interval_days}</td>
+      <td class="mn" style="${p.next_due && p.next_due<=new Date().toISOString().slice(0,10)?'color:#ff6464;font-weight:700':''}">${esc(p.next_due||'-')}</td>
+      <td><button class="btn bsm ba" onclick="machLogMaint(${m.id},${p.id})" data-i18n="Perform">Perform</button>
+          <button class="btn bsm br" onclick="machDelPlan(${m.id},${p.id})">&#10005;</button></td></tr>`).join('') || '<tr><td colspan="5" style="color:var(--mu);text-align:center">No plans</td></tr>'}
+    </tbody></table></div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <input id="mp-title" placeholder="plan title" style="padding:6px">
+      <select id="mp-checklist" style="padding:6px"><option value="">no checklist</option></select>
+      <input id="mp-interval" type="number" placeholder="days" value="30" style="padding:6px;width:80px">
+      <input id="mp-due" type="date" style="padding:6px">
+      <button class="btn ba bsm" onclick="machAddPlan(${m.id})" data-i18n="Add Plan">Add Plan</button>
+      <button class="btn bsm" onclick="machNewChecklist(${m.id})" data-i18n="New Checklist">New Checklist</button></div>
+    <div style="font-weight:700;font-size:.75rem;margin:14px 0 4px" data-i18n="Log (unscheduled)">Log (unscheduled)</div>
+    <button class="btn bsm ba" onclick="machLogMaint(${m.id},null)" data-i18n="Log Breakdown / Repair">Log Breakdown / Repair</button>
+    <div style="font-weight:700;font-size:.75rem;margin:14px 0 4px" data-i18n="History">History</div>
+    <div class="tw"><table><thead><tr><th>Date</th><th>Type</th><th>By</th><th>Duration</th><th>Findings</th></tr></thead><tbody>
+    ${m.logs.map(l=>`<tr><td class="mn">${esc(l.date)}</td><td>${esc(l.type)}</td><td>${esc(l.performed_by_name||'')}</td><td class="mn">${l.duration_mins||''}</td><td style="font-size:.72rem">${esc(l.findings||'')}</td></tr>`).join('') || '<tr><td colspan="5" style="color:var(--mu);text-align:center">No history</td></tr>'}
+    </tbody></table></div>`;
+    api('/machines/checklists').then(ls=>{
+      const sel=document.getElementById('mp-checklist'); if(!sel) return;
+      ls.filter(c=>c.active).forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; sel.appendChild(o); });
+    }).catch(()=>{});
+  }
+  window.machAddPlan = async function(id){
+    const g=x=>document.getElementById('mp-'+x).value;
+    try{ await api('/machines/'+id+'/plans', {method:'POST', body:{title:g('title')||null, checklist_id:g('checklist')?+g('checklist'):null, interval_days:+g('interval')||30, next_due:g('due')||null}}); machProfile(id,'maint'); }catch(e){ alert(e.message); }
+  };
+  window.machDelPlan = async function(id,pid){
+    if(!(_nativeConfirm||window.confirm)('Delete plan?')) return;
+    try{ await api('/machines/plans/'+pid, {method:'DELETE'}); machProfile(id,'maint'); }catch(e){ alert(e.message); }
+  };
+  window.machNewChecklist = async function(id){
+    const name = prompt('Checklist name:'); if(!name) return;
+    const items = prompt('Items (separate with ; ):')||'';
+    try{ await api('/machines/checklists', {method:'POST', body:{name, items: items.split(';').map(s=>s.trim()).filter(Boolean)}}); machProfile(id,'maint'); }catch(e){ alert(e.message); }
+  };
+  window.machLogMaint = async function(id, planId){
+    let items = [];
+    if(planId){
+      const plan = _cur.plans.find(p=>p.id===planId);
+      if(plan && plan.checklist_id){
+        try{ const ls = await api('/machines/checklists'); const c = ls.find(x=>x.id===plan.checklist_id);
+          if(c) items = c.items.map(i=>i.item_text); }catch(e){}
+      }
+    }
+    const findings = prompt((planId?'Scheduled maintenance':'Breakdown/repair')+' - findings/notes:'); if(findings===null) return;
+    const dur = prompt('Duration (minutes):')||'';
+    let results = [];
+    for(const it of items){
+      const ok = (_nativeConfirm||window.confirm)('OK?  '+it+'\n(OK = pass, Cancel = issue)');
+      results.push({item_text: it, result: ok?'ok':'issue'});
+    }
+    try{ await api('/machines/'+id+'/logs', {method:'POST', body:{plan_id:planId, type:planId?'scheduled':'breakdown', findings, duration_mins:+dur||null, items:results}}); machProfile(id,'maint'); }catch(e){ alert(e.message); }
+  };
+
+  function machTabParts(el, m){
+    el.innerHTML = `<div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Spec</th><th>Station</th><th>Stock</th><th>Min</th></tr></thead><tbody>
+    ${m.items.map(i=>`<tr><td class="mn" style="color:var(--a)">${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.category)}</td><td style="font-size:.72rem">${esc(i.spec||'')}</td><td>${esc(i.station||'')}</td>
+      <td class="mn" style="${i.min_stock!=null && i.stock<=i.min_stock?'color:#ff6464;font-weight:700':''}">${i.stock}</td><td class="mn" style="color:var(--mu)">${i.min_stock??'-'}</td></tr>`).join('') || '<tr><td colspan="7" style="color:var(--mu);text-align:center;padding:14px" data-i18n="No linked items - link items from Inventory">No linked items - link items from Inventory</td></tr>'}
+    </tbody></table></div>`;
+  }
+
+  function machTabWorkers(el, m){
+    el.innerHTML = `<div class="tw"><table><thead><tr><th>Worker</th><th>Role</th><th>From</th><th>To</th></tr></thead><tbody>
+    ${m.workers.map(w=>`<tr ${w.to_date?'style="opacity:.55"':''}><td>${esc(w.worker_name)}</td><td>${esc(w.role)}</td><td class="mn">${esc(w.from_date||'')}</td><td class="mn">${esc(w.to_date||'current')}</td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--mu);text-align:center">No assignments</td></tr>'}
+    </tbody></table></div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <select id="mw-worker" style="padding:6px">${_workers.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('')}</select>
+      <select id="mw-role" style="padding:6px"><option>responsible</option><option>operator</option></select>
+      <input id="mw-from" type="date" style="padding:6px">
+      <button class="btn ba bsm" onclick="machAssignWorker(${m.id})" data-i18n="Assign">Assign</button></div>
+    <div style="color:var(--mu);font-size:.68rem;margin-top:6px" data-i18n="Assigning a new worker in the same role closes the previous assignment">Assigning a new worker in the same role closes the previous assignment</div>`;
+  }
+  window.machAssignWorker = async function(id){
+    const w=document.getElementById('mw-worker').value, r=document.getElementById('mw-role').value, f=document.getElementById('mw-from').value;
+    try{ await api('/machines/'+id+'/workers', {method:'POST', body:{worker_id:+w, role:r, from_date:f||null}}); machProfile(id,'workers'); }catch(e){ alert(e.message); }
+  };
+})();
+</script>
+
+﻿<script>
+/* INV_UI v1: Inventory nav page - Items / Receive / Consumption / Custody / Alerts */
+(function(){
+  const api = async (p, opts={}) => {
+    const r = await fetch('/api'+p, { method: opts.method||'GET',
+      headers: { 'Authorization':'Bearer '+localStorage.getItem('agi_token'), ...(opts.body?{'Content-Type':'application/json'}:{}) },
+      body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    return j;
+  };
+  const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let _items=[], _machs=[], _invTab='items', _lines=[], _wks=[];
+
+  window.renderInventory = async function(tab){
+    _invTab = tab || _invTab || 'items';
+    const root = document.getElementById('inv-root'); if(!root) return;
+    const T = [['items','Items'],['receive','Receive'],['consume','Consumption'],['custody','Custody'],['alerts','Alerts']];
+    root.innerHTML = `<div class="ph"><div><div class="pt" data-i18n="Inventory">Inventory</div>
+      <div class="ps" data-i18n="Spare parts, tools and consumables">Spare parts, tools and consumables</div></div>
+      <div>${T.map(t=>`<button class="btn ${_invTab===t[0]?'ba':''}" onclick="renderInventory('${t[0]}')" data-i18n="${t[1]}">${t[1]}</button>`).join(' ')}</div></div>
+      <div id="inv-body"></div>`;
+    const el = document.getElementById('inv-body');
+    try{
+      if(_invTab!=='items' || !_items.length){ _items = await api('/inventory/items'); }
+      else { _items = await api('/inventory/items'); }
+      if(!_machs.length){ try{ _machs = await api('/machines'); }catch(e){ _machs=[]; } }
+      if(!_wks.length){ try{ _wks = await AGI.Workers.list(); }catch(e){ _wks=[]; } }
+    }catch(e){ el.innerHTML = '<div style="color:#ff6464">'+esc(e.message)+'</div>'; return; }
+    if(_invTab==='items') invTabItems(el);
+    if(_invTab==='receive') invTabReceive(el);
+    if(_invTab==='consume') invTabConsume(el);
+    if(_invTab==='custody') invTabCustody(el);
+    if(_invTab==='alerts') invTabAlerts(el);
+  };
+
+  // ---------- ITEMS ----------
+  const CATS = ['spare_part','tool','consumable','ppe'];
+  function invTabItems(el){
+    const cols = [['code','Code'],['name','Name'],['category','Category'],['spec','Spec'],['unit','Unit'],['machines','Machines'],['stock','Stock'],['min_stock','Min'],['location','Loc'],['unit_cost_jod','WAC']];
+    el.innerHTML = `<div class="card"><div class="ch"><span>&#128295; <span data-i18n="Items">Items</span> (<span id="inv-count">${_items.length}</span>)</span>
+      <button class="btn ba bsm" onclick="invItemEdit(null)">+ <span data-i18n="Add Item">Add Item</span></button></div>
+      <div class="tw"><table><thead>
+        <tr>${cols.map(c=>`<th>${c[1]}</th>`).join('')}<th></th></tr>
+        <tr>${cols.map(c=>`<th><input data-f="${c[0]}" oninput="invFilter()" style="width:95%;padding:3px;font-size:.7rem"></th>`).join('')}<th></th></tr>
+      </thead><tbody id="inv-items-body"></tbody></table></div></div>
+      <div id="inv-item-editor"></div>`;
+    invFilter();
+  }
+  window.invFilter = function(){
+    const fs = {};
+    document.querySelectorAll('#inv-body thead input[data-f]').forEach(i=>{ if(i.value.trim()) fs[i.dataset.f]=i.value.trim().toLowerCase(); });
+    const rows = _items.filter(it=>{
+      return Object.entries(fs).every(([f,v])=>{
+        let val = f==='machines' ? (it.machines||[]).map(m=>m.machine_code+' '+m.machine_name).join(' ')
+          : f==='stock' ? String(it.stock) : String(it[f]??'');
+        return val.toLowerCase().includes(v);
+      });
+    });
+    const b = document.getElementById('inv-items-body'); if(!b) return;
+    document.getElementById('inv-count').textContent = rows.length;
+    b.innerHTML = rows.map(it=>`<tr ${it.active?'':'style="opacity:.45"'}>
+      <td class="mn" style="color:var(--a);font-weight:700">${esc(it.code)}</td>
+      <td>${esc(it.name)}${it.name_ar?'<div style="color:var(--mu);font-size:.68rem">'+esc(it.name_ar)+'</div>':''}</td>
+      <td>${esc(it.category)}</td><td style="font-size:.7rem">${esc(it.spec||'')}</td><td>${esc(it.unit)}</td>
+      <td style="font-size:.68rem">${(it.machines||[]).map(m=>esc(m.machine_code)+(m.station?' ('+esc(m.station)+')':'')).join(', ')}</td>
+      <td class="mn" style="${it.min_stock!=null&&it.stock<=it.min_stock?'color:#ff6464;font-weight:800':'font-weight:700'}">${it.stock}</td>
+      <td class="mn" style="color:var(--mu)">${it.min_stock??''}</td>
+      <td>${esc(it.location||'')}</td><td class="mn">${(+it.unit_cost_jod||0).toFixed(3)}</td>
+      <td style="white-space:nowrap"><button class="btn bsm" onclick="invLabel(${it.id})" title="Print label">&#128424;</button>
+        <button class="btn bsm" onclick="invItemEdit(${it.id})">&#9998;</button></td></tr>`).join('')
+      || '<tr><td colspan="11" style="text-align:center;color:var(--mu);padding:16px">No items</td></tr>';
+  };
+  window.invItemEdit = function(id){
+    const it = id ? _items.find(x=>x.id===id) : {category:'spare_part',unit:'pc',criticality:'normal',active:1,machines:[]};
+    const d = document.getElementById('inv-item-editor');
+    const F = [['code','Code (auto if empty)'],['name','Name'],['name_ar','Name ar'],['spec','Spec'],['unit','Unit'],['lead_time_days','Lead days'],['min_stock','Min stock'],['reorder_level','Reorder'],['location','Location']];
+    d.innerHTML = `<div class="card" style="margin-top:10px"><div class="ch"><span>${id?'Edit '+esc(it.code):'Add Item'}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px">
+      ${F.map(([f,l])=>`<label style="font-size:.68rem;color:var(--mu)">${l}<input id="ie-${f}" value="${esc(it[f]??'')}" style="width:100%;padding:6px"></label>`).join('')}
+      <label style="font-size:.68rem;color:var(--mu)">Category<select id="ie-category" style="width:100%;padding:6px">${CATS.map(c=>`<option ${it.category===c?'selected':''}>${c}</option>`).join('')}</select></label>
+      <label style="font-size:.68rem;color:var(--mu)">Criticality<select id="ie-criticality" style="width:100%;padding:6px">${['critical','normal','low'].map(c=>`<option ${it.criticality===c?'selected':''}>${c}</option>`).join('')}</select></label>
+      <label style="font-size:.68rem;color:var(--mu)">Active<select id="ie-active" style="width:100%;padding:6px"><option value="1" ${it.active?'selected':''}>yes</option><option value="0" ${!it.active?'selected':''}>no</option></select></label>
+    </div>
+    <div style="padding:0 12px"><div style="font-size:.7rem;color:var(--mu);margin-bottom:4px">Machine links (station optional)</div>
+      <div id="ie-links">${(it.machines||[]).map((m,i)=>ieLinkRow(i,m.machine_id,m.station)).join('')}</div>
+      <button class="btn bsm" onclick="ieAddLink()">+ machine</button></div>
+    <div style="padding:12px"><button class="btn ba" onclick="invItemSave(${id||'null'})" data-i18n="Save">Save</button></div></div>`;
+    d.scrollIntoView({behavior:'smooth'});
+  };
+  function ieLinkRow(i, mid, station){
+    return `<div style="display:flex;gap:6px;margin-bottom:4px" data-link>
+      <select style="padding:5px">${_machs.map(m=>`<option value="${m.id}" ${m.id===mid?'selected':''}>${esc(m.code)} ${esc(m.name)}</option>`).join('')}</select>
+      <input placeholder="station" value="${esc(station||'')}" style="padding:5px;width:110px">
+      <button class="btn bsm br" onclick="this.parentNode.remove()">&#10005;</button></div>`;
+  }
+  window.ieAddLink = function(){ document.getElementById('ie-links').insertAdjacentHTML('beforeend', ieLinkRow(99,null,'')); };
+  window.invItemSave = async function(id){
+    const g = f => document.getElementById('ie-'+f)?.value?.trim();
+    const b = {};
+    ['code','name','name_ar','category','spec','unit','criticality','lead_time_days','min_stock','reorder_level','location'].forEach(f=>{ const v=g(f); b[f]=v===''?null:v; });
+    b.active = +g('active');
+    if(!b.name){ alert('Name required'); return; }
+    b.machine_links = Array.from(document.querySelectorAll('#ie-links [data-link]')).map(r=>({ machine_id:+r.querySelector('select').value, station:r.querySelector('input').value.trim()||null }));
+    try{
+      if(id) await api('/inventory/items/'+id, {method:'PUT', body:b});
+      else await api('/inventory/items', {method:'POST', body:b});
+      _items = await api('/inventory/items');
+      renderInventory('items');
+    }catch(e){ alert(e.message); }
+  };
+  window.invLabel = function(id){
+    const it = _items.find(x=>x.id===id); if(!it) return;
+    const tmp = document.createElement('div'); tmp.style.display='none'; document.body.appendChild(tmp);
+    new QRCode(tmp, { text: it.code, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M });
+    setTimeout(()=>{
+      const img = tmp.querySelector('img')?.src || tmp.querySelector('canvas')?.toDataURL();
+      tmp.remove();
+      const w = window.open('','_blank','width=500,height=320');
+      w.document.write(`<html><head><style>
+        @page{size:100mm 50mm;margin:0} body{margin:0;font-family:Arial;width:100mm;height:50mm;display:flex;align-items:center}
+        .qr{width:38mm;height:38mm;margin:6mm 2mm 6mm 5mm} .qr img{width:100%;height:100%}
+        .tx{flex:1;padding:3mm 4mm 3mm 1mm} .c{font-size:13pt;font-weight:800;font-family:monospace}
+        .n{font-size:11pt;font-weight:700;margin:1mm 0} .s{font-size:8pt} .l{font-size:9pt;margin-top:1.5mm}
+      </style></head><body>
+        <div class="qr"><img src="${img}"></div>
+        <div class="tx"><div class="c">${esc(it.code)}</div><div class="n">${esc(it.name)}</div>
+        <div class="s">${esc(it.spec||'')}</div><div class="s">${esc(it.category)} &middot; ${esc(it.unit)}</div>
+        <div class="l">${it.location?('&#128205; '+esc(it.location)):''}</div></div>
+      </body></html>`);
+      w.document.close();
+      setTimeout(()=>{ w.print(); }, 300);
+    }, 250);
+  };
+
+  // ---------- RECEIVE ----------
+  function itemDatalist(){
+    return `<datalist id="inv-dl">${_items.filter(i=>i.active).map(i=>`<option value="${esc(i.code)}">${esc(i.name)} ${esc(i.spec||'')}</option>`).join('')}</datalist>`;
+  }
+  function invTabReceive(el){
+    _lines = [];
+    el.innerHTML = `${itemDatalist()}
+    <div class="card"><div class="ch"><span data-i18n="New Invoice">New Invoice</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px">
+      <input id="rv-no" placeholder="invoice no" style="padding:6px">
+      <input id="rv-supplier" placeholder="supplier" style="padding:6px">
+      <input id="rv-date" type="date" style="padding:6px">
+      <select id="rv-curr" style="padding:6px">${['JOD','RMB','USD','EUR'].map(c=>`<option>${c}</option>`).join('')}</select>
+      <input id="rv-rate" type="number" step="0.0001" value="1" title="rate to JOD" style="padding:6px;width:90px">
+      <input id="rv-extra" type="number" step="0.01" placeholder="extra costs JOD" style="padding:6px;width:130px">
+      <input id="rv-extranote" placeholder="extra costs note" style="padding:6px">
+    </div>
+    <div id="rv-lines" style="padding:0 12px"></div>
+    <div style="padding:10px 12px"><button class="btn bsm" onclick="rvAddLine()">+ line</button>
+      <button class="btn ba" onclick="rvSave()" style="margin-left:10px" data-i18n="Save Invoice">Save Invoice</button>
+      <span id="rv-total" style="margin-left:14px;color:var(--mu);font-size:.75rem"></span></div></div>
+    <div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Stock In (no invoice)">Stock In (no invoice)</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px">
+      <input id="si-item" list="inv-dl" placeholder="item code" style="padding:6px">
+      <input id="si-qty" type="number" placeholder="qty" style="padding:6px;width:90px">
+      <input id="si-cost" type="number" step="0.001" placeholder="unit cost JOD (opt)" style="padding:6px;width:150px">
+      <input id="si-note" placeholder="note (required)" style="padding:6px;min-width:220px">
+      <button class="btn ba bsm" onclick="invStockIn()" data-i18n="Add">Add</button></div></div>
+    <div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Invoices">Invoices</span></div><div class="tw"><table>
+      <thead><tr><th>No</th><th>Supplier</th><th>Date</th><th>Curr</th><th>Goods JOD</th><th>Extra</th><th>Landed JOD</th></tr></thead>
+      <tbody id="rv-list"></tbody></table></div></div>`;
+    rvAddLine();
+    api('/inventory/invoices').then(list=>{
+      document.getElementById('rv-list').innerHTML = list.map(v=>`<tr><td class="mn">${esc(v.invoice_no||v.id)}</td><td>${esc(v.supplier||'')}</td><td class="mn">${esc(v.date)}</td><td>${esc(v.goods_currency)}</td><td class="mn">${(+v.total_goods_jod).toFixed(2)}</td><td class="mn">${(+v.extra_costs_jod).toFixed(2)}</td><td class="mn" style="font-weight:700">${(+v.total_landed_jod).toFixed(2)}</td></tr>`).join('') || '<tr><td colspan="7" style="color:var(--mu);text-align:center">none</td></tr>';
+    }).catch(()=>{});
+  }
+  window.rvAddLine = function(){
+    const d = document.getElementById('rv-lines');
+    const i = d.children.length;
+    d.insertAdjacentHTML('beforeend', `<div style="display:flex;gap:6px;margin-bottom:5px;flex-wrap:wrap" data-line>
+      <select onchange="this.parentNode.querySelector('[data-new]').style.display=this.value==='new'?'flex':'none'" style="padding:5px"><option value="existing">existing</option><option value="new">new item</option></select>
+      <input list="inv-dl" placeholder="item code" data-code style="padding:5px;width:130px">
+      <span data-new style="display:none;gap:5px;flex-wrap:wrap">
+        <input placeholder="name" data-nname style="padding:5px">
+        <select data-ncat style="padding:5px">${CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+        <input placeholder="spec" data-nspec style="padding:5px">
+        <input placeholder="unit" value="pc" data-nunit style="padding:5px;width:60px">
+      </span>
+      <input type="number" placeholder="qty" data-qty oninput="rvTotal()" style="padding:5px;width:80px">
+      <input type="number" step="0.01" placeholder="unit price" data-price oninput="rvTotal()" style="padding:5px;width:100px">
+      <button class="btn bsm br" onclick="this.parentNode.remove();rvTotal()">&#10005;</button></div>`);
+  };
+  window.rvTotal = function(){
+    const rate = +document.getElementById('rv-rate').value||1;
+    let t=0;
+    document.querySelectorAll('#rv-lines [data-line]').forEach(l=>{
+      t += (+l.querySelector('[data-qty]').value||0) * (+l.querySelector('[data-price]').value||0);
+    });
+    document.getElementById('rv-total').textContent = 'goods: '+t.toFixed(2)+' '+document.getElementById('rv-curr').value+' = '+(t*rate).toFixed(2)+' JOD';
+  };
+  window.rvSave = async function(){
+    const items = [];
+    let bad = null;
+    document.querySelectorAll('#rv-lines [data-line]').forEach(l=>{
+      const mode = l.querySelector('select').value;
+      const qty = +l.querySelector('[data-qty]').value, price = +l.querySelector('[data-price]').value;
+      if(!qty) return;
+      if(mode==='existing'){
+        const code = l.querySelector('[data-code]').value.trim();
+        const it = _items.find(x=>x.code.toLowerCase()===code.toLowerCase());
+        if(!it){ bad = 'Unknown item code: '+code; return; }
+        items.push({item_id: it.id, qty, unit_price: price});
+      } else {
+        const name = l.querySelector('[data-nname]').value.trim();
+        if(!name){ bad='New item line missing name'; return; }
+        items.push({ qty, unit_price: price, new_item:{ name, category:l.querySelector('[data-ncat]').value, spec:l.querySelector('[data-nspec]').value.trim()||null, unit:l.querySelector('[data-nunit]').value.trim()||'pc' } });
+      }
+    });
+    if(bad){ alert(bad); return; }
+    if(!items.length){ alert('No lines'); return; }
+    const g = id => document.getElementById(id).value;
+    try{
+      await api('/inventory/invoices', {method:'POST', body:{
+        invoice_no:g('rv-no')||null, supplier:g('rv-supplier')||null, date:g('rv-date')||null,
+        goods_currency:g('rv-curr'), goods_to_jod_rate:+g('rv-rate')||1,
+        extra_costs_jod:+g('rv-extra')||0, extra_costs_note:g('rv-extranote')||null, items }});
+      _items = await api('/inventory/items');
+      renderInventory('receive');
+      alert('Invoice saved - stock received');
+    }catch(e){ alert(e.message); }
+  };
+  window.invStockIn = async function(){
+    const code = document.getElementById('si-item').value.trim();
+    const it = _items.find(x=>x.code.toLowerCase()===code.toLowerCase());
+    if(!it){ alert('Unknown item code'); return; }
+    const note = document.getElementById('si-note').value.trim();
+    if(!note){ alert('Note required'); return; }
+    try{
+      await api('/inventory/movements', {method:'POST', body:{ item_id:it.id, kind:'in', qty:+document.getElementById('si-qty').value, unit_cost_jod:+document.getElementById('si-cost').value||null, note }});
+      _items = await api('/inventory/items');
+      renderInventory('receive'); 
+    }catch(e){ alert(e.message); }
+  };
+
+  // ---------- CONSUMPTION ----------
+  function invTabConsume(el){
+    el.innerHTML = `${itemDatalist()}
+    <div class="card"><div class="ch"><span data-i18n="Record Movement">Record Movement</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px">
+      <select id="cm-kind" style="padding:6px"><option value="out">consume (out)</option><option value="discard">discard</option><option value="adjust">adjust (+/-)</option></select>
+      <input id="cm-item" list="inv-dl" placeholder="item code" style="padding:6px">
+      <input id="cm-qty" type="number" step="0.01" placeholder="qty" style="padding:6px;width:90px">
+      <select id="cm-machine" style="padding:6px"><option value="">no machine</option>${_machs.map(m=>`<option value="${m.id}">${esc(m.code)} ${esc(m.name)}</option>`).join('')}</select>
+      <select id="cm-worker" style="padding:6px"><option value="">no worker</option>${_wks.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('')}</select>
+      <input id="cm-note" placeholder="note" style="padding:6px;min-width:180px">
+      <button class="btn ba bsm" onclick="invConsume()" data-i18n="Save">Save</button></div></div>
+    <div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Movement Log">Movement Log</span>
+      <span><input id="ml-item" placeholder="item" oninput="invLoadMoves()" style="padding:4px;font-size:.72rem">
+      <select id="ml-kind" onchange="invLoadMoves()" style="padding:4px;font-size:.72rem"><option value="">all kinds</option>${['in','out','adjust','discard','custody_out','custody_return'].map(k=>`<option>${k}</option>`).join('')}</select></span></div>
+    <div class="tw"><table><thead><tr><th>Date</th><th>Item</th><th>Kind</th><th>Qty</th><th>Machine</th><th>Worker</th><th>Note</th><th>By</th></tr></thead>
+    <tbody id="ml-body"></tbody></table></div></div>`;
+    invLoadMoves();
+  }
+  window.invLoadMoves = async function(){
+    try{
+      const kind = document.getElementById('ml-kind')?.value;
+      const rows = await api('/inventory/movements'+(kind?('?kind='+kind):''));
+      const f = (document.getElementById('ml-item')?.value||'').toLowerCase();
+      const mm = Object.fromEntries(_machs.map(m=>[m.id,m.code]));
+      document.getElementById('ml-body').innerHTML = rows
+        .filter(r=>!f || (r.item_code+' '+r.item_name).toLowerCase().includes(f))
+        .map(r=>`<tr><td class="mn">${esc(r.date)}</td><td><span class="mn" style="color:var(--a)">${esc(r.item_code)}</span> ${esc(r.item_name)}</td>
+        <td><span style="color:${['in','custody_return'].includes(r.kind)?'var(--a3)':r.kind==='adjust'?'var(--a2)':'#ff6464'}">${esc(r.kind)}</span></td>
+        <td class="mn">${r.qty}</td><td class="mn">${esc(mm[r.machine_id]||'')}</td><td>${esc(r.worker_name||'')}</td>
+        <td style="font-size:.7rem">${esc(r.note||'')}</td><td style="font-size:.7rem;color:var(--mu)">${esc(r.created_by||'')}</td></tr>`).join('')
+        || '<tr><td colspan="8" style="color:var(--mu);text-align:center">no movements</td></tr>';
+    }catch(e){}
+  };
+  window.invConsume = async function(){
+    const code = document.getElementById('cm-item').value.trim();
+    const it = _items.find(x=>x.code.toLowerCase()===code.toLowerCase());
+    if(!it){ alert('Unknown item code'); return; }
+    const kind = document.getElementById('cm-kind').value;
+    const body = { item_id: it.id, kind, qty:+document.getElementById('cm-qty').value,
+      machine_id:+document.getElementById('cm-machine').value||null,
+      worker_id:+document.getElementById('cm-worker').value||null,
+      note: document.getElementById('cm-note').value.trim()||null };
+    if(kind==='adjust' && !body.note){ alert('Note required for adjust'); return; }
+    try{ await api('/inventory/movements', {method:'POST', body}); _items = await api('/inventory/items'); renderInventory('consume'); }
+    catch(e){ alert(e.message); }
+  };
+
+  // ---------- CUSTODY ----------
+  function invTabCustody(el){
+    el.innerHTML = `${itemDatalist()}
+    <div class="card"><div class="ch"><span data-i18n="Issue Custody">Issue Custody</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px">
+      <input id="cu-item" list="inv-dl" placeholder="item code (tool/ppe)" style="padding:6px">
+      <select id="cu-worker" style="padding:6px">${_wks.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('')}</select>
+      <input id="cu-qty" type="number" value="1" style="padding:6px;width:80px">
+      <input id="cu-note" placeholder="condition note" style="padding:6px;min-width:180px">
+      <button class="btn ba bsm" onclick="invCustodyIssue()" data-i18n="Issue">Issue</button></div></div>
+    <div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Custody Records">Custody Records</span>
+      <select id="cu-filter" onchange="invLoadCustody()" style="padding:4px;font-size:.72rem"><option value="">all</option><option value="held" selected>held</option><option value="returned">returned</option><option value="consumed">consumed</option><option value="lost">lost</option></select></div>
+    <div class="tw"><table><thead><tr><th>Item</th><th>Worker</th><th>Qty</th><th>Issued</th><th>Status</th><th>Closed</th><th>Note</th><th></th></tr></thead>
+    <tbody id="cu-body"></tbody></table></div></div>`;
+    invLoadCustody();
+  }
+  window.invLoadCustody = async function(){
+    try{
+      const st = document.getElementById('cu-filter')?.value;
+      const rows = await api('/inventory/custody'+(st?('?status='+st):''));
+      document.getElementById('cu-body').innerHTML = rows.map(c=>`<tr>
+        <td><span class="mn" style="color:var(--a)">${esc(c.item_code)}</span> ${esc(c.item_name)}</td>
+        <td>${esc(c.worker_name)}</td><td class="mn">${c.qty}</td><td class="mn">${esc(c.issued_at)}</td>
+        <td><span style="color:${c.status==='held'?'var(--a2)':c.status==='returned'?'var(--a3)':c.status==='lost'?'#ff6464':'var(--mu)'}">${esc(c.status)}</span></td>
+        <td class="mn">${esc(c.returned_at||'')}</td><td style="font-size:.7rem">${esc(c.condition_note||'')}</td>
+        <td style="white-space:nowrap">${c.status==='held'?`
+          <button class="btn bsm ba" onclick="invCustodyClose(${c.id},'returned')" data-i18n="Return">Return</button>
+          <button class="btn bsm" onclick="invCustodyClose(${c.id},'consumed')" data-i18n="Consumed">Consumed</button>
+          <button class="btn bsm br" onclick="invCustodyClose(${c.id},'lost')" data-i18n="Lost">Lost</button>`:''}</td></tr>`).join('')
+        || '<tr><td colspan="8" style="color:var(--mu);text-align:center">none</td></tr>';
+    }catch(e){}
+  };
+  window.invCustodyIssue = async function(){
+    const code = document.getElementById('cu-item').value.trim();
+    const it = _items.find(x=>x.code.toLowerCase()===code.toLowerCase());
+    if(!it){ alert('Unknown item code'); return; }
+    try{
+      await api('/inventory/custody', {method:'POST', body:{ item_id:it.id, worker_id:+document.getElementById('cu-worker').value, qty:+document.getElementById('cu-qty').value||1, condition_note:document.getElementById('cu-note').value.trim()||null }});
+      _items = await api('/inventory/items');
+      renderInventory('custody');
+    }catch(e){ alert(e.message); }
+  };
+  window.invCustodyClose = async function(id, outcome){
+    const note = prompt('Condition / note (optional):');
+    if(note===null) return;
+    try{ await api('/inventory/custody/'+id+'/close', {method:'PUT', body:{outcome, condition_note:note||null}}); _items = await api('/inventory/items'); renderInventory('custody'); }
+    catch(e){ alert(e.message); }
+  };
+
+  // ---------- ALERTS ----------
+  function invTabAlerts(el){
+    el.innerHTML = `<div class="card"><div class="ch"><span>&#9888; <span data-i18n="Below Minimum Stock">Below Minimum Stock</span></span></div>
+    <div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Stock</th><th>Min</th><th>Reorder</th><th>Lead days</th><th>Criticality</th></tr></thead>
+    <tbody id="al-body"><tr><td colspan="8" style="color:var(--mu);text-align:center">loading...</td></tr></tbody></table></div></div>`;
+    api('/inventory/alerts').then(rows=>{
+      document.getElementById('al-body').innerHTML = rows.map(r=>`<tr>
+        <td class="mn" style="color:var(--a)">${esc(r.code)}</td><td>${esc(r.name)}</td><td>${esc(r.category)}</td>
+        <td class="mn" style="color:#ff6464;font-weight:800">${r.stock}</td><td class="mn">${r.min_stock}</td>
+        <td class="mn">${r.reorder_level??''}</td><td class="mn">${r.lead_time_days??''}</td>
+        <td style="color:${r.criticality==='critical'?'#ff6464':'var(--mu)'}">${esc(r.criticality)}</td></tr>`).join('')
+        || '<tr><td colspan="8" style="color:var(--a3);text-align:center;padding:14px">All stock levels OK</td></tr>';
+    }).catch(()=>{});
+  }
+})();
+</script>
+
 </body>
 </html>
