@@ -2955,6 +2955,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <th>Abs.</th>
             <th>Base</th>
             <th colspan="6" style="text-align:center;border-left:1px solid var(--border);color:var(--a2)">── ADDITIONS ──</th>
+            <th style="color:var(--a3);border-left:1px solid var(--border)" data-i18n="Total Salary">Total Salary</th>
             <th colspan="4" style="text-align:center;border-left:1px solid var(--border);color:#ff9866">── DEDUCTIONS ──</th>
             <th>Gross</th>
             <th>SS</th>
@@ -2972,6 +2973,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <td style="color:var(--a4)">1.5x pay</td>
               <td style="color:var(--a2)">Other Add.</td>
               <td style="border-left:1px solid var(--border);border-right:1px solid var(--border);color:var(--a2);font-weight:700">Total Add.</td>
+              <td></td>
               <td style="border-left:1px solid var(--border);color:#ff9866">Advances</td>
               <td style="color:#ff9866">Leaves</td>
               <td style="color:#ff9866">Other Ded.</td>
@@ -4525,16 +4527,10 @@ async function renderDash(){
   const cut=orders.filter(o=>o.status==='cutting').length;
   const done=orders.filter(o=>o.status==='done').length;
   const pcs=orders.reduce((a,o)=>a+(o.items||[]).reduce((b,i)=>b+i.qty,0),0);
-  document.getElementById('dash-stats').innerHTML=`
-    <div class="sbox"><div class="slbl" data-i18n="Customers">Customers</div><div class="sval" style="color:var(--a)">${customers.length}</div></div>
-    <div class="sbox"><div class="slbl" data-i18n="Orders">Orders</div><div class="sval" style="color:var(--a)">${orders.length}</div></div>
-    <div class="sbox"><div class="slbl">${t('Pending')}</div><div class="sval" style="color:var(--a4)">${pend}</div></div>
-    <div class="sbox"><div class="slbl" data-i18n="In Progress">In Progress</div><div class="sval" style="color:var(--a2)">${cut}</div></div>
-    <div class="sbox"><div class="slbl">${t('Done')}</div><div class="sval" style="color:var(--a3)">${done}</div></div>
-    <div class="sbox"><div class="slbl" data-i18n="Total Pieces">Total Pieces</div><div class="sval" style="color:var(--a)">${pcs}</div></div>`;
+  // all-time tiles retired - dash-stats now hosts the WoW KPI tiles (DASH_V2)
 
   const cMap=Object.fromEntries(customers.map(c=>[c.id,c]));
-  const recent=[...orders].reverse().slice(0,6);
+  const recent=[...orders].sort((a,b)=>(+b.id||0)-(+a.id||0)).slice(0,6);
   document.getElementById('dash-ord-body').innerHTML=recent.length?recent.map(o=>`
     <tr><td class="mn" style="color:var(--a)">${o.num}</td>
     <td>${(cMap[o.customerId]||{}).name||'?'}</td>
@@ -4543,11 +4539,11 @@ async function renderDash(){
     <td class="mn" style="color:var(--mu)">${o.date}</td></tr>`).join('')
     :`<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:20px">No orders</td></tr>`;
 
-  const open=orders.filter(o=>o.status!=='done');
+  const open=orders.filter(o=>o.status==='pending'||o.status==='cutting').sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   document.getElementById('dash-queue').innerHTML=open.length?open.map(o=>`
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
       <div><span class="mn" style="color:var(--a);font-size:.8rem">${o.num}</span>
-        <span style="color:var(--mu);font-size:.73rem;margin-left:8px">${(cMap[o.customerId]||{}).name||''}</span></div>
+        <span style="color:var(--mu);font-size:.73rem;margin-left:8px">${(cMap[o.customerId]||{}).name||''}</span><span style="color:var(--a2);font-size:.68rem;margin-left:8px">${o.date?Math.max(0,Math.floor((Date.now()-new Date(o.date))/86400000))+'d':''}</span></div>
       <span class="bge bg-${o.status==='cutting'?'pend':o.status}" style="${o.status==='cutting'?'background:rgba(255,200,0,.15);color:#ffc800;border:1px solid rgba(255,200,0,.3)':''}">${o.status==='cutting'?'In Progress':o.status==='done'?'Done':o.status==='cancelled'?'Cancelled':'Pending'}</span></div>`).join('')
     :`<div class="empty"><div class="empty-t" data-i18n="No open orders">No open orders</div></div>`;
 
@@ -20682,7 +20678,7 @@ async function renderHRPayroll(){
   const month=document.getElementById('hr-payroll-month')?.value||new Date().toISOString().slice(0,7);
   const tbody=document.getElementById('hr-payroll-body'); if(!tbody) return;
   const summary=document.getElementById('hr-payroll-summary');
-  tbody.innerHTML='<tr><td colspan="16" style="text-align:center;padding:12px;color:var(--mu)">Calculating...</td></tr>';
+  tbody.innerHTML='<tr><td colspan="17" style="text-align:center;padding:12px;color:var(--mu)">Calculating...</td></tr>';
   try{
     const data=await AGI.HR.payroll(month);
     const ws=data.workers||[];
@@ -20714,7 +20710,7 @@ async function renderHRPayroll(){
       <div class="stat-card"><div class="stat-val" style="color:${totalAbsences>0?'var(--a2)':'var(--mu)'}">${totalAbsences.toFixed(1)}</div><div class="stat-lbl">Total Absence Days</div></div>
       <div class="stat-card"><div class="stat-val" style="color:var(--a3)">${totalNet.toFixed(2)}</div><div class="stat-lbl">Total Net Payroll</div></div>
       ${totalUnapproved>0?`<div class="stat-card" style="grid-column:span 3;background:rgba(255,128,64,0.08);border-color:rgba(255,128,64,0.3)"><div style="font-size:.62rem;color:#ff9866;letter-spacing:1px;text-transform:uppercase">&#9888; Unapproved OT</div><div style="font-size:.9rem;color:#ff9866;margin-top:3px">${totalUnapproved.toFixed(1)} hrs unpaid — ${ws.filter(w=>(+w.unapproved_ot_hours||0)>0).map(w=>w.worker_name+' ('+w.unapproved_ot_hours+'h)').join(', ')} → review Overtime tab</div></div>`:''}`;
-    if(!ws.length){ tbody.innerHTML='<tr><td colspan="16" style="text-align:center;color:var(--mu);padding:12px">No data</td></tr>'; return; }
+    if(!ws.length){ tbody.innerHTML='<tr><td colspan="17" style="text-align:center;color:var(--mu);padding:12px">No data</td></tr>'; return; }
 
     const rows=ws.map(w=>{
       const balBefore = +w.balance_before || 0;
@@ -20752,6 +20748,7 @@ async function renderHRPayroll(){
       <td class="mn" style="color:${+otHrs150>0?'var(--a4)':'var(--mu)'}">${+ot150pay>0?ot150pay:''}</td>
       <td class="mn" style="color:${otherAdd>0?'var(--a2)':'var(--mu)'}">${otherAdd>0?'+'+otherAdd.toFixed(2):''}</td>
       <td class="mn" style="border-left:1px solid var(--border);border-right:1px solid var(--border);color:${totalAdd>0?'var(--a2)':'var(--mu)'};font-weight:700">${totalAdd>0?'+'+totalAdd.toFixed(2):''}</td>
+      <td class="mn" style="color:var(--a3);font-weight:700">${((+w.base_salary||0)+totalAdd).toFixed(2)}</td>
       <td class="mn" style="color:${advances>0?'#ff9866':'var(--mu)'}; border-left:1px solid var(--border)">${advances>0?'-'+advances.toFixed(2):''}</td>
       <td class="mn" style="color:${balDedAmt>0?'#ff9866':'var(--mu)'}">${balDedAmt>0?'-'+balDedAmt.toFixed(2):''}</td>
       <td class="mn" style="color:${otherDed>0?'#ff9866':'var(--mu)'}">${otherDed>0?'-'+otherDed.toFixed(2):''}</td>
@@ -20789,6 +20786,7 @@ async function renderHRPayroll(){
       <td class="mn" style="${tc};color:var(--a4)">${(S('weekend_pay')+S('holiday_pay')).toFixed(2)}</td>
       <td class="mn" style="${tc};color:var(--a2)">${S('adj_addition')>0?'+'+S('adj_addition').toFixed(2):''}</td>
       <td class="mn" style="${tc};color:var(--a2);border-left:2px solid var(--a);border-right:2px solid var(--a);background:rgba(0,180,130,0.2)">+${totAdd.toFixed(2)}</td>
+      <td class="mn" style="${tc};color:var(--a3);font-weight:800">${(S('base_salary')+totAdd).toFixed(2)}</td>
       <td class="mn" style="${tc};color:#ff9866;border-left:1px solid var(--border)">${S('adj_advances')>0?'-'+S('adj_advances').toFixed(2):''}</td>
       <td class="mn" style="${tc};color:#ff9866">${S('balance_deduction')>0?'-'+S('balance_deduction').toFixed(2):''}</td>
       <td class="mn" style="${tc};color:#ff9866">${S('adj_other_ded')>0?'-'+S('adj_other_ded').toFixed(2):''}</td>
@@ -20868,7 +20866,7 @@ async function renderHRPayroll(){
         </div>`;
     }
 
-  }catch(e){ tbody.innerHTML='<tr><td colspan="16" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
+  }catch(e){ tbody.innerHTML='<tr><td colspan="17" style="color:var(--a2)">Error: '+e.message+'</td></tr>'; }
 }
 
 // ── Payslip printing ─────────────────────────────────────────────────────
@@ -24268,6 +24266,71 @@ window.addEventListener('beforeunload', function(e){
       return _sRS.apply(this, arguments);
     };
   }
+})();
+</script>
+<script>
+/* DASH_V2 v2: like-for-like WoW/MoM, compact tiles in dash-stats, HR reasons grouped by date */
+(function(){
+  function pct(c,p){ if(!p) return c?'<span style="color:var(--a3)">NEW</span>':''; const d=(c-p)/p*100; if(Math.abs(d)<0.05) return '<span style="color:var(--mu)">0%</span>'; return '<span style="color:'+(d>0?'var(--a3)':'#ff6464')+'">'+(d>0?'\u25b2':'\u25bc')+Math.abs(d).toFixed(0)+'%</span>'; }
+  function pctInv(c,p){ const h=pct(c,p); return h.replace('var(--a3)','#TMP#').replace('#ff6464','var(--a3)').replace('#TMP#','#ff6464'); }
+  function sumTh(a){ return (a||[]).reduce(function(x,r){return x+(+r.sqm||0);},0); }
+  window.renderDashV2 = async function(){
+    var host=document.getElementById('dash-v2');
+    if(!host){ var st=document.getElementById('dash-stats'); if(!st) return; host=document.createElement('div'); host.id='dash-v2'; st.parentNode.insertBefore(host, st.nextSibling); }
+    var d;
+    try{ var r=await fetch('/api/dashboard/summary',{headers:{Authorization:'Bearer '+localStorage.getItem('agi_token')}}); if(!r.ok) throw new Error(r.status); d=await r.json(); }
+    catch(e){ host.innerHTML='<div style="color:var(--mu);padding:8px">dashboard metrics unavailable: '+e.message+'</div>'; return; }
+    var wd=d.workingDays, sc={};
+    ['tw','lw','tm','lm'].forEach(function(k){ sc[k]={}; (d.scans[k]||[]).forEach(function(r){ sc[k][r.process]=r.c; }); });
+    var totScans=function(k){ return (d.scans[k]||[]).reduce(function(a,r){return a+r.c;},0); };
+    var remRate=function(k){ var r=d.remakes[k]||{}; return r.tot? (100*r.rem/r.tot) : 0; };
+    var tiles=[
+      {l:t('SQM Ordered'), c:sumTh(d.sqmThickness.tw), p:sumTh(d.sqmThickness.lw), f:1},
+      {l:t('Pieces Cut'), c:d.piecesCut.tw, p:d.piecesCut.lw},
+      {l:t('Sheets Cut / Day'), c:d.sheetsCut.tw/wd.tw, p:d.sheetsCut.lw/wd.lw, f:1},
+      {l:t('Scans / Day'), c:totScans('tw')/wd.tw, p:totScans('lw')/wd.lw, f:1},
+      {l:t('Deliveries'), c:d.deliveries.tw, p:d.deliveries.lw},
+      {l:t('Remake Rate'), c:remRate('tw'), p:remRate('lw'), f:1, suf:'%', inv:1}
+    ];
+    var stats=document.getElementById('dash-stats');
+    if(stats) stats.innerHTML=tiles.map(function(x){
+      var v=(x.f? x.c.toFixed(1) : String(Math.round(x.c)))+(x.suf||'');
+      return '<div class="sbox"><div class="slbl">'+x.l+' <span style="font-size:.58rem;color:var(--mu)">WoW</span></div><div class="sval" style="color:var(--a)">'+v+' <span style="font-size:.68rem">'+(x.inv?pctInv(x.c,x.p):pct(x.c,x.p))+'</span></div></div>';
+    }).join('');
+    var h='';
+    var ths={}; ['tw','lw','tm','lm'].forEach(function(k){ (d.sqmThickness[k]||[]).forEach(function(r){ (ths[r.th]=ths[r.th]||{})[k]=+r.sqm||0; }); });
+    var keys=Object.keys(ths).map(Number).sort(function(a,b){return a-b;});
+    var g=function(o,k){ return (o&&o[k])||0; };
+    var perNote='<span style="font-size:.6rem;color:var(--mu)">'+t('same elapsed days compared')+' ('+d.ranges.lw[0]+' \u2192 '+d.ranges.lw[1]+' / '+d.ranges.lm[0]+' \u2192 '+d.ranges.lm[1]+')</span>';
+    h+='<div class="card" style="margin-top:12px"><div class="ch"><span>\u25aa '+t('SQM by Thickness')+'</span> '+perNote+'</div><div class="tw"><table><thead><tr><th>'+t('Thickness')+'</th><th>'+t('This Week')+'</th><th>'+t('Last Week')+'</th><th>WoW</th><th>'+t('This Month')+'</th><th>'+t('Last Month')+'</th><th>MoM</th></tr></thead><tbody>'+
+      keys.map(function(k){ var o=ths[k]; return '<tr><td class="mn" style="font-weight:700">'+k+'mm</td><td class="mn">'+g(o,'tw').toFixed(1)+'</td><td class="mn" style="color:var(--mu)">'+g(o,'lw').toFixed(1)+'</td><td class="mn">'+pct(g(o,'tw'),g(o,'lw'))+'</td><td class="mn">'+g(o,'tm').toFixed(1)+'</td><td class="mn" style="color:var(--mu)">'+g(o,'lm').toFixed(1)+'</td><td class="mn">'+pct(g(o,'tm'),g(o,'lm'))+'</td></tr>'; }).join('')+
+      '<tr style="border-top:2px solid var(--border);font-weight:800"><td>'+t('Total')+'</td><td class="mn">'+sumTh(d.sqmThickness.tw).toFixed(1)+'</td><td class="mn" style="color:var(--mu)">'+sumTh(d.sqmThickness.lw).toFixed(1)+'</td><td class="mn">'+pct(sumTh(d.sqmThickness.tw),sumTh(d.sqmThickness.lw))+'</td><td class="mn">'+sumTh(d.sqmThickness.tm).toFixed(1)+'</td><td class="mn" style="color:var(--mu)">'+sumTh(d.sqmThickness.lm).toFixed(1)+'</td><td class="mn">'+pct(sumTh(d.sqmThickness.tm),sumTh(d.sqmThickness.lm))+'</td></tr>'+
+      '</tbody></table></div></div>';
+    var procs=[]; ['tw','lw','tm','lm'].forEach(function(k){ Object.keys(sc[k]).forEach(function(p){ if(procs.indexOf(p)<0) procs.push(p); }); }); procs.sort();
+    h+='<div class="card" style="margin-top:12px"><div class="ch"><span>\u25aa '+t('Daily Productivity per Process')+'</span> <span style="font-size:.62rem;color:var(--mu)">'+t('avg pieces per scheduled working day')+'</span></div><div class="tw"><table><thead><tr><th>'+t('Process')+'</th><th>'+t('This Week')+'</th><th>'+t('Last Week')+'</th><th>WoW</th><th>'+t('This Month')+'</th><th>'+t('Last Month')+'</th><th>MoM</th></tr></thead><tbody>'+
+      procs.map(function(p){ var a=(sc.tw[p]||0)/wd.tw, b=(sc.lw[p]||0)/wd.lw, c2=(sc.tm[p]||0)/wd.tm, e2=(sc.lm[p]||0)/wd.lm;
+        return '<tr><td style="text-transform:capitalize">'+t(p)+'</td><td class="mn">'+a.toFixed(1)+'</td><td class="mn" style="color:var(--mu)">'+b.toFixed(1)+'</td><td class="mn">'+pct(a,b)+'</td><td class="mn">'+c2.toFixed(1)+'</td><td class="mn" style="color:var(--mu)">'+e2.toFixed(1)+'</td><td class="mn">'+pct(c2,e2)+'</td></tr>'; }).join('')+
+      '</tbody></table></div></div>';
+    function groupByDate(rows){ var m={}; rows.forEach(function(r){ (m[r.date]=m[r.date]||[]).push(r); }); return Object.keys(m).sort().reverse().map(function(dt){ return {date:dt, rows:m[dt]}; }); }
+    function evCol(title,rows,fmt2){
+      var inner = rows.length ? groupByDate(rows).map(function(gr){
+        return '<div style="margin-top:7px;padding:2px 6px;background:var(--border);border-radius:4px;font-size:.62rem;font-weight:800;color:var(--a)" class="mn">'+gr.date+'</div>'+gr.rows.map(fmt2).join('');
+      }).join('') : '<div style="color:var(--mu);font-size:.7rem">\u2014</div>';
+      return '<div style="flex:1;min-width:240px"><div style="font-weight:700;font-size:.72rem;margin-bottom:2px;color:var(--a2)">'+title+'</div>'+inner+'</div>';
+    }
+    function line(w,mins,reason){ return '<div style="font-size:.7rem;padding:3px 0 2px;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between"><span>'+w+'</span><span class="mn" style="color:var(--a2)">'+mins+'</span></div>'+(reason?'<div style="color:var(--mu);font-size:.64rem;padding-top:1px">'+String(reason).slice(0,70)+'</div>':'')+'</div>'; }
+    h+='<div class="card" style="margin-top:12px"><div class="ch"><span>\u25aa '+t('Recent HR Events')+' <span style="font-size:.62rem;color:var(--mu)">7 '+t('days')+'</span></span></div><div style="display:flex;gap:18px;flex-wrap:wrap;padding:8px 14px 12px">'+
+      evCol(t('Late Arrivals'), d.hr.late, function(r){ return line(r.worker_name, r.late_mins+'m', r.late_reason); })+
+      evCol(t('Early Leaves'), d.hr.early, function(r){ return line(r.worker_name, r.early_leave_mins+'m', r.early_leave_reason); })+
+      evCol(t('Overtime'), d.hr.overtime, function(r){ return line(r.worker_name, r.mins+'m '+(r.status==='approved'?'\u2713':'\u23f3'), r.description); })+
+      '</div></div>';
+    host.innerHTML=h;
+  };
+  if (typeof renderDash === 'function'){
+    var _oD = renderDash;
+    renderDash = async function(){ await _oD.apply(this, arguments); try{ renderDashV2(); }catch(e){ console.warn('[dashv2]',e); } };
+  }
+  if ((document.querySelector('.pg.on')||{}).id === 'pg-dash') try{ renderDashV2(); }catch(e){}
 })();
 </script>
 </body>

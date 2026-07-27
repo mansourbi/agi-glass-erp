@@ -105,6 +105,8 @@ app.use('/api/optfiles',  require('./routes/optfiles'));
 app.use('/api/reports',   require('./routes/reports'));
 app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/gsheet', require('./routes/gsheet-sync'));
 app.use('/api/hr', require('./routes/hr'));
 app.use('/api/glassfamilies', require('./routes/glassfamilies'));
 app.use('/api/finalproducts', require('./routes/finalproducts'));

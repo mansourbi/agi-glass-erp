@@ -182,11 +182,17 @@ router.delete('/movements/:id', requireAdmin, (req,res)=>{
 router.get('/daily', (req,res)=>{
   try{
     const { from, to } = req.query;
-    let sql='SELECT movement_date AS date, COALESCE(SUM(sheets_total),0) AS sheets, COALESCE(SUM(sqm_total),0) AS sqm, COUNT(*) AS movements FROM cutting_movements WHERE 1=1';
+    // Sheets count excludes virtual remnant sheets (\u0641\u0636\u0644 = label-only pseudo-sheets); sqm/movements stay full
+    const FADL_CASE = `CASE WHEN (
+      EXISTS(SELECT 1 FROM opt_files o JOIN raw_sheets r ON r.id=o.raw_sheet_id WHERE o.id=cm.opt_file_id AND (r.code LIKE '%\u0641\u0636\u0644%' OR r.notes LIKE '%\u0641\u0636\u0644%'))
+      OR EXISTS(SELECT 1 FROM opt_files o2 WHERE o2.id=cm.opt_file_id AND o2.raw_sheet_snap LIKE '%\u0641\u0636\u0644%')
+      OR EXISTS(SELECT 1 FROM cutting_movement_slots x JOIN raw_sheets r2 ON r2.id=x.sheet_id WHERE x.movement_id=cm.id AND (r2.code LIKE '%\u0641\u0636\u0644%' OR r2.notes LIKE '%\u0641\u0636\u0644%'))
+    ) THEN 0 ELSE cm.sheets_total END`;
+    let sql='SELECT cm.movement_date AS date, COALESCE(SUM('+FADL_CASE+'),0) AS sheets, COALESCE(SUM(cm.sqm_total),0) AS sqm, COUNT(*) AS movements FROM cutting_movements cm WHERE 1=1';
     const args=[];
-    if(from){ sql+=' AND movement_date>=?'; args.push(from); }
-    if(to){ sql+=' AND movement_date<=?'; args.push(to); }
-    sql+=' GROUP BY movement_date ORDER BY movement_date';
+    if(from){ sql+=' AND cm.movement_date>=?'; args.push(from); }
+    if(to){ sql+=' AND cm.movement_date<=?'; args.push(to); }
+    sql+=' GROUP BY cm.movement_date ORDER BY cm.movement_date';
     res.json(db.prepare(sql).all(...args));
   }catch(e){ res.status(500).json({error:e.message}); }
 });
