@@ -1209,11 +1209,13 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
       <div class="card" style="margin-bottom:8px">
         <div class="ch"><span class="ct" style="color:var(--a)">&#9881; <span data-i18n="Cut Settings">Cut Settings</span></span></div>
         <div class="cb" style="display:flex;flex-direction:column;gap:8px">
-          <div style="display:none;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
             <button id="opt-strat-efficiency" class="btn bp bsm on" onclick="setOptStrategy('efficiency')" style="font-size:.65rem;padding:6px 4px">&#9889; <span data-i18n="Max Efficiency">Max Efficiency</span></button>
-            <button id="opt-strat-balanced" class="btn bg bsm" onclick="setOptStrategy('balanced')" style="font-size:.65rem;padding:6px 4px">&#9878; <span data-i18n="Balanced">Balanced</span></button>
+            <button id="opt-strat-guillotine" class="btn bg bsm" onclick="setOptStrategy('guillotine')" style="font-size:.65rem" title="Breakout-safe: strip layout, guaranteed straight snap sequence">&#9986; Guillotine</button>
+        
           </div>
           <div style="display:none;grid-template-columns:1fr 1fr;gap:5px">
+            <button id="opt-strat-balanced" class="btn bg bsm" onclick="setOptStrategy('balanced')" style="font-size:.65rem;padding:6px 4px">&#9878; <span data-i18n="Balanced">Balanced</span></button>
             <button id="opt-strat-remnant" class="btn bg bsm" onclick="setOptStrategy('remnant')" style="font-size:.65rem;padding:6px 4px">&#8594; <span data-i18n="Preserve Width">Preserve Width</span></button>
             <button id="opt-strat-remnant-len" class="btn bg bsm" onclick="setOptStrategy('remnant-len')" style="font-size:.65rem;padding:6px 4px">&#8595; <span data-i18n="Preserve Length">Preserve Length</span></button>
           </div>
@@ -2236,6 +2238,13 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           </div>
         </div>
         <div id="add-leave-days-calc" style="font-size:.65rem;color:var(--a3);margin-top:4px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+          <div class="fg"><label class="lbl" data-i18n="Starts at (first day, optional)">Starts at (first day, optional)</label>
+            <input type="time" id="add-leave-edge-from" class="inp" onchange="calcLeaveDays()"></div>
+          <div class="fg"><label class="lbl" data-i18n="Ends at (last day, optional)">Ends at (last day, optional)</label>
+            <input type="time" id="add-leave-edge-to" class="inp" onchange="calcLeaveDays()"></div>
+        </div>
+        <div style="font-size:.6rem;color:var(--mu);margin-top:2px" data-i18n="For leaves starting/ending mid-shift (e.g. injury after punch-out). First/last day count fractionally.">For leaves starting/ending mid-shift (e.g. injury after punch-out). First/last day count fractionally.</div>
       </div>
       <div class="fg">
         <label class="lbl">Status</label>
@@ -2433,7 +2442,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
     <button class="rtab" onclick="showSettingsTab('translations')">&#127760; <span data-i18n="Translations">Translations</span></button>
     <button class="rtab" onclick="showSettingsTab('logs')">&#128203; <span data-i18n="Logs">Logs</span></button>
     <button class="rtab" onclick="showSettingsTab('machines')">&#9881; <span data-i18n="Machines">Machines</span></button>
+    <button class="rtab" onclick="showSettingsTab('invsettings')">&#128295; <span data-i18n="Inventory">Inventory</span></button>
   </div>
+
+  <!-- Tab: Inventory Settings -->
+  <div id="stab-invsettings" class="stab" style="display:none"><div id="invset-root"></div></div>
 
   <!-- Tab: Machines -->
   <div id="stab-machines" class="stab" style="display:none"><div id="mach-root"></div></div>
@@ -2602,6 +2615,14 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <option value="black" data-i18n="Black">Black</option><option value="white" data-i18n="White">White</option>
               <option value="gold" data-i18n="Gold">Gold</option><option value="silver" data-i18n="Silver">Silver</option><option value="other" data-i18n="Other">Other</option>
             </select>
+            <select id="rs-f-family" onchange="renderSettingsRSCatalog()" style="font-size:.7rem;padding:5px 8px;width:auto">
+              <option value="" data-i18n="All Families">All Families</option>
+              <option value="float" data-i18n="Float">Float</option>
+              <option value="patterned" data-i18n="Patterned">Patterned</option>
+            </select>
+            <select id="rs-f-pattern" onchange="renderSettingsRSCatalog()" style="font-size:.7rem;padding:5px 8px;width:auto">
+              <option value="" data-i18n="All Patterns">All Patterns</option>
+            </select>
             <select id="rs-f-thick" onchange="renderSettingsRSCatalog()" style="font-size:.7rem;padding:5px 8px;width:auto">
               <option value="" data-i18n="All Thicknesses">All Thicknesses</option>
             </select>
@@ -2609,7 +2630,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
               <option value="" data-i18n="All Manufacturers">All Manufacturers</option>
             </select>
             <button class="btn bg bsm" onclick="clearRSFilters()" style="font-size:.62rem">&#10005;</button>
-            <button class="btn bg bsm" onclick="exportTableCSV('rawsheets')" style="font-size:.65rem">&#11015; <span data-i18n="Export">Export</span></button>
+            <button class="btn bg bsm" onclick="rsExportFull()" style="font-size:.65rem">&#11015; <span data-i18n="Export">Export</span></button>
             <button class="btn bp bsm" onclick="openRawSheetModal()">+ Add Sheet</button>
           </div>
         </div>
@@ -2621,6 +2642,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
                 <th class="ord-th" onclick="sortRS('notes')">Description <span class="sort-arrow" id="rssa-notes"></span></th>
                 <th class="ord-th" onclick="sortRS('type')">Type <span class="sort-arrow" id="rssa-type"></span></th>
                 <th class="ord-th" onclick="sortRS('color')">Color <span class="sort-arrow" id="rssa-color"></span></th>
+                <th class="ord-th" onclick="sortRS('family')"><span data-i18n="Family">Family</span> <span class="sort-arrow" id="rssa-family"></span></th>
+                <th class="ord-th" onclick="sortRS('pattern')"><span data-i18n="Pattern">Pattern</span> <span class="sort-arrow" id="rssa-pattern"></span></th>
                 <th class="ord-th" onclick="sortRS('thickness')">Thick <span class="sort-arrow" id="rssa-thickness"></span></th>
                 <th class="ord-th" onclick="sortRS('w')">W x H <span class="sort-arrow" id="rssa-w"></span></th>
                 <th class="ord-th" onclick="sortRS('sqm')">Sheet SQM <span class="sort-arrow" id="rssa-sqm"></span></th>
@@ -6556,6 +6579,25 @@ function _rsManufacturerCountry(s){
   return s.origin || '';
 }
 
+window.rsExportFull = function(){
+  const cols = ['id','code','notes','type','color','family','pattern','pattern_any','thickness','w','h','sqm','company','manufacturer','origin','stock_balance','owner_customer_id','is_virtual','current_avg_cost_jod_per_unit','created_at','updated_at'];
+  const rows = [cols];
+  (rawSheetCatalog||[]).forEach(s2=>{
+    rows.push([
+      s2.id, s2.code||'', s2.notes||'', s2.type||'', s2.color||'', s2.family||'float', s2.pattern||'', s2.pattern_any?1:0,
+      s2.thickness, s2.w, s2.h, +(s2.w*s2.h/1e6).toFixed(3),
+      s2.company||'', (typeof _rsManufacturerLabel==='function'?_rsManufacturerLabel(s2):''), s2.origin||'',
+      (s2.balance!==undefined?s2.balance:''), s2.owner_customer_id||'', s2.is_virtual?1:0,
+      s2.current_avg_cost_jod_per_unit??'', s2.created_at||'', s2.updated_at||''
+    ]);
+  });
+  const csv = rows.map(r=>r.map(v=>{ v=String(v??''); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'raw-sheet-catalog-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+};
 async function renderSettingsRSCatalog(){
   try{ rawSheetCatalog = await AGI.RawSheets.list(); }catch(e){ console.warn('[rawsheets]',e.message); }
   try{ purchases = await AGI.Purchases.list(); }catch(e){ console.warn('[purchases]',e.message); }
@@ -6570,6 +6612,15 @@ async function renderSettingsRSCatalog(){
   const fColor=(document.getElementById('rs-f-color')?.value||'');
   const fThick=(document.getElementById('rs-f-thick')?.value||'');
   const fComp=(document.getElementById('rs-f-company')?.value||'');
+  const fFam=(document.getElementById('rs-f-family')?.value||'');
+  const fPat=(document.getElementById('rs-f-pattern')?.value||'');
+  // keep the pattern dropdown fed from live data (preserving selection)
+  (function(){
+    const sel=document.getElementById('rs-f-pattern'); if(!sel) return;
+    const cur=sel.value;
+    const pats=[...new Set(rawSheetCatalog.map(x=>(x.pattern||'').trim()).filter(Boolean))].sort();
+    sel.innerHTML='<option value="">All Patterns</option>'+pats.map(p=>'<option'+(p===cur?' selected':'')+'>'+p+'</option>').join('');
+  })();
 
   let list=[...rawSheetCatalog];
   if(q)      list=list.filter(s=>(s.code+s.notes+s.company+s.color+s.type+s.origin).toLowerCase().includes(q));
@@ -6577,6 +6628,8 @@ async function renderSettingsRSCatalog(){
   if(fColor) list=list.filter(s=>s.color===fColor);
   if(fThick) list=list.filter(s=>String(s.thickness)===fThick);
   if(fComp)  list=list.filter(s=>(s.company||'')===fComp);
+  if(fFam)   list=list.filter(s=>(s.family||'float')===fFam);
+  if(fPat)   list=list.filter(s=>(s.pattern||'').trim()===fPat);
 
   // Sort
   const {col,dir}=_rsSort;
@@ -6588,14 +6641,14 @@ async function renderSettingsRSCatalog(){
     return String(va).localeCompare(String(vb))*dir;
   });
   // Update arrows
-  ['code','notes','type','color','thickness','w','sqm','company','origin','stock'].forEach(k=>{
+  ['code','notes','type','color','family','pattern','thickness','w','sqm','company','origin','stock'].forEach(k=>{
     const el=document.getElementById('rssa-'+k); if(!el) return;
     el.className='sort-arrow'+(col===k?' on':'');
     el.textContent=col===k?(dir===1?'\u25b2':'\u25bc'):'\u25bc';
   });
 
   if(!list.length){
-    tbody.innerHTML='<tr><td colspan="12"><div class="empty" style="padding:16px"><div class="empty-t" data-i18n="No sheets match filters">No sheets match filters</div></div></td></tr>';
+    tbody.innerHTML='<tr><td colspan="14"><div class="empty" style="padding:16px"><div class="empty-t" data-i18n="No sheets match filters">No sheets match filters</div></div></td></tr>';
     return;
   }
   tbody.innerHTML=list.map(s=>{
@@ -6611,6 +6664,8 @@ async function renderSettingsRSCatalog(){
       '<td><span class="bge bg-new" style="font-size:.58rem">'+s.type.charAt(0).toUpperCase()+s.type.slice(1)+'</span></td>'+
       '<td><span style="display:inline-flex;align-items:center;gap:4px;font-size:.7rem">'+
         '<span class="color-dot" style="background:'+dot+'"></span>'+s.color.charAt(0).toUpperCase()+s.color.slice(1)+'</span></td>'+
+      '<td style="font-size:.68rem">'+((s.family||'float')==='patterned'?'<span class="bge" style="font-size:.58rem;background:rgba(255,180,80,.12);color:var(--a4);border:1px solid var(--a4)">Patterned</span>':'Float')+'</td>'+
+      '<td style="font-size:.68rem" dir="auto">'+(s.pattern||(s.pattern_any?'<span style="color:var(--mu)">any</span>':''))+'</td>'+
       '<td class="mn" style="color:var(--a4)">'+s.thickness+'mm</td>'+
       '<td class="mn" style="color:var(--tx2);white-space:nowrap">'+s.w+' x '+s.h+'</td>'+
       '<td class="mn" style="color:var(--mu)">'+sqm+' m\u00b2</td>'+
@@ -7765,7 +7820,7 @@ function renderCutPieceList(){
       ${pcs.map(p=>{
         const dot=COLOR_MAP[p.color]||'#888';
         const remFit=remnants.filter(r=>r.status==='available'&&r.thickness===p.thickness&&
-          r.glass_type===(p.glassType||p.glass_type||'glass')&&r.color===(p.color||'clear')&&
+          r.glass_type===(p.glassType||p.glass_type||'glass')&&r.color===(p.color||'clear')&&_remFamOK(r)&&
           ((r.w>=p.w-2&&r.h>=p.h-2)||(r.w>=p.h-2&&r.h>=p.w-2)));
         return `<div class="pitem" style="margin-bottom:3px">
         <div style="width:7px;height:7px;border-radius:50%;background:${dot};flex-shrink:0;border:1px solid rgba(255,255,255,.2)"></div>
@@ -7901,7 +7956,8 @@ function importCutExcel(input){
 let _optStrategy = 'efficiency'; // 'efficiency' | 'balanced' | 'remnant'
 
 function setOptStrategy(s){
-  s = 'efficiency'; // strategy selector removed - always max efficiency
+  if(s !== 'guillotine') s = 'efficiency'; // live strategies: efficiency + guillotine
+  document.querySelectorAll('[id^=opt-strat-]').forEach(b=>b.classList.toggle('on', b.id==='opt-strat-'+s));
   _optStrategy = s;
   ['efficiency','balanced','remnant','remnant-len'].forEach(x=>{
     const btn = document.getElementById('opt-strat-'+x);
@@ -8249,6 +8305,115 @@ function packSheet(W, H, items, heuristic) {
 
 // ── Multi-trial packing: 8 sort orders × 3 heuristics = 24 trials ────────────
 // Picks the trial that places the most pieces, breaking ties by used area.
+﻿// ── Guillotine (breakout-safe) strip packer ─────────────────────────────
+// 3-stage model: full snaps -> strips, strips -> pieces, head trims -> size.
+// Every layout is breakable by straight edge-to-edge cuts BY CONSTRUCTION.
+window._remFamOK = function(r){
+  const sh = (typeof activeRawSheet!=='undefined' && activeRawSheet) ? activeRawSheet : null;
+  if(!sh) return true;
+  const fam = sh.family || 'float';
+  if((r.family || 'float') !== fam) return false;
+  if(fam === 'patterned' && !sh.pattern_any){
+    const norm = t => { t = String(t||'').trim().toLowerCase(); if(t==='\u0641\u0644\u0648\u062a\u062f'||t==='\u0641\u0644') t='fluted'; return t; };
+    return norm(r.pattern) === norm(sh.pattern);
+  }
+  return true;
+};
+function packGuillotine(W, H, items){
+  function shelfPack(SW, SH, list){
+    const strips = []; const placed = [];
+    for(const it of list){
+      const pw0 = it.cutW||it.w, ph0 = it.cutH||it.h;
+      const orients = (pw0===ph0) ? [[pw0,ph0]] : [[pw0,ph0],[ph0,pw0]];
+      let best = null;
+      for(const st of strips){
+        for(const o of orients){
+          if(o[1] <= st.h && st.x + o[0] <= SW){
+            const sc = (st.h - o[1])*100000 + (SW - st.x - o[0]);
+            if(!best || sc < best.sc) best = {st, w:o[0], h:o[1], sc};
+          }
+        }
+      }
+      if(!best){
+        const fit = orients.filter(o=>o[0] <= SW).sort((a,b)=>a[1]-b[1]);
+        const y0 = strips.reduce((a,s)=>Math.max(a, s.y+s.h), 0);
+        for(const o of fit){
+          if(y0 + o[1] <= SH){ const st = {y:y0, h:o[1], x:0}; strips.push(st); best = {st, w:o[0], h:o[1]}; break; }
+        }
+        if(!best) continue;
+      }
+      placed.push({ x:best.st.x, y:best.st.y, w:best.w, h:best.h,
+        ow:it.w, oh:it.h, cw:pw0, ch:ph0, ci:it.ci, uid:it.uid, code:it.code });
+      best.st.x += best.w;
+    }
+    const free = [];
+    strips.forEach(st=>{ if(st.x < SW) free.push({x:st.x, y:st.y, w:SW-st.x, h:st.h}); });
+    placed.forEach(p=>{
+      const st = strips.find(s=>s.y===p.y);
+      if(st && p.h < st.h) free.push({x:p.x, y:p.y+p.h, w:p.w, h:st.h-p.h});
+    });
+    const usedH = strips.reduce((a,s)=>Math.max(a, s.y+s.h), 0);
+    if(usedH < SH) free.push({x:0, y:usedH, w:SW, h:SH-usedH});
+    return { placed, free: free.filter(f=>f.w>=1 && f.h>=1) };
+  }
+  function transpose(res){
+    return { placed: res.placed.map(p=>({...p, x:p.y, y:p.x, w:p.h, h:p.w})),
+             free:   res.free.map(f=>({x:f.y, y:f.x, w:f.h, h:f.w})) };
+  }
+  const A = it=>(it.cutW||it.w)*(it.cutH||it.h);
+  const MN = it=>Math.min(it.cutW||it.w, it.cutH||it.h);
+  const MX = it=>Math.max(it.cutW||it.w, it.cutH||it.h);
+  const orders = [
+    [...items].sort((a,b)=>A(b)-A(a)),
+    [...items].sort((a,b)=>MN(b)-MN(a)),
+    [...items].sort((a,b)=>MX(b)-MX(a)),
+    [...items]
+  ];
+  let best=null, bs=-1;
+  for(const ord of orders){
+    for(const orient of ['h','v']){
+      const res = orient==='h' ? shelfPack(W, H, ord) : transpose(shelfPack(H, W, ord));
+      const ua = res.placed.reduce((a,p)=>a+p.w*p.h, 0);
+      const sc = res.placed.length*1e12 + ua;
+      if(sc > bs){ bs = sc; best = res; }
+    }
+  }
+  return best || {placed:[], free:[{x:0,y:0,w:W,h:H}]};
+}
+
+// ── Guillotine feasibility validator ────────────────────────────────────
+// True if the pieces can be separated by a sequence of straight edge-to-edge
+// cuts (each cut spans the whole current sub-plate without crossing a piece).
+function isGuillotineLayout(pieces){
+  if(!pieces || pieces.length <= 1) return true;
+  const memo = {};
+  function rec(ps){
+    if(ps.length <= 1) return true;
+    const key = ps.map(p=>p.uid||(p.x+','+p.y)).sort().join('|');
+    if(key in memo) return memo[key];
+    const xs = new Set(), ys = new Set();
+    ps.forEach(p=>{ xs.add(p.x); xs.add(p.x+p.w); ys.add(p.y); ys.add(p.y+p.h); });
+    const minX = Math.min(...ps.map(p=>p.x)), maxX = Math.max(...ps.map(p=>p.x+p.w));
+    const minY = Math.min(...ps.map(p=>p.y)), maxY = Math.max(...ps.map(p=>p.y+p.h));
+    for(const x of xs){
+      if(x <= minX+0.5 || x >= maxX-0.5) continue;
+      if(ps.every(p=> p.x+p.w <= x+0.5 || p.x >= x-0.5)){
+        const L = ps.filter(p=>p.x+p.w <= x+0.5), R = ps.filter(p=>p.x >= x-0.5);
+        if(L.length && R.length && rec(L) && rec(R)) return memo[key] = true;
+      }
+    }
+    for(const y of ys){
+      if(y <= minY+0.5 || y >= maxY-0.5) continue;
+      if(ps.every(p=> p.y+p.h <= y+0.5 || p.y >= y-0.5)){
+        const T = ps.filter(p=>p.y+p.h <= y+0.5), B = ps.filter(p=>p.y >= y-0.5);
+        if(T.length && B.length && rec(T) && rec(B)) return memo[key] = true;
+      }
+    }
+    return memo[key] = false;
+  }
+  return rec(pieces);
+}
+
 function packSheetBest(W, H, items) {
   if (!items.length) return {placed:[], free:[{x:0,y:0,w:W,h:H}]};
 
@@ -8360,7 +8525,16 @@ async function runOptimize(){
       if(uw<=0||uh<=0) continue;
 
       // Run packing on trimmed dimensions
-      const t = packSheetBest(uw, uh, rem);
+      const t0 = packSheetBest(uw, uh, rem);
+      const g0 = packGuillotine(uw, uh, rem);
+      let t = t0, pickedGuillotine = false;
+      const thrPct = +((typeof cfg!=='undefined' && cfg && cfg.guillotine_auto_pct != null) ? cfg.guillotine_auto_pct : 2);
+      const uaT = t0.placed.reduce((a,p)=>a+p.w*p.h,0), uaG = g0.placed.reduce((a,p)=>a+p.w*p.h,0);
+      if(strategy === 'guillotine'){
+        if(g0.placed.length){ t = g0; pickedGuillotine = true; }
+      } else if(strategy === 'efficiency' && g0.placed.length >= t0.placed.length && uaG >= uaT*(1 - thrPct/100)){
+        t = g0; pickedGuillotine = true;
+      }
       if(!t.placed.length) continue;
 
       // Offset placed pieces by the LEFT and TOP trim (origin of usable area)
@@ -8371,9 +8545,9 @@ async function runOptimize(){
 
       let finalPlaced = placed0;
       let finalFree = t.free.map(f=>({...f, x:f.x+trim.l, y:f.y+trim.t}));
-      let usedStrategy = 'efficiency';
+      let usedStrategy = pickedGuillotine ? 'guillotine' : 'efficiency';
 
-      if(strategy !== 'efficiency'){
+      if(strategy !== 'efficiency' && strategy !== 'guillotine'){
         // Apply additional strip alignment pass for remnant strategies
         const aligned = alignStrips(placed0, s.w, s.h, effectiveMinCut);
         const alignedFree = calcFreeAreas(aligned, s.w, s.h);
@@ -8599,7 +8773,7 @@ function buildGlobalRemFitsMap(allSheets){
   const map={};
   const availRems=(remnants||[]).filter(r=>r.status==='available'&&
     r.thickness===(activeRawSheet&&activeRawSheet.thickness)&&
-    r.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&
+    r.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&_remFamOK(r)&&
     r.color===(activeRawSheet&&activeRawSheet.color||'clear'));
   (allSheets||[]).forEach(function(sheet){
     (sheet.placed||[]).forEach(function(p){
@@ -8671,7 +8845,7 @@ function buildSheetCardHTML(r, totalSheets, jobName, rsLabel, printDate, ep, ec,
       <span style="margin-left:auto;color:${ec};font-family:'Cairo','DM Mono',monospace;font-size:.68rem;padding:2px 8px;background:${ec}1a;border-radius:3px;border:1px solid ${ec}33">${ep}% pieces</span>
       ${recPct>0?`<span style="color:#6be8a0;font-family:'Cairo','DM Mono',monospace;font-size:.68rem;padding:2px 8px;background:rgba(107,232,160,.1);border-radius:3px;border:1px solid rgba(107,232,160,.25)">${recPct.toFixed(1)}% recovered</span>`:''}
       <span style="color:var(--a2);font-family:'Cairo','DM Mono',monospace;font-size:.68rem;padding:2px 8px;background:rgba(255,105,53,.08);border-radius:3px;border:1px solid rgba(255,105,53,.2)">${wPct.toFixed(1)}% waste</span>
-      ${r.strategy==='aligned'?`<span style="font-family:'Cairo','DM Mono',monospace;font-size:.6rem;padding:2px 6px;background:rgba(0,150,255,.12);border-radius:3px;color:#6bc8ff;border:1px solid rgba(0,150,255,.25)">&#8594; Strip Aligned</span>`:''}
+      ${r.strategy==='guillotine'?`<span style="font-family:'Cairo','DM Mono',monospace;font-size:.6rem;padding:2px 6px;border-radius:4px;background:rgba(0,229,160,.12);color:var(--a3);border:1px solid var(--a3)" title="Breakout-safe strip layout">&#9986; GUILLOTINE</span>`:''}${(r.placed&&r.placed.length>1&&typeof isGuillotineLayout==='function'&&!isGuillotineLayout(r.placed))?`<span style="font-family:'Cairo','DM Mono',monospace;font-size:.6rem;padding:2px 6px;border-radius:4px;background:rgba(255,100,100,.14);color:#ff6464;border:1px solid #ff6464" title="No straight snap sequence can break this sheet out - step cuts required at the table">&#9888; NON-GUILLOTINE</span>`:''}${r.strategy==='aligned'?`<span style="font-family:'Cairo','DM Mono',monospace;font-size:.6rem;padding:2px 6px;background:rgba(0,150,255,.12);border-radius:3px;color:#6bc8ff;border:1px solid rgba(0,150,255,.25)">&#8594; Strip Aligned</span>`:''}
       ${r.strategyMode==='length'&&r.strategy==='aligned'?`<span style="font-family:'Cairo','DM Mono',monospace;font-size:.6rem;padding:2px 6px;background:rgba(0,200,100,.12);border-radius:3px;color:#6be8a0;border:1px solid rgba(0,200,100,.25)">&#8595; Length Focus</span>`:''}
       ${r.guillotineCut?`<span style="font-family:'Cairo','DM Mono',monospace;font-size:.6rem;padding:2px 6px;background:rgba(255,70,70,.12);border-radius:3px;color:#ff8a8a;border:1px solid rgba(255,70,70,.3)">&#9670; Guillotine ${r.guillotineCut.dir==='width'?'&#8594;':'&#8595;'} ${Math.round(r.guillotineCut.remnant.w)}&times;${Math.round(r.guillotineCut.remnant.h)}</span>`:''}
     </div>
@@ -9224,7 +9398,7 @@ function drawSheet(r,wrapId,legendId,remFitsMap){
     const remFits=(remnants||[]).filter(function(rem){
       return rem.status==='available'&&
         rem.thickness===(activeRawSheet&&activeRawSheet.thickness)&&
-        rem.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&
+        rem.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&_remFamOK(rem)&&
         rem.color===(activeRawSheet&&activeRawSheet.color||'clear')&&
         ((rem.w>=hit.ow-2&&rem.h>=hit.oh-2)||(rem.w>=hit.oh-2&&rem.h>=hit.ow-2));
     });
@@ -9719,6 +9893,7 @@ async function loadOptFile(id){
     const _applyTS=function(ts){if(!ts)return;_setck('opt-trim-t',ts.t);_setck('opt-trim-r',ts.r);_setck('opt-trim-b',ts.b);_setck('opt-trim-l',ts.l);};
     if(_op){
       _set('opt-edge-trim',_op.edgeTrim); _set('opt-min-cut',_op.minCut); _applyTS(_op.trimSides);
+      if(_op.strategy && typeof setOptStrategy==='function') setOptStrategy(_op.strategy);
     } else if(_r0){
       if(_r0.edgeTrim!=null) _set('opt-edge-trim',_r0.edgeTrim);
       _applyTS(_r0.trimSides);
@@ -12772,6 +12947,7 @@ async function showSettingsTab(id){
   const el=document.getElementById('stab-'+id); if(el) el.style.display='';
   if(id==='extprocs') renderExtProcList();
   if(id==='machines') renderMachinesTab();
+  if(id==='invsettings') renderInvSettings();
   if(id==='factories') renderFactoryList();
   // Mark active tab button
   document.querySelectorAll('.rtab').forEach(t=>{
@@ -14324,7 +14500,7 @@ function openUseRemnantModal(pieceId, uid, w, h, thickness, orderNum){
     (orderNum ? ' &bull; Order: <span style="color:var(--a)">' + orderNum + '</span>' : '');
   // Show matching remnants
   const fits = remnants.filter(r => r.status==='available' && r.thickness===thickness &&
-    r.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&
+    r.glass_type===(activeRawSheet&&(activeRawSheet.glass_type||activeRawSheet.type||'glass'))&&_remFamOK(r)&&
     r.color===(activeRawSheet&&activeRawSheet.color||'clear')&&
     ((r.w>=w-2&&r.h>=h-2)||(r.w>=h-2&&r.h>=w-2))
   ).sort((a,b)=>a.sqm-b.sqm); // smallest fit first = less waste
@@ -19604,13 +19780,73 @@ function calcLeaveHours(){
   el.style.color = 'var(--a3)';
 }
 
-function calcLeaveDays(){
+let _lvCtx = null;
+async function _leaveCtx(){
+  if(_lvCtx) return _lvCtx;
+  const tok = localStorage.getItem('agi_token')||'';
+  let sched=null, hols=[];
+  try{ sched = await fetch('/api/hr/schedule',{headers:{Authorization:'Bearer '+tok}}).then(x=>x.json()); if(Array.isArray(sched)) sched=sched[0]; }catch(e){}
+  try{ const h = await fetch('/api/hr/holidays',{headers:{Authorization:'Bearer '+tok}}).then(x=>x.json()); if(Array.isArray(h)) hols=h; }catch(e){}
+  const wd = (()=>{ try{ return JSON.parse(sched.work_days); }catch(e){ return ['mon','tue','wed','thu','sat','sun']; } })();
+  _lvCtx = {
+    workDays: new Set(wd),
+    start: (sched&&sched.start_time)||'08:00',
+    end: (sched&&sched.end_time)||'16:30',
+    thuEnd: (sched&&sched.thursday_end_time)||null,
+    holidays: new Set(hols.map(h=>h.date))
+  };
+  return _lvCtx;
+}
+function _mins(t){ const [h,m]=String(t).split(':').map(Number); return h*60+(m||0); }
+// Returns {days, workDates, skipped:{fri,hol}} for a fullday range with optional edge times
+async function computeLeaveDays(from, to, edgeFrom, edgeTo){
+  const ctx = await _leaveCtx();
+  const DOW = ['sun','mon','tue','wed','thu','fri','sat'];
+  const isoLocal=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const workDates = []; let skippedOff=0, skippedHol=0;
+  const d0 = new Date(from+'T00:00:00'), d1 = new Date(to+'T00:00:00');
+  for(let d=new Date(d0); d<=d1; d.setDate(d.getDate()+1)){
+    const iso = isoLocal(d);
+    const dow = DOW[d.getDay()];
+    if(!ctx.workDays.has(dow)){ skippedOff++; continue; }
+    if(ctx.holidays.has(iso)){ skippedHol++; continue; }
+    workDates.push({iso, dow});
+  }
+  let days = workDates.length;
+  const shiftLen = (dw)=> (_mins(dw==='thu'&&ctx.thuEnd?ctx.thuEnd:ctx.end) - _mins(ctx.start));
+  if(workDates.length){
+    const first = workDates[0], last = workDates[workDates.length-1];
+    if(edgeFrom && first.iso===from){
+      const L = shiftLen(first.dow);
+      const covered = Math.max(0, Math.min(_mins(first.dow==='thu'&&ctx.thuEnd?ctx.thuEnd:ctx.end) - _mins(edgeFrom), L));
+      days = days - 1 + Math.min(1, covered/L);
+    }
+    if(edgeTo && last.iso===to && !(workDates.length===1 && edgeFrom)){
+      const L = shiftLen(last.dow);
+      const covered = Math.max(0, Math.min(_mins(edgeTo) - _mins(ctx.start), L));
+      days = days - 1 + Math.min(1, covered/L);
+    } else if(edgeFrom && edgeTo && workDates.length===1){
+      const L = shiftLen(first.dow);
+      days = Math.min(1, Math.max(0, _mins(edgeTo)-_mins(edgeFrom))/L);
+    }
+  }
+  return { days:+days.toFixed(2), workDates: workDates.map(x=>x.iso), skippedOff, skippedHol };
+}
+async function calcLeaveDays(){
   const from = document.getElementById('add-leave-date-from').value;
   const to   = document.getElementById('add-leave-date-to').value;
   const el   = document.getElementById('add-leave-days-calc');
   if (!from || !to) { el.textContent = ''; return; }
-  const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
-  el.textContent = days + ' day' + (days!==1?'s':'');
+  const ef = document.getElementById('add-leave-edge-from')?.value || null;
+  const et = document.getElementById('add-leave-edge-to')?.value || null;
+  const r = await computeLeaveDays(from, to, ef, et);
+  window._lvCalc = r;
+  let t = r.days + ' working day' + (r.days!==1?'s':'');
+  const sk = [];
+  if(r.skippedOff) sk.push(r.skippedOff+' day-off');
+  if(r.skippedHol) sk.push(r.skippedHol+' holiday');
+  if(sk.length) t += ' (excl. '+sk.join(', ')+')';
+  el.textContent = t;
   el.style.color = 'var(--a3)';
 }
 
@@ -19643,10 +19879,15 @@ async function saveAddLeave(){
     const dateFrom = document.getElementById('add-leave-date-from').value;
     const dateTo   = document.getElementById('add-leave-date-to').value;
     if (!dateFrom || !dateTo) { alert('Fill in dates'); return; }
-    const days = Math.round((new Date(dateTo) - new Date(dateFrom)) / 86400000) + 1;
+    const ef = document.getElementById('add-leave-edge-from')?.value || null;
+    const et = document.getElementById('add-leave-edge-to')?.value || null;
+    const calc = await computeLeaveDays(dateFrom, dateTo, ef, et);
+    if(calc.days <= 0){ alert('Selected range contains no working days'); return; }
     payload.date_from = dateFrom;
     payload.date_to   = dateTo;
-    payload.days      = days;
+    payload.days      = calc.days;
+    if(ef) payload.time_from = ef;
+    if(et) payload.time_to   = et;
   }
 
   try {
@@ -24551,7 +24792,7 @@ window.addEventListener('beforeunload', function(e){
     return j;
   };
   const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  let _items=[], _machs=[], _invTab='items', _lines=[], _wks=[];
+  let _items=[], _machs=[], _invTab='items', _lines=[], _wks=[], _lists={types:[],locations:[],units:[],categories:[]};
 
   window.renderInventory = async function(tab){
     _invTab = tab || _invTab || 'items';
@@ -24566,6 +24807,7 @@ window.addEventListener('beforeunload', function(e){
       if(_invTab!=='items' || !_items.length){ _items = await api('/inventory/items'); }
       else { _items = await api('/inventory/items'); }
       if(!_machs.length){ try{ _machs = await api('/machines'); }catch(e){ _machs=[]; } }
+      try{ _lists = await api('/inventory/lists'); }catch(e){}
       if(!_wks.length){ try{ _wks = await AGI.Workers.list(); }catch(e){ _wks=[]; } }
     }catch(e){ el.innerHTML = '<div style="color:#ff6464">'+esc(e.message)+'</div>'; return; }
     if(_invTab==='items') invTabItems(el);
@@ -24579,7 +24821,7 @@ window.addEventListener('beforeunload', function(e){
   // ---------- ITEMS ----------
   const CATS = ['spare_part','tool','consumable','ppe'];
   function invTabItems(el){
-    const cols = [['code','Code'],['name','Name'],['category','Category'],['spec','Spec'],['unit','Unit'],['machines','Machines'],['stock','Stock'],['min_stock','Min'],['location','Loc'],['unit_cost_jod','WAC']];
+    const cols = [['code','Code'],['name','Name'],['category','Type'],['cat','Cat / Sub'],['spec','Spec'],['unit','Unit'],['machines','Machines'],['stock','Stock'],['min_stock','Min'],['location','Loc'],['unit_cost_jod','WAC']];
     el.innerHTML = `<div class="card"><div class="ch"><span>&#128295; <span data-i18n="Items">Items</span> (<span id="inv-count">${_items.length}</span>)</span>
       <button class="btn ba bsm" onclick="invItemModal(null)">+ <span data-i18n="Add Item">Add Item</span></button></div>
       <div class="tw"><table><thead>
@@ -24595,6 +24837,7 @@ window.addEventListener('beforeunload', function(e){
     const rows = _items.filter(it=>{
       return Object.entries(fs).every(([f,v])=>{
         let val = f==='machines' ? (it.machines||[]).map(m=>m.machine_code+' '+m.machine_name).join(' ')
+          : f==='cat' ? ((it.cat_name||'')+' '+(it.sub_name||''))
           : f==='stock' ? String(it.stock) : String(it[f]??'');
         return val.toLowerCase().includes(v);
       });
@@ -24604,14 +24847,14 @@ window.addEventListener('beforeunload', function(e){
     b.innerHTML = rows.map(it=>`<tr ${it.active?'':'style="opacity:.45"'} style="cursor:pointer" onclick="invItemModal(${it.id})">
       <td class="mn" style="color:var(--a);font-weight:700;white-space:nowrap">${it.has_photo?`<button class="btn bsm" style="padding:1px 5px;margin-right:4px" onclick="event.stopPropagation();invPhotoView(${it.id})" title="View photo">&#128247;</button>`:''}${esc(it.code)}</td>
       <td>${esc(it.name)}${it.name_ar?'<div style="color:var(--mu);font-size:.68rem">'+esc(it.name_ar)+'</div>':''}</td>
-      <td>${esc(it.category)}</td><td style="font-size:.7rem">${esc(it.spec||'')}</td><td>${esc(it.unit)}</td>
+      <td>${esc(it.category)}</td><td style="font-size:.72rem">${esc(it.cat_name||'')}${it.sub_name?' / '+esc(it.sub_name):''}</td><td style="font-size:.7rem">${esc(it.spec||'')}</td><td>${esc(it.unit)}</td>
       <td style="font-size:.68rem">${(it.machines||[]).map(m=>esc(m.machine_code)+(m.station?' ('+esc(m.station)+')':'')).join(', ')}</td>
       <td class="mn" style="${it.min_stock!=null&&it.stock<=it.min_stock?'color:#ff6464;font-weight:800':'font-weight:700'}">${it.stock}</td>
       <td class="mn" style="color:var(--mu)">${it.min_stock??''}</td>
       <td>${esc(it.location||'')}</td><td class="mn">${(+it.unit_cost_jod||0).toFixed(3)}</td>
       <td style="white-space:nowrap"><button class="btn bsm" onclick="event.stopPropagation();invLabel(${it.id})" title="Print label">&#128424;</button>
         <button class="btn bsm" onclick="event.stopPropagation();invItemModal(${it.id})">&#9998;</button></td></tr>`).join('')
-      || '<tr><td colspan="11" style="text-align:center;color:var(--mu);padding:16px">No items</td></tr>';
+      || '<tr><td colspan="12" style="text-align:center;color:var(--mu);padding:16px">No items</td></tr>';
   };
   window.invItemEdit = function(id){
     const it = id ? _items.find(x=>x.id===id) : {category:'spare_part',unit:'pc',criticality:'normal',active:1,machines:[]};
@@ -24660,15 +24903,27 @@ window.addEventListener('beforeunload', function(e){
       tmp.remove();
       const w = window.open('','_blank','width=500,height=320');
       w.document.write(`<html><head><style>
-        @page{size:100mm 50mm;margin:0} body{margin:0;font-family:Arial;width:100mm;height:50mm;display:flex;align-items:center}
-        .qr{width:38mm;height:38mm;margin:6mm 2mm 6mm 5mm} .qr img{width:100%;height:100%}
-        .tx{flex:1;padding:3mm 4mm 3mm 1mm} .c{font-size:13pt;font-weight:800;font-family:monospace}
-        .n{font-size:11pt;font-weight:700;margin:1mm 0} .s{font-size:8pt} .l{font-size:9pt;margin-top:1.5mm}
+        @page{size:100mm 50mm;margin:0}
+        body{margin:0;font-family:Arial,'Segoe UI';width:100mm;height:50mm;display:flex;flex-direction:column;box-sizing:border-box;padding:1.5mm 3mm;overflow:hidden}
+        .loc{text-align:center;font-size:17pt;font-weight:900;letter-spacing:1px;line-height:1.05;border-bottom:0.4mm solid #000;padding-bottom:0.5mm}
+        .row{flex:1;display:flex;align-items:center;gap:2mm;min-height:0}
+        .qr{width:26mm;height:26mm;flex:none} .qr img{width:100%;height:100%}
+        .tx{flex:1;min-width:0;text-align:right}
+        .ar{font-size:14pt;font-weight:800;direction:rtl;line-height:1.1}
+        .en{font-size:8pt;font-weight:600}
+        .s{font-size:7pt;color:#222}
+        .c{font-size:8.5pt;font-weight:800;font-family:monospace;margin-top:0.5mm}
       </style></head><body>
-        <div class="qr"><img src="${img}"></div>
-        <div class="tx"><div class="c">${esc(it.code)}</div><div class="n">${esc(it.name)}</div>
-        <div class="s">${esc(it.spec||'')}</div><div class="s">${esc(it.category)} &middot; ${esc(it.unit)}</div>
-        <div class="l">${it.location?('&#128205; '+esc(it.location)):''}</div></div>
+        <div class="loc">${it.location?esc(it.location):'&nbsp;'}</div>
+        <div class="row">
+          <div class="qr"><img src="${img}"></div>
+          <div class="tx">
+            <div class="ar">${esc(it.name_ar||it.name)}</div>
+            <div class="en">${esc(it.name)}</div>
+            <div class="s">${esc(it.spec||'')} &middot; ${esc(it.unit)}</div>
+            <div class="c">${esc(it.code)}</div>
+          </div>
+        </div>
       </body></html>`);
       w.document.close();
       setTimeout(()=>{ w.print(); }, 300);
@@ -24905,23 +25160,24 @@ window.addEventListener('beforeunload', function(e){
   window.invCountOpen = async function(id){
     const el = document.getElementById('cnt-root'); if(!el) return;
     let c; try{ c = await api('/inventory/counts/'+id); }catch(e){ alert(e.message); return; }
+    window._cntOpenId = c.id;
     const open = c.status==='open';
     const counted = c.items.filter(i=>i.counted_qty!=null).length;
     el.innerHTML = `<div class="card"><div class="ch"><span><button class="btn bsm" onclick="invCountHome()">&#8249; <span data-i18n="Back">Back</span></button>
       Count #${c.id} <span style="color:var(--mu);font-size:.75rem">${esc(c.scope_note||'')} - ${c.status}</span></span>
-      <span>${open?`<label style="font-size:.7rem;color:var(--mu)"><input type="checkbox" ${_countBlind?'checked':''} onchange="_countBlind=this.checked;invCountOpen(${c.id})"> <span data-i18n="Blind count">Blind count</span></label>
+      <span>${open?`<label style="font-size:.7rem;color:var(--mu)"><input type="checkbox" ${_countBlind?'checked':''} onchange="invCountBlindToggle(${c.id}, this.checked)"> <span data-i18n="Blind count">Blind count</span></label>
         <button class="btn bsm" onclick="invCountSave(${c.id})" data-i18n="Save Progress">Save Progress</button>
         <button class="btn bsm ba" onclick="invCountPost(${c.id})" data-i18n="Post Adjustments">Post Adjustments</button>
         <button class="btn bsm br" onclick="invCountCancel(${c.id})" data-i18n="Cancel Count">Cancel Count</button>`:''}</span></div>
     <div style="padding:6px 12px;color:var(--mu);font-size:.72rem"><span data-i18n="Counted">Counted</span>: ${counted}/${c.items.length} ${open?'&middot; <span data-i18n="Uncounted items are skipped at posting">Uncounted items are skipped at posting</span>':''}</div>
-    <div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th>Unit</th><th>Loc</th>${_countBlind&&open?'':'<th data-i18n="System">System</th>'}<th data-i18n="Counted">Counted</th>${_countBlind&&open?'':'<th data-i18n="Variance">Variance</th>'}<th data-i18n="Note">Note</th></tr></thead><tbody>
+    <div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th data-i18n="AR Name">AR</th><th data-i18n="Category">Cat</th><th data-i18n="Sub">Sub</th><th>Unit</th><th>Loc</th>${_countBlind&&open?'':'<th data-i18n="System">System</th>'}<th data-i18n="Counted">Counted</th>${_countBlind&&open?'':'<th data-i18n="Variance">Variance</th>'}<th data-i18n="Note">Note</th></tr></thead><tbody>
     ${c.items.map(i=>{
       const v = (i.counted_qty!=null && !( _countBlind&&open)) ? (i.counted_qty - i.system_qty) : null;
-      return `<tr data-cid="${i.item_id}"><td class="mn" style="color:var(--a);white-space:nowrap">${i.has_photo?`<button class="btn bsm" style="padding:1px 5px;margin-right:4px" onclick="invPhotoView(${i.item_id})" title="View photo">&#128247;</button>`:''}${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.unit)}</td><td>${esc(i.location||'')}</td>
+      return `<tr data-cid="${i.item_id}"><td class="mn" style="color:var(--a);white-space:nowrap">${i.has_photo?`<button class="btn bsm" style="padding:1px 5px;margin-right:4px" onclick="invPhotoView(${i.item_id})" title="View photo">&#128247;</button>`:''}${esc(i.code)}</td><td>${esc(i.name)}</td><td>${open?`<input value="${esc(i.name_ar||'')}" dir="rtl" style="width:100px;padding:3px;font-size:.7rem" onchange="invCountFieldSave(${i.item_id},{name_ar:this.value.trim()||null},this)">`:esc(i.name_ar||'')}</td><td>${open?`<select data-cnt-cat onchange="invCountCatChange(${i.item_id},this)" style="padding:3px;font-size:.7rem"><option value="">-</option>${_lists.categories.filter(c=>c.active||c.id===i.category_id).map(c=>`<option value="${c.id}" ${i.category_id===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:esc((_lists.categories.find(c=>c.id===i.category_id)||{}).name||'')}</td><td>${open?`<select data-cnt-sub onchange="invCountFieldSave(${i.item_id},{subcategory_id:this.value?+this.value:null},this)" style="padding:3px;font-size:.7rem"><option value="">-</option>${(()=>{const cc=_lists.categories.find(c=>c.id===i.category_id);return cc?cc.subs.filter(x=>x.active||x.id===i.subcategory_id).map(x=>`<option value="${x.id}" ${i.subcategory_id===x.id?'selected':''}>${esc(x.name)}</option>`).join(''):''})()}</select>`:''}</td><td>${esc(i.unit)}</td><td>${open?`<select onchange="invCountLocSave(${i.item_id},this)" style="padding:3px;font-size:.7rem"><option value="">-</option>${_lists.locations.filter(l=>l.active||l.code===i.location).map(l=>`<option value="${esc(l.code)}" ${i.location===l.code?'selected':''}>${esc(l.code)}</option>`).join('')}</select>`:esc(i.location||'')}</td>
       ${_countBlind&&open?'':'<td class="mn" style="color:var(--mu)">'+i.system_qty+'</td>'}
-      <td>${open?`<input type="number" step="0.01" value="${i.counted_qty??''}" style="width:80px;padding:4px" data-counted>`:`<span class="mn">${i.counted_qty??'-'}</span>`}</td>
+      <td>${open?`<input type="number" step="0.01" value="${i.counted_qty??''}" style="width:80px;padding:4px" data-counted onchange="invCountCell(this)">`:`<span class="mn">${i.counted_qty??'-'}</span>`}</td>
       ${_countBlind&&open?'':'<td class="mn" style="font-weight:700;color:'+(v==null?'var(--mu)':Math.abs(v)<0.0001?'var(--a3)':v>0?'var(--a2)':'#ff6464')+'">'+(v==null?'':(v>0?'+':'')+(+v.toFixed(2)))+'</td>'}
-      <td>${open?`<input value="${esc(i.note||'')}" style="width:130px;padding:4px;font-size:.7rem" data-cnote>`:`<span style="font-size:.7rem">${esc(i.note||'')}</span>`}</td></tr>`;
+      <td>${open?`<input value="${esc(i.note||'')}" style="width:130px;padding:4px;font-size:.7rem" data-cnote onchange="invCountCell(this)">`:`<span style="font-size:.7rem">${esc(i.note||'')}</span>`}</td></tr>`;
     }).join('')}
     </tbody></table></div></div>`;
   };
@@ -24931,14 +25187,76 @@ window.addEventListener('beforeunload', function(e){
       return { item_id:+tr.dataset.cid, counted_qty: q===''||q==null?null:+q, note: tr.querySelector('[data-cnote]')?.value?.trim()||null };
     });
   }
+  window.invCountFieldSave = async function(itemId, body, el){
+    try{
+      await api('/inventory/items/'+itemId, {method:'PUT', body});
+      el.style.outline='2px solid var(--a3)'; setTimeout(()=>{ el.style.outline=''; }, 700);
+    }catch(e){ el.style.outline='2px solid #ff6464'; alert('Save failed: '+e.message); }
+  };
+  window.invCountCatChange = async function(itemId, sel){
+    const catId = sel.value?+sel.value:null;
+    const subSel = sel.closest('tr').querySelector('[data-cnt-sub]');
+    if(subSel){
+      const cat = _lists.categories.find(c=>c.id===catId);
+      subSel.innerHTML = '<option value="">-</option>' + (cat?cat.subs.filter(x=>x.active).map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join(''):'');
+    }
+    await invCountFieldSave(itemId, {category_id:catId, subcategory_id:null}, sel);
+  };
+  window.invCountLocSave = async function(itemId, el){
+    try{
+      await api('/inventory/items/'+itemId, {method:'PUT', body:{location: el.value||null}});
+      el.style.outline='2px solid var(--a3)'; setTimeout(()=>{ el.style.outline=''; }, 700);
+    }catch(e){ el.style.outline='2px solid #ff6464'; alert('Location save failed: '+e.message); }
+  };
+  window.invCountCell = async function(el){
+    const tr = el.closest('[data-cid]'); if(!tr || !window._cntOpenId) return;
+    const q = tr.querySelector('[data-counted]')?.value;
+    const row = { item_id:+tr.dataset.cid, counted_qty: q===''||q==null?null:+q, note: tr.querySelector('[data-cnote]')?.value?.trim()||null };
+    try{
+      await api('/inventory/counts/'+window._cntOpenId+'/items', {method:'PUT', body:{items:[row]}});
+      el.style.outline='2px solid var(--a3)'; setTimeout(()=>{ el.style.outline=''; }, 700);
+    }catch(e){
+      el.style.outline='2px solid #ff6464';
+      alert('Row save failed: '+e.message);
+    }
+  };
+  window.invCountBlindToggle = async function(id, checked){
+    try{ await api('/inventory/counts/'+id+'/items', {method:'PUT', body:{items:_collectCounts()}}); }catch(e){ alert('Save before toggle failed: '+e.message); return; }
+    _countBlind = checked;
+    invCountOpen(id);
+  };
   window.invCountSave = async function(id){
-    try{ await api('/inventory/counts/'+id+'/items', {method:'PUT', body:{items:_collectCounts()}}); invCountOpen(id); }
-    catch(e){ alert(e.message); }
+    try{
+      const rows = _collectCounts();
+      await api('/inventory/counts/'+id+'/items', {method:'PUT', body:{items:rows}});
+      alert('Saved: '+rows.filter(x=>x.counted_qty!=null).length+' counted item(s)');
+      invCountOpen(id);
+    }catch(e){ alert('Save failed: '+e.message); }
   };
   window.invCountPost = async function(id){
     try{ await api('/inventory/counts/'+id+'/items', {method:'PUT', body:{items:_collectCounts()}}); }catch(e){ alert(e.message); return; }
-    if(!(_nativeConfirm||window.confirm)('Post adjustments? Variances become adjust movements. This cannot be undone.')) return;
+    let c, items;
+    try{ c = await api('/inventory/counts/'+id); items = await api('/inventory/items'); }catch(e){ alert(e.message); return; }
+    const live = Object.fromEntries(items.map(x=>[x.id,x]));
+    const rows = c.items.filter(i=>i.counted_qty!=null).map(i=>{
+      const lv = live[i.item_id]||{stock:0,unit_cost_jod:0};
+      const diff = +(i.counted_qty - lv.stock);
+      return {code:i.code, name:i.name, note:i.note, counted:i.counted_qty, live:lv.stock, diff, val: diff*(+lv.unit_cost_jod||0)};
+    });
+    const vars = rows.filter(r=>Math.abs(r.diff)>0.0001);
+    const totVal = vars.reduce((a,r)=>a+r.val,0);
+    invModal('<div class="ch"><span>Review Count #'+id+' - '+vars.length+' variance(s)</span><button class="btn bsm" onclick="invModalClose()">&#10005;</button></div>'+
+      '<div style="padding:10px 14px">'+
+      '<div style="color:var(--mu);font-size:.72rem;margin-bottom:8px">Counted: '+rows.length+' items &middot; No variance: '+(rows.length-vars.length)+' &middot; Net value impact: <b class="mn" style="color:'+(totVal<0?'#ff6464':'var(--a3)')+'">'+totVal.toFixed(2)+' JOD</b></div>'+
+      '<div class="tw" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Code</th><th>Name</th><th>System (live)</th><th>Counted</th><th>Variance</th><th>Value JOD</th><th>Note</th></tr></thead><tbody>'+
+      (vars.map(r=>'<tr><td class="mn" style="color:var(--a)">'+esc(r.code)+'</td><td>'+esc(r.name)+'</td><td class="mn">'+r.live+'</td><td class="mn">'+r.counted+'</td><td class="mn" style="font-weight:800;color:'+(r.diff>0?'var(--a2)':'#ff6464')+'">'+(r.diff>0?'+':'')+(+r.diff.toFixed(2))+'</td><td class="mn">'+r.val.toFixed(2)+'</td><td style="font-size:.68rem">'+esc(r.note||'')+'</td></tr>').join('') || '<tr><td colspan="7" style="color:var(--a3);text-align:center;padding:12px">No variances - posting will only close the count</td></tr>')+
+      '</tbody></table></div>'+
+      '<div style="margin-top:12px"><button class="btn ba" onclick="invCountPostConfirm('+id+')">Confirm &amp; Post '+vars.length+' Adjustment(s)</button>'+
+      '<button class="btn" onclick="invModalClose()" style="margin-left:8px" data-i18n="Cancel">Cancel</button></div></div>');
+  };
+  window.invCountPostConfirm = async function(id){
     try{ const r = await api('/inventory/counts/'+id+'/post', {method:'POST'});
+      invModalClose();
       alert('Posted: '+r.adjustments+' adjustment(s), value '+r.value_jod+' JOD');
       _items = await api('/inventory/items');
       invCountOpen(id);
@@ -25025,8 +25343,9 @@ window.addEventListener('beforeunload', function(e){
   window.invItemModal = async function(id){
     let it = { category:'spare_part', unit:'pc', criticality:'normal', active:1, machines:[], purchases:[], recent:[], stock:0 };
     if(id){ try{ it = await api('/inventory/items/'+id); }catch(e){ alert(e.message); return; } }
-    const F = [['name','Name'],['name_ar','Name (ar)'],['company','Company'],['origin','Origin'],['spec','Spec'],['unit','Unit'],['lead_time_days','Lead days'],['min_stock','Min stock'],['reorder_level','Reorder'],['location','Location'],['notes','Notes']];
+    const F = [['name','Name'],['name_ar','Name (ar)'],['company','Company'],['origin','Origin'],['spec','Spec'],['lead_time_days','Lead days'],['min_stock','Min stock'],['reorder_level','Reorder'],['notes','Notes']];
     const mm = Object.fromEntries(_machs.map(m=>[m.id,m.code]));
+    setTimeout(()=>imFillSubs(it.subcategory_id||null), 50);
     invModal(`
       <div class="ch"><span><span class="mn" style="color:var(--a);font-weight:800">${esc(it.code||'NEW ITEM')}</span> ${esc(it.name||'')}
         <span style="color:var(--mu);font-size:.72rem;margin-left:8px">stock: <b>${it.stock}</b> ${esc(it.unit||'')}</span></span>
@@ -25039,7 +25358,11 @@ window.addEventListener('beforeunload', function(e){
         <div style="flex:1;min-width:340px">
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">
             ${F.map(([f,l])=>`<label style="font-size:.66rem;color:var(--mu)">${l}<input id="im-${f}" value="${esc(it[f]??'')}" style="width:100%;padding:5px"></label>`).join('')}
-            <label style="font-size:.66rem;color:var(--mu)">Category<select id="im-category" style="width:100%;padding:5px">${CATS.map(c=>`<option ${it.category===c?'selected':''}>${c}</option>`).join('')}</select></label>
+            <label style="font-size:.66rem;color:var(--mu)">Type<select id="im-category" style="width:100%;padding:5px">${(_lists.types.length?_lists.types:CATS.map(c=>({key:c,name:c}))).map(t=>`<option value="${t.key}" ${it.category===t.key?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label>
+            <label style="font-size:.66rem;color:var(--mu)">Category<select id="im-category_id" style="width:100%;padding:5px" onchange="imFillSubs()"><option value="">-</option>${_lists.categories.filter(c=>c.active||c.id===it.category_id).map(c=>`<option value="${c.id}" ${it.category_id===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
+            <label style="font-size:.66rem;color:var(--mu)">Sub-category<select id="im-subcategory_id" style="width:100%;padding:5px"><option value="">-</option></select></label>
+            <label style="font-size:.66rem;color:var(--mu)">Unit<select id="im-unit" style="width:100%;padding:5px">${(_lists.units.filter(u=>u.active||u.code===it.unit)).map(u=>`<option value="${esc(u.code)}" ${it.unit===u.code?'selected':''}>${esc(u.code)}${u.name_ar?' - '+esc(u.name_ar):''}</option>`).join('') || `<option>${esc(it.unit||'pc')}</option>`}</select></label>
+            <label style="font-size:.66rem;color:var(--mu)">Location<select id="im-location" style="width:100%;padding:5px"><option value="">-</option>${(_lists.locations.filter(l=>l.active||l.code===it.location)).map(l=>`<option value="${esc(l.code)}" ${it.location===l.code?'selected':''}>${esc(l.code)}${l.name?' - '+esc(l.name):''}</option>`).join('')}</select></label>
             <label style="font-size:.66rem;color:var(--mu)">Criticality<select id="im-criticality" style="width:100%;padding:5px">${['critical','normal','low'].map(c=>`<option ${it.criticality===c?'selected':''}>${c}</option>`).join('')}</select></label>
             <label style="font-size:.66rem;color:var(--mu)">Active<select id="im-active" style="width:100%;padding:5px"><option value="1" ${it.active?'selected':''}>yes</option><option value="0" ${!it.active?'selected':''}>no</option></select></label>
           </div>
@@ -25061,6 +25384,12 @@ window.addEventListener('beforeunload', function(e){
       </tbody></table></div></div>`:''}
     `);
   };
+  window.imFillSubs = function(selectedSubId){
+    const catId = +document.getElementById('im-category_id')?.value || null;
+    const sel = document.getElementById('im-subcategory_id'); if(!sel) return;
+    const cat = _lists.categories.find(c=>c.id===catId);
+    sel.innerHTML = '<option value="">-</option>' + (cat ? cat.subs.filter(x=>x.active||x.id===selectedSubId).map(x=>'<option value="'+x.id+'" '+(selectedSubId===x.id?'selected':'')+'>'+esc(x.name)+'</option>').join('') : '');
+  };
   function imLinkRow(mid, station){
     return `<div style="display:flex;gap:6px;margin-bottom:4px" data-imlink>
       <select style="padding:5px">${_machs.map(m=>`<option value="${m.id}" ${m.id===mid?'selected':''}>${esc(m.code)} ${esc(m.name)}</option>`).join('')}</select>
@@ -25071,7 +25400,7 @@ window.addEventListener('beforeunload', function(e){
   window.invModalSave = async function(id){
     const g = f => document.getElementById('im-'+f)?.value?.trim();
     const b = {};
-    ['name','name_ar','company','origin','category','spec','unit','criticality','lead_time_days','min_stock','reorder_level','location','notes'].forEach(f=>{ const v=g(f); b[f]=v===''?null:v; });
+    ['name','name_ar','company','origin','category','spec','unit','criticality','lead_time_days','min_stock','reorder_level','location','notes','category_id','subcategory_id'].forEach(f=>{ const v=g(f); b[f]=v===''?null:v; });
     b.active = +g('active');
     if(!b.name){ alert('Name required'); return; }
     b.machine_links = Array.from(document.querySelectorAll('#im-links [data-imlink]')).map(r=>({ machine_id:+r.querySelector('select').value, station:r.querySelector('input').value.trim()||null }));
@@ -25083,6 +25412,189 @@ window.addEventListener('beforeunload', function(e){
       invItemModal(id);
     }catch(e){ alert(e.message); }
   };
+})();
+</script>
+
+﻿
+
+﻿<script>
+/* INVSET_UI v2: Settings > Inventory - Types / Locations / Units / Categories / Sub-categories (separated) */
+(function(){
+  const api = async (p, opts={}) => {
+    const r = await fetch('/api'+p, { method: opts.method||'GET',
+      headers: { 'Authorization':'Bearer '+localStorage.getItem('agi_token'), ...(opts.body?{'Content-Type':'application/json'}:{}) },
+      body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    return j;
+  };
+  const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const V = (id) => document.getElementById(id)?.value?.trim() || null;
+
+  window.renderInvSettings = async function(){
+    const el = document.getElementById('invset-root'); if(!el) return;
+    let L; try{ L = await api('/inventory/lists'); }catch(e){ el.innerHTML='<div style="color:#ff6464">'+esc(e.message)+'</div>'; return; }
+    const allSubs = L.categories.flatMap(c=>c.subs.map(x=>({...x, cat_name:c.name})));
+    const row = (path, x, fields) => `<tr ${x.active?'':'style="opacity:.45"'}>
+      ${fields.map(f=>`<td><input value="${esc(x[f]??'')}" data-f="${f}" style="width:95%;padding:4px" ${path==='types'&&(f==='key'||f==='prefix')?'disabled':''} ${f==='name_ar'?'dir="rtl"':''}></td>`).join('')}
+      <td style="white-space:nowrap">
+        <button class="btn bsm ba" onclick="invSetSave('${path}',${x.id},this)" data-i18n="Save">Save</button>
+        ${path!=='types'?`<button class="btn bsm" onclick="invSetToggle('${path}',${x.id},${x.active?0:1})" title="${x.active?'deactivate':'activate'}">${x.active?'&#128683;':'&#9989;'}</button>
+        <button class="btn bsm br" onclick="invSetDel('${path}',${x.id})">&#10005;</button>`:''}
+      </td></tr>`;
+    el.innerHTML = `
+    <div class="card"><div class="ch"><span data-i18n="Item Types">Item Types</span><span style="color:var(--mu);font-size:.68rem" data-i18n="Keys and code prefixes are fixed; names are editable">Keys and code prefixes are fixed; names are editable</span></div>
+    <div class="tw"><table><thead><tr><th>Key</th><th>Prefix</th><th>Name (EN)</th><th>Name (AR)</th><th></th></tr></thead>
+    <tbody>${L.types.map(t=>row('types', t, ['key','prefix','name','name_ar'])).join('')}</tbody></table></div></div>
+
+    <div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Storage Locations">Storage Locations</span></div>
+    <div class="tw"><table><thead><tr><th>Code</th><th>Name (EN)</th><th>Name (AR)</th><th></th></tr></thead>
+    <tbody>${L.locations.map(x=>row('locations', x, ['code','name','name_ar'])).join('')}</tbody></table></div>
+    <div style="display:flex;gap:6px;padding:10px 12px;flex-wrap:wrap">
+      <input id="loc-code" placeholder="code (e.g. ST-A1)" style="padding:6px"><input id="loc-name" placeholder="name" style="padding:6px"><input id="loc-name_ar" placeholder="الاسم" style="padding:6px" dir="rtl">
+      <button class="btn ba bsm" onclick="invSetAdd('locations',{code:V('loc-code'),name:V('loc-name'),name_ar:V('loc-name_ar')})" data-i18n="Add">Add</button></div></div>
+
+    <div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Units">Units</span></div>
+    <div class="tw"><table><thead><tr><th>Unit</th><th>Name (AR)</th><th></th></tr></thead>
+    <tbody>${L.units.map(x=>row('units', x, ['code','name_ar'])).join('')}</tbody></table></div>
+    <div style="display:flex;gap:6px;padding:10px 12px">
+      <input id="unit-code" placeholder="unit (e.g. g)" style="padding:6px"><input id="unit-name_ar" placeholder="الاسم" style="padding:6px" dir="rtl">
+      <button class="btn ba bsm" onclick="invSetAdd('units',{code:V('unit-code'),name_ar:V('unit-name_ar')})" data-i18n="Add">Add</button></div></div>
+
+    <div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Categories">Categories</span></div>
+    <div class="tw"><table><thead><tr><th>Name (EN)</th><th>Name (AR)</th><th></th></tr></thead>
+    <tbody>${L.categories.map(x=>row('categories', x, ['name','name_ar'])).join('')}</tbody></table></div>
+    <div style="display:flex;gap:6px;padding:10px 12px">
+      <input id="cat-name" placeholder="category (e.g. Wheels)" style="padding:6px"><input id="cat-ar" placeholder="الاسم" style="padding:6px" dir="rtl">
+      <button class="btn ba bsm" onclick="invSetAdd('categories',{name:V('cat-name'),name_ar:V('cat-ar')})" data-i18n="Add">Add</button></div></div>
+
+    <div class="card" style="margin-top:12px"><div class="ch"><span data-i18n="Sub-categories">Sub-categories</span></div>
+    <div class="tw"><table><thead><tr><th data-i18n="Parent Category">Parent Category</th><th>Name (EN)</th><th>Name (AR)</th><th></th></tr></thead>
+    <tbody>${allSubs.map(x=>`<tr ${x.active?'':'style="opacity:.45"'}>
+      <td><select data-sub-parent style="padding:4px">${L.categories.map(c=>`<option value="${c.id}" ${c.id===x.category_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></td>
+      <td><input value="${esc(x.name)}" data-sub-name style="width:95%;padding:4px"></td>
+      <td><input value="${esc(x.name_ar??'')}" data-sub-ar style="width:95%;padding:4px" dir="rtl"></td>
+      <td style="white-space:nowrap">
+        <button class="btn bsm ba" onclick="invSetSaveSubRow(${x.id},this)" data-i18n="Save">Save</button>
+        <button class="btn bsm" onclick="invSetToggle('subcategories',${x.id},${x.active?0:1})">${x.active?'&#128683;':'&#9989;'}</button>
+        <button class="btn bsm br" onclick="invSetDel('subcategories',${x.id})">&#10005;</button></td></tr>`).join('')}</tbody></table></div>
+    <div style="display:flex;gap:6px;padding:10px 12px;flex-wrap:wrap">
+      <select id="sub-new-parent" style="padding:6px">${L.categories.filter(c=>c.active).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+      <input id="sub-new-name" placeholder="sub-category (e.g. Diamond Wheels)" style="padding:6px">
+      <input id="sub-new-ar" placeholder="الاسم" style="padding:6px" dir="rtl">
+      <button class="btn ba bsm" onclick="invSetAdd('subcategories',{category_id:+V('sub-new-parent'),name:V('sub-new-name'),name_ar:V('sub-new-ar')})" data-i18n="Add">Add</button></div>
+    ${L.categories.length?'':'<div style="color:var(--mu);font-size:.72rem;padding:0 12px 10px" data-i18n="Add a category first">Add a category first</div>'}</div>`;
+  };
+  window.V = V;
+  window.invSetAdd = async function(path, body){
+    if((path==='locations'&&!body.code)||(path==='units'&&!body.code)||((path==='categories'||path==='subcategories')&&!body.name)||(path==='subcategories'&&!body.category_id)){ alert('Required field missing'); return; }
+    try{ await api('/inventory/'+path, {method:'POST', body}); renderInvSettings(); }catch(e){ alert(e.message); }
+  };
+  window.invSetSave = async function(path, id, btn){
+    const tr = btn.closest('tr'); const b={};
+    tr.querySelectorAll('input[data-f]').forEach(i=>{ if(!i.disabled) b[i.dataset.f]=i.value.trim()||null; });
+    try{ await api('/inventory/'+path+'/'+id, {method:'PUT', body:b}); btn.textContent='\u2713'; setTimeout(()=>renderInvSettings(),400); }catch(e){ alert(e.message); }
+  };
+  window.invSetSaveSubRow = async function(id, btn){
+    const tr = btn.closest('tr');
+    try{ await api('/inventory/subcategories/'+id, {method:'PUT', body:{
+      category_id:+tr.querySelector('[data-sub-parent]').value,
+      name:tr.querySelector('[data-sub-name]').value.trim(),
+      name_ar:tr.querySelector('[data-sub-ar]').value.trim()||null }});
+      btn.textContent='\u2713'; setTimeout(()=>renderInvSettings(),400);
+    }catch(e){ alert(e.message); }
+  };
+  window.invSetToggle = async function(path, id, active){
+    try{ await api('/inventory/'+path+'/'+id, {method:'PUT', body:{active}}); renderInvSettings(); }catch(e){ alert(e.message); }
+  };
+  window.invSetDel = async function(path, id){
+    if(!(_nativeConfirm||window.confirm)('Delete permanently? (blocked if in use)')) return;
+    try{ await api('/inventory/'+path+'/'+id, {method:'DELETE'}); renderInvSettings(); }catch(e){ alert(e.message); }
+  };
+})();
+</script>
+
+﻿
+
+﻿<script>
+/* INVPRINTLOCAL v1: print all inventory item labels on a local printer */
+(function(){
+  const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const tokf = () => localStorage.getItem('agi_token')||'';
+
+  window.invPrintAllLabels = async function(){
+    const hdr = {'Authorization':'Bearer '+tokf()};
+    let list;
+    try{
+      list = await fetch('/api/inventory/items',{headers:hdr}).then(x=>x.json());
+      if(!Array.isArray(list)) throw new Error(list.error||'items load failed');
+    }catch(e){ alert('Load failed: '+e.message); return; }
+    list = list.filter(i=>i.active!==0).sort((a,b)=>String(a.location||'\uffff').localeCompare(String(b.location||'\uffff'))||String(a.code).localeCompare(String(b.code)));
+    if(!list.length){ alert('No active items.'); return; }
+    if(!confirm('Open a print window with '+list.length+' item label(s)?\nLabels are ordered by storage location. Pick any local printer in the dialog.')) return;
+
+    const w = window.open('','_blank','width=560,height=700');
+    w.document.write('<html><head><title>AGI Item Labels ('+list.length+')</title><style>'+
+      '@page{size:100mm 50mm;margin:0}html,body{margin:0;padding:0}'+
+      '.lbl{width:100mm;height:50mm;box-sizing:border-box;padding:1.5mm 3mm;display:flex;flex-direction:column;overflow:hidden;'+
+      'font-family:Arial,"Segoe UI",sans-serif;background:#fff;color:#000;break-after:page;page-break-after:always}'+
+      '.lbl:last-child{break-after:auto;page-break-after:auto}'+
+      '.loc{text-align:center;font-size:17pt;font-weight:900;letter-spacing:1px;line-height:1.05;border-bottom:0.4mm solid #000;padding-bottom:0.5mm}'+
+      '.row{flex:1;display:flex;align-items:center;gap:2mm;min-height:0}'+
+      '.qr{width:26mm;height:26mm;flex:none}.qr img,.qr canvas{width:100%!important;height:100%!important}'+
+      '.tx{flex:1;min-width:0;text-align:right}'+
+      '.ar{font-size:14pt;font-weight:800;direction:rtl;line-height:1.1}'+
+      '.en{font-size:8pt;font-weight:600}.sp{font-size:7pt;color:#222}'+
+      '.cd{font-size:8.5pt;font-weight:800;font-family:monospace;margin-top:0.5mm}'+
+      '</style></head><body></body></html>');
+    w.document.close();
+
+    for(const it of list){
+      const d = w.document.createElement('div');
+      d.className='lbl';
+      d.innerHTML =
+        '<div class="loc">'+(it.location?esc(it.location):'&nbsp;')+'</div>'+
+        '<div class="row">'+
+          '<div class="qr" id="q_'+it.id+'"></div>'+
+          '<div class="tx">'+
+            '<div class="ar">'+esc(it.name_ar||it.name)+'</div>'+
+            '<div class="en">'+esc(it.name)+'</div>'+
+            '<div class="sp">'+esc(it.spec||'')+' &middot; '+esc(it.unit||'')+'</div>'+
+            '<div class="cd">'+esc(it.code)+'</div>'+
+          '</div>'+
+        '</div>';
+      w.document.body.appendChild(d);
+      try{ new QRCode(w.document.getElementById('q_'+it.id), {text:it.code, width:200, height:200, colorDark:'#000', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+    }
+    // wait until every QR container holds a drawn canvas or populated img, then print
+    let tries=0;
+    (function poll(){
+      const bad = [...w.document.querySelectorAll('.qr')].filter(q=>{
+        const cv=q.querySelector('canvas'), im=q.querySelector('img');
+        return !((cv&&cv.width>0)||(im&&im.src&&im.src.length>50));
+      }).length;
+      if(bad===0 || tries>100){
+        if(tries>100) console.warn('[invPrintLocal] QR wait timeout,', bad, 'unrendered');
+        setTimeout(()=>{ w.focus(); w.print(); }, 300);
+        return;
+      }
+      tries++; setTimeout(poll, 100);
+    })();
+  };
+
+  function injectBtn(){
+    try{
+      const pg = document.getElementById('pg-inventory') || document;
+      const tables = [...pg.querySelectorAll('table')];
+      const t = tables.find(tb => /Code/.test(tb.tHead ? tb.tHead.textContent : '') && /WAC|Stock/.test(tb.tHead ? tb.tHead.textContent : ''));
+      if(!t || document.getElementById('inv-printall-btn')) return;
+      const bar = document.createElement('div');
+      bar.style.cssText='display:flex;justify-content:flex-end;margin:0 0 6px';
+      bar.innerHTML = '<button id="inv-printall-btn" class="btn bsm" onclick="invPrintAllLabels()" title="Print a label for every active item on a local printer, ordered by storage location">&#128424; <span data-i18n="Print All Labels">Print All Labels</span></button>';
+      t.parentElement.insertBefore(bar, t);
+    }catch(e){}
+  }
+  setInterval(injectBtn, 2000);
 })();
 </script>
 
