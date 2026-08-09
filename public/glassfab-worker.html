@@ -308,7 +308,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 <!-- ══════════════════════════════════════════════════════ -->
 ﻿<!-- SCREEN: INVENTORY CONSUME -->
 <style>
-#scr-inv .card{height:auto!important;max-height:none!important;overflow:visible!important;margin-bottom:12px;padding:12px 14px;box-sizing:border-box}
+#scr-inv{overflow-y:auto!important;-webkit-overflow-scrolling:touch}
+#inv-navbar{position:sticky;bottom:0;z-index:6;margin-top:auto}
+#scr-inv .card{height:auto!important;max-height:none!important;overflow:visible!important;margin-bottom:12px;padding:12px 14px;box-sizing:border-box;flex:none}
 #scr-inv .card-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
 #scr-inv .lbl{display:block;margin:0 0 4px;font-size:.72rem;color:var(--mu)}
 #scr-inv .inp, #scr-inv select.inp{box-sizing:border-box;font-size:16px;min-height:44px}
@@ -342,7 +344,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     </div>
     <div id="inv-card-stock" style="text-align:center;font-size:1.05rem;font-weight:800;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="lbl">Quantity *</label><input type="number" id="inv-qty" class="inp" min="0.01" step="0.01" inputmode="decimal" style="width:100%;font-size:1.15rem;font-weight:700;text-align:center;padding:10px"></div>
+      <div><label class="lbl">Quantity *</label><input type="number" id="inv-qty" class="inp" min="0.01" step="0.01" inputmode="decimal" enterkeyhint="done" style="width:100%;font-size:1.15rem;font-weight:700;text-align:center;padding:10px"></div>
       <div><label class="lbl">Machine (optional)</label><select id="inv-machine" class="inp" style="width:100%;padding:10px"><option value="">-</option></select></div>
     </div>
     <div style="margin-top:10px"><label class="lbl">Consumption date</label><input type="date" id="inv-date" class="inp" style="width:100%;padding:10px"></div>
@@ -2980,29 +2982,70 @@ function remOpenFromScan(uid){ _remScanUid=uid; switchTab('rem'); remShowPane('v
 var INV = { items:[], machines:[], sel:null, stream:null, scanning:false, loaded:false };
 function _invTok(){ try{ if(typeof tok==='function') return tok(); }catch(e){} return localStorage.getItem('agi_token')||localStorage.getItem('worker_token')||localStorage.getItem('token')||''; }
 var _invPerm = null;
+function invEnsureButtons(){
+  document.querySelectorAll('.bn[id$="-dlv"]').forEach(function(dlv){
+    var prefix = dlv.id.replace(/-dlv$/,'');
+    if(document.getElementById(prefix+'-inv')) return;
+    dlv.insertAdjacentHTML('afterend',
+      '<button class="bn" id="'+prefix+'-inv" onclick="switchTab(\'inv\')" style="display:none"><span class="bni">&#128230;</span>INV</button>');
+  });
+}
 function invApplyPerm(){
+  invEnsureButtons();
   function show(ok){
-    ['bnh-inv','bna-inv','bns-inv','bnq-inv','bnr-inv'].forEach(function(id){
-      var b=document.getElementById(id); if(b) b.style.display = ok ? '' : 'none';
-    });
+    document.querySelectorAll('.bn[id$="-inv"]').forEach(function(b){ b.style.display = ok ? '' : 'none'; });
   }
   if(_invPerm !== null){ show(_invPerm); return; }
+  var cached = localStorage.getItem('agi_inv_perm');
+  if(cached !== null) show(cached === '1');
   var t = _invTok();
   if(!t){ show(false); return; }
   fetch('/api/access/me',{headers:{'Authorization':'Bearer '+t}})
     .then(function(x){ return x.json(); })
     .then(function(me){
       _invPerm = !!(me && (me.superadmin || (Array.isArray(me.permissions) && me.permissions.indexOf('inventory.consume')>=0)));
+      try{ localStorage.setItem('agi_inv_perm', _invPerm ? '1' : '0'); }catch(e){}
       show(_invPerm);
     })
     .catch(function(){ show(false); });
 }
-[800,2000,4000].forEach(function(d){ setTimeout(invApplyPerm, d); });
+invApplyPerm();
+setInterval(function(){ invApplyPerm(); }, 2500);
+setTimeout(invApplyPerm, 500);
+(function(){ // re-check immediately after a successful login
+  function wrapLogin(){
+    if(window.doLogin && !window.doLogin.__invwrap){
+      var _l = window.doLogin;
+      window.doLogin = function(){
+        var rv = _l.apply(this, arguments);
+        if(rv && rv.then){ rv.then(function(){ _invPerm=null; setTimeout(invApplyPerm, 400); setTimeout(invApplyPerm, 1500); }); }
+        else { _invPerm=null; setTimeout(invApplyPerm, 400); setTimeout(invApplyPerm, 1500); }
+        return rv;
+      };
+      window.doLogin.__invwrap = true;
+    }
+  }
+  wrapLogin(); setTimeout(wrapLogin, 1500);
+})();
+function invEnsureNav(){
+  if(document.getElementById('inv-navbar')) return;
+  var seed=document.getElementById('bnh-inv'); if(!seed || !seed.parentElement) return;
+  var clone=seed.parentElement.cloneNode(true);
+  clone.id='inv-navbar';
+  clone.querySelectorAll('.bn').forEach(function(btn){
+    if(btn.id) btn.id=btn.id.replace(/^bn[a-z0-9]*-/,'bnv-');
+    btn.classList.remove('on');
+    if(/-inv$/.test(btn.id)){ btn.classList.add('on'); btn.style.display=''; }
+  });
+  clone.style.position='sticky'; clone.style.bottom='0'; clone.style.zIndex='6';
+  var scr=document.getElementById('scr-inv'); if(scr) scr.appendChild(clone);
+}
 function invInit(){
+  invEnsureNav();
   invApplyPerm();
   var dEl=document.getElementById('inv-date'); if(dEl && !dEl.value) dEl.value=new Date().toISOString().slice(0,10);
   invLoadMine();
-  if(INV.loaded){ invRenderMine(); return; }
+  if(INV.loaded){ invLoadMine(); return; }
   fetch('/api/inventory/worker-items',{headers:{'Authorization':'Bearer '+_invTok()}})
     .then(function(x){ return x.json(); })
     .then(function(j){
@@ -3010,7 +3053,7 @@ function invInit(){
       INV.items=j.items||[]; INV.machines=j.machines||[]; INV.loaded=true;
       var ms=document.getElementById('inv-machine');
       ms.innerHTML='<option value="">-</option>'+INV.machines.map(function(m){return '<option value="'+m.id+'">'+m.code+' '+(m.name||'')+'</option>';}).join('');
-      invRenderMine();
+      invLoadMine();
     }).catch(function(e){ showFlash('&#9888;','Inventory',e.message,'#ff6464'); });
 }
 function invClearSel(){
@@ -3053,6 +3096,8 @@ function invPick(id){
       if(it.photo){ ph.src=it.photo; ph.style.display=''; } else ph.style.display='none';
       document.getElementById('inv-results').innerHTML='';
       document.getElementById('inv-search').value=it.code;
+      var _card=document.getElementById('inv-card');
+      if(_card && _card.scrollIntoView) setTimeout(function(){ _card.scrollIntoView({behavior:'smooth', block:'start'}); }, 120);
       document.getElementById('inv-qty').focus();
     });
 }

@@ -4484,10 +4484,13 @@ async function SP(id){
   document.getElementById('pg-'+id).classList.add('on');
   document.getElementById('nt-'+id).classList.add('on');
   try{ AGI.logEvent && AGI.logEvent(id); }catch(e){}
-  const r={dash:renderDash,crm:renderCust,orders:renderOrders,cutting:renderCutUI,
-           track:renderTrack,labels:renderLabels,reports:renderReports,settings:renderSettings,aframes:renderAFrames,
-           layout:renderFactoryLayout,purchasing:renderPurchasing,inventory:renderInventory};
-  if(r[id]) r[id]();
+  // Lazy renderer lookup: page renderers may be defined in later overlay
+  // blocks; resolving by name at call time makes script order irrelevant.
+  const r={dash:'renderDash',crm:'renderCust',orders:'renderOrders',cutting:'renderCutUI',
+           track:'renderTrack',labels:'renderLabels',reports:'renderReports',settings:'renderSettings',aframes:'renderAFrames',
+           layout:'renderFactoryLayout',purchasing:'renderPurchasing',inventory:'renderInventory'};
+  const _fn = r[id] && window[r[id]];
+  if(typeof _fn==='function') _fn();
   if(id==='remnants'){ remnantSlots=await AGI.Remnants.slots.list().catch(()=>[]); await renderRemnants(); }
   if(id==='deliveries') await renderDeliveriesPage();
   badges();

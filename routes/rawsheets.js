@@ -190,4 +190,83 @@ router.post('/record-optimization', requireAdmin, (req, res) => {
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
+// ── Runout forecast report ──────────────────────────────────────────────
+// Buckets by Type+Family+Color+Pattern+Thickness; usage = optimization_use
+// only (adjustments are corrections, not demand); فضل (customer-owned)
+// sheets excluded from stock AND usage; pending opts shown as reserved.
+router.get('/runout-report', (req, res) => {
+  try{
+    const normPat = t => { t = String(t||'').trim().toLowerCase(); if(t==='\u0641\u0644\u0648\u062a\u062f'||t==='\u0641\u0644') t='fluted'; return t||null; };
+    const isFadl = r => /\u0641\u0636\u0644/.test(String(r.code||'')+String(r.notes||''));
+    const sheets = db.prepare('SELECT * FROM raw_sheets').all().filter(r=>!r.is_virtual && !isFadl(r));
+    const fadlIds = new Set(db.prepare('SELECT id, code, notes FROM raw_sheets').all().filter(isFadl).map(r=>r.id));
+    const byId = Object.fromEntries(sheets.map(r=>[r.id, r]));
+    const key = r => [r.glass_type||'glass', r.family||'float', r.color||'clear', normPat(r.pattern)||'-', r.thickness].join('|');
+
+    // month windows: 3 full months + current MTD
+    const now = new Date();
+    const ym = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const months = [];
+    for(let i=3;i>=1;i--){ months.push(ym(new Date(now.getFullYear(), now.getMonth()-i, 1))); }
+    const mtd = ym(now);
+
+    const buckets = {};
+    const bk = r => {
+      const k = key(r);
+      if(!buckets[k]) buckets[k] = { type:r.glass_type||'glass', family:r.family||'float', color:r.color||'clear',
+        pattern: normPat(r.pattern), thickness:r.thickness, sizes:{}, stock_sheets:0, stock_sqm:0,
+        usage:Object.fromEntries([...months, mtd].map(m=>[m,{sheets:0,sqm:0}])), reserved_sheets:0, reserved_sqm:0 };
+      return buckets[k];
+    };
+    // stock
+    const balStmt = db.prepare('SELECT COALESCE(SUM(qty),0) b FROM raw_sheet_transactions WHERE sheet_id=?');
+    sheets.forEach(r=>{
+      const b = bk(r); const bal = balStmt.get(r.id).b; const sqm = r.w*r.h/1e6;
+      b.stock_sheets += bal; b.stock_sqm += bal*sqm;
+      const sz = r.w+'x'+r.h; b.sizes[sz] = (b.sizes[sz]||0)+bal;
+    });
+    // usage per month (optimization_use only, non-fadl, fadl text net on tx too)
+    const from = months[0]+'-01';
+    const tx = db.prepare("SELECT sheet_id, qty, date, ref_label, notes FROM raw_sheet_transactions WHERE type='optimization_use' AND date>=?").all(from);
+    tx.forEach(t=>{
+      if(fadlIds.has(t.sheet_id)) return;
+      if(/\u0641\u0636\u0644/.test(String(t.ref_label||'')+String(t.notes||''))) return;
+      const r = byId[t.sheet_id]; if(!r) return;
+      const m = String(t.date||'').slice(0,7);
+      const b = bk(r); const slot = b.usage[m]; if(!slot) return;
+      const used = -t.qty; if(used<=0) return;
+      slot.sheets += used; slot.sqm += used*(r.w*r.h/1e6);
+    });
+    // reserved: pending opts' result sheets
+    try{
+      db.prepare("SELECT id, results FROM opt_files WHERE status='pending'").all().forEach(of=>{
+        let res2; try{ res2 = JSON.parse(of.results); }catch(e){ return; }
+        (res2 && res2.results || []).forEach(sh=>{
+          const sid = sh && sh.sh && sh.sh.id; if(!sid || fadlIds.has(sid)) return;
+          const r = byId[sid]; if(!r) return;
+          const b = bk(r); b.reserved_sheets += 1; b.reserved_sqm += r.w*r.h/1e6;
+        });
+      });
+    }catch(e){}
+    // finalize
+    const rows = Object.values(buckets).map(b=>{
+      const avgS = months.reduce((a,m)=>a+b.usage[m].sheets,0)/months.length;
+      const avgQ = months.reduce((a,m)=>a+b.usage[m].sqm,0)/months.length;
+      const effStock = b.stock_sqm - b.reserved_sqm;
+      const runout = avgQ>0 ? effStock/avgQ : null;
+      let runout_date = null;
+      if(runout!=null && runout>=0){ const d=new Date(); d.setDate(d.getDate()+Math.round(runout*30.44)); runout_date=d.toISOString().slice(0,10); }
+      return { ...b, sizes:Object.entries(b.sizes).filter(([,q])=>q>0).map(([s2,q])=>s2+' ('+q+')').join(', '),
+        stock_sqm:+b.stock_sqm.toFixed(1), reserved_sqm:+b.reserved_sqm.toFixed(1),
+        avg_month_sheets:+avgS.toFixed(1), avg_month_sqm:+avgQ.toFixed(1),
+        runout_months: runout!=null?+runout.toFixed(2):null, runout_date };
+    }).filter(b=>b.stock_sheets>0 || b.avg_month_sqm>0 || b.reserved_sheets>0);
+    rows.sort((a,b2)=>{
+      const ra=a.runout_months==null?1e9:a.runout_months, rb=b2.runout_months==null?1e9:b2.runout_months;
+      return ra-rb;
+    });
+    res.json({ months, mtd, generated: new Date().toISOString(), fadl_excluded_sheets: fadlIds.size, rows });
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+
 module.exports = router;
