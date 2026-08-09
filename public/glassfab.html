@@ -25601,5 +25601,99 @@ window.addEventListener('beforeunload', function(e){
 })();
 </script>
 
+﻿<script>
+/* RUNOUT_REPORT v1: raw-sheet runout forecast (Reports section) */
+(function(){
+  const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const el = id => document.getElementById(id);
+
+  function ensureTab(){
+    const pg = el('pg-reports'); if(!pg) return false;
+    const rtabs = pg.querySelector('.rtabs'); if(!rtabs) return false;
+    if(el('rpt-runout-btn')) return true;
+    const b = document.createElement('button');
+    b.className='rtab'; b.id='rpt-runout-btn';
+    b.innerHTML='&#128201; <span data-i18n="Sheet Runout">Sheet Runout</span>';
+    b.onclick = showRunoutReport;
+    rtabs.appendChild(b);
+    return true;
+  }
+  setInterval(ensureTab, 2500);
+
+  window.showRunoutReport = async function(){
+    const pg = el('pg-reports'); if(!pg) return;
+    [...pg.children].forEach(c=>{ if(!c.classList.contains('rtabs') && c.id!=='runout-view') c.style.display='none'; });
+    let v = el('runout-view');
+    if(!v){ v = document.createElement('div'); v.id='runout-view'; pg.appendChild(v); }
+    v.style.display='';
+    v.innerHTML = '<div class="card"><div class="cb" style="color:var(--mu)">Loading runout forecast...</div></div>';
+    let d;
+    try{
+      const r = await fetch('/api/rawsheets/runout-report', {headers:{'Authorization':'Bearer '+(localStorage.getItem('agi_token')||'')}});
+      d = await r.json();
+      if(d.error) throw new Error(d.error);
+    }catch(e){ v.innerHTML='<div class="card"><div class="cb" style="color:#ff6464">'+esc(e.message)+'</div></div>'; return; }
+    window._runoutData = d;
+    const mLabels = d.months.map(m=>m.slice(5)).concat([d.mtd.slice(5)+' (MTD)']);
+    const maxSqm = Math.max(1, ...d.rows.flatMap(b=>[...d.months.map(m=>b.usage[m].sqm), b.usage[d.mtd].sqm]));
+    const badge = m => m==null
+      ? '<span class="bge" style="font-size:.6rem;color:var(--mu);border:1px solid var(--border)">no usage</span>'
+      : m<1  ? '<span class="bge" style="font-size:.6rem;background:rgba(255,100,100,.15);color:#ff6464;border:1px solid #ff6464">'+m.toFixed(1)+' mo</span>'
+      : m<2  ? '<span class="bge" style="font-size:.6rem;background:rgba(255,180,80,.12);color:var(--a4);border:1px solid var(--a4)">'+m.toFixed(1)+' mo</span>'
+             : '<span class="bge" style="font-size:.6rem;background:rgba(0,229,160,.1);color:var(--a3);border:1px solid var(--a3)">'+m.toFixed(1)+' mo</span>';
+    const bars = b => '<div style="display:flex;gap:2px;align-items:flex-end;height:26px">'+
+      d.months.map(m=>{ const q=b.usage[m].sqm; return '<div title="'+m+': '+q.toFixed(1)+' m2 ('+b.usage[m].sheets+' sh)" style="width:11px;background:var(--a);opacity:.75;height:'+Math.max(2,Math.round(q/maxSqm*26))+'px"></div>'; }).join('')+
+      (function(){ const q=b.usage[d.mtd].sqm; return '<div title="'+d.mtd+' MTD: '+q.toFixed(1)+' m2" style="width:11px;background:var(--a4);opacity:.8;height:'+Math.max(2,Math.round(q/maxSqm*26))+'px"></div>'; })()+
+      '</div>';
+    const cap = t => t?String(t).charAt(0).toUpperCase()+String(t).slice(1):'';
+    v.innerHTML = `
+    <div class="card">
+      <div class="ch">
+        <span class="ct">&#128201; <span data-i18n="Raw Sheet Runout Forecast">Raw Sheet Runout Forecast</span></span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:.65rem;color:var(--mu)">Usage: ${d.months[0]} &rarr; ${d.months[2]} avg &middot; ${esc(String(d.fadl_excluded_sheets))} فضل sheets excluded &middot; bars: ${mLabels.join(' / ')}</span>
+          <button class="btn bg bsm" onclick="runoutExportCSV()" style="font-size:.65rem">&#11015; CSV</button>
+          <button class="btn bg bsm" onclick="[...document.getElementById('pg-reports').children].forEach(c=>{c.style.display='';}); document.getElementById('runout-view').style.display='none'" style="font-size:.65rem">&#8592; <span data-i18n="Back">Back</span></button>
+        </div>
+      </div>
+      <div class="tw"><table>
+        <thead><tr>
+          <th>Glass</th><th data-i18n="Sizes (stock)">Sizes (stock)</th>
+          <th style="text-align:right">Stock m&sup2;</th><th style="text-align:right" title="sheets committed in pending optimizations">Reserved m&sup2;</th>
+          <th style="text-align:right">Avg use m&sup2;/mo</th><th data-i18n="Trend">Trend</th>
+          <th data-i18n="Coverage">Coverage</th><th data-i18n="Runs out">Runs out</th>
+        </tr></thead>
+        <tbody>
+        ${d.rows.map(b=>`<tr>
+          <td style="font-size:.72rem;font-weight:700">${cap(b.type)} &middot; ${cap(b.family)}${b.pattern?' ('+esc(b.pattern)+')':''} &middot; ${cap(b.color)} &middot; <span class="mn" style="color:var(--a4)">${b.thickness}mm</span></td>
+          <td style="font-size:.65rem;color:var(--mu)">${esc(b.sizes)}</td>
+          <td class="mn" style="text-align:right">${b.stock_sqm}</td>
+          <td class="mn" style="text-align:right;color:${b.reserved_sqm>0?'var(--a4)':'var(--mu)'}">${b.reserved_sqm||'-'}</td>
+          <td class="mn" style="text-align:right">${b.avg_month_sqm}</td>
+          <td>${bars(b)}</td>
+          <td>${badge(b.runout_months)}</td>
+          <td class="mn" style="font-size:.7rem;color:${b.runout_months!=null&&b.runout_months<1?'#ff6464':'var(--tx2)'}">${b.runout_date||'-'}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table></div>
+      <div style="padding:8px 14px;font-size:.62rem;color:var(--mu)">
+        Coverage = (stock &minus; reserved) &divide; 3-month average burn. Reserved = sheets committed in pending optimizations. فضل (customer-owned) glass excluded from stock and usage. Buckets merge sheet sizes on m&sup2;.
+      </div>
+    </div>`;
+  };
+
+  window.runoutExportCSV = function(){
+    const d = window._runoutData; if(!d) return;
+    const head = ['type','family','pattern','color','thickness','sizes_stock','stock_sheets','stock_sqm','reserved_sheets','reserved_sqm',...d.months.map(m=>'use_sqm_'+m),'use_sqm_mtd','avg_month_sqm','runout_months','runout_date'];
+    const rows = [head, ...d.rows.map(b=>[b.type,b.family,b.pattern||'',b.color,b.thickness,b.sizes,b.stock_sheets,b.stock_sqm,b.reserved_sheets,b.reserved_sqm,...d.months.map(m=>+b.usage[m].sqm.toFixed(1)),+b.usage[d.mtd].sqm.toFixed(1),b.avg_month_sqm,b.runout_months??'',b.runout_date||''])];
+    const csv = rows.map(r=>r.map(v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(',')).join('\r\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+    a.download='sheet-runout-'+new Date().toISOString().slice(0,10)+'.csv';
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  };
+})();
+</script>
+
 </body>
 </html>
