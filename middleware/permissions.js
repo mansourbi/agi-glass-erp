@@ -9,6 +9,8 @@ const CATALOG = [
   // Surfaces (top-level access gates)
   {k:'portal.access',           g:'Surfaces',  l:'Log in to web portal'},
   {k:'workerapp.access',        g:'Surfaces',  l:'Use worker app'},
+  // Inventory (worker app)
+  {k:'inventory.consume',       g:'Worker App', l:'Inventory: record item consumption'},
   // Dashboard
   {k:'dashboard.view',          g:'Dashboard', l:'View dashboard'},
   {k:'dashboard.financials',    g:'Dashboard', l:'See financial KPIs', s:1},

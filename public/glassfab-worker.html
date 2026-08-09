@@ -299,13 +299,61 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bnh-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn" id="bnh-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn" id="bnh-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
-    <button class="bn" id="bnh-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
+    <button class="bn" id="bnh-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button><button class="bn" id="bnh-inv" onclick="switchTab('inv')" style="display:none"><span class="bni">&#128230;</span>INV</button>
     <button class="bn" id="bnh-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
     <button class="bn" id="bnh-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
+﻿<!-- SCREEN: INVENTORY CONSUME -->
+<style>
+#scr-inv .card{height:auto!important;max-height:none!important;overflow:visible!important;margin-bottom:12px;padding:12px 14px;box-sizing:border-box}
+#scr-inv .card-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+#scr-inv .lbl{display:block;margin:0 0 4px;font-size:.72rem;color:var(--mu)}
+#scr-inv .inp, #scr-inv select.inp{box-sizing:border-box;font-size:16px;min-height:44px}
+#scr-inv #inv-results{max-height:46vh;overflow:auto}
+#scr-inv #inv-results > div{min-height:44px}
+#scr-inv #inv-mine > div{padding:6px 0;border-bottom:1px dashed var(--border)}
+#scr-inv #inv-mine > div:last-child{border-bottom:none}
+</style>
+<div class="screen" id="scr-inv">
+  <div class="topbar"><div class="topbar-brand">&#128230; Inventory</div></div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">&#128269; Find Item</span>
+      <button class="quick-btn" style="padding:6px 12px" onclick="invScanToggle()" id="inv-scan-btn">&#128247; Scan QR</button></div>
+    <div id="inv-scan-area" style="display:none;position:relative">
+      <video id="inv-video" playsinline style="width:100%;border-radius:10px;background:#000;max-height:280px;object-fit:cover"></video>
+      <div id="inv-scan-status" style="text-align:center;font-size:.75rem;color:var(--mu);padding:4px 0">Point at an item label QR</div>
+    </div>
+    <input id="inv-search" class="inp" placeholder="Type code / name / الاسم..." oninput="invFilter()" autocomplete="off" style="width:100%">
+    <div id="inv-results" style="max-height:220px;overflow:auto;margin-top:4px"></div>
+  </div>
+  <div class="card" id="inv-card" style="display:none">
+    <div class="card-hd"><span class="card-title" id="inv-card-title"></span>
+      <button class="quick-btn quick-btn-secondary" style="padding:6px 12px" onclick="invClearSel()">&#10005; Cancel</button></div>
+    <div style="display:flex;gap:12px;align-items:center;padding:2px 0 8px">
+      <img id="inv-card-photo" style="width:88px;height:88px;object-fit:cover;border-radius:10px;display:none;flex:none;border:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div id="inv-card-ar" dir="auto" style="font-weight:800;font-size:1.15rem;line-height:1.25;text-align:right;unicode-bidi:plaintext"></div>
+        <div id="inv-card-en" style="font-size:.85rem;text-align:right;margin-top:2px"></div>
+        <div id="inv-card-meta" dir="auto" style="font-size:.75rem;color:var(--mu);text-align:right;margin-top:3px"></div>
+      </div>
+    </div>
+    <div id="inv-card-stock" style="text-align:center;font-size:1.05rem;font-weight:800;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">Quantity *</label><input type="number" id="inv-qty" class="inp" min="0.01" step="0.01" inputmode="decimal" style="width:100%;font-size:1.15rem;font-weight:700;text-align:center;padding:10px"></div>
+      <div><label class="lbl">Machine (optional)</label><select id="inv-machine" class="inp" style="width:100%;padding:10px"><option value="">-</option></select></div>
+    </div>
+    <div style="margin-top:10px"><label class="lbl">Consumption date</label><input type="date" id="inv-date" class="inp" style="width:100%;padding:10px"></div>
+    <div style="margin-top:10px"><label class="lbl">Note (optional)</label><input id="inv-note" class="inp" style="width:100%;padding:10px" placeholder="السبب / ملاحظة" dir="auto"></div>
+    <button class="quick-btn" style="width:100%;margin-top:14px;font-size:1.05rem;padding:14px;font-weight:800" onclick="invConsume()" id="inv-consume-btn">&#10003; Consume</button>
+  </div>
+  <div class="card"><div class="card-hd"><span class="card-title">&#128337; My consumptions today</span></div>
+    <div id="inv-mine" style="font-size:.8rem;color:var(--mu);padding:6px 4px;line-height:1.7">-</div></div>
+  <div style="height:70px"></div>
+</div>
+
 <!-- SCREEN: ATTENDANCE -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div class="screen" id="scr-attendance">
@@ -352,7 +400,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn on" id="bna-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn" id="bna-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn" id="bna-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
-    <button class="bn" id="bna-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
+    <button class="bn" id="bna-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button><button class="bn" id="bna-inv" onclick="switchTab('inv')" style="display:none"><span class="bni">&#128230;</span>INV</button>
     <button class="bn" id="bna-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
     <button class="bn" id="bna-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
@@ -391,7 +439,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bns-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn on" id="bns-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn" id="bns-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
-    <button class="bn" id="bns-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
+    <button class="bn" id="bns-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button><button class="bn" id="bns-inv" onclick="switchTab('inv')" style="display:none"><span class="bni">&#128230;</span>INV</button>
     <button class="bn" id="bns-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
     <button class="bn" id="bns-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
@@ -418,7 +466,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bnq-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn" id="bnq-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn on" id="bnq-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
-    <button class="bn" id="bnq-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
+    <button class="bn" id="bnq-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button><button class="bn" id="bnq-inv" onclick="switchTab('inv')" style="display:none"><span class="bni">&#128230;</span>INV</button>
     <button class="bn" id="bnq-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
     <button class="bn" id="bnq-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
@@ -779,7 +827,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <button class="bn" id="bnr-att" onclick="switchTab('attendance')"><span class="bni">&#128336;</span>Attend</button>
     <button class="bn" id="bnr-scan" onclick="switchTab('scan')"><span class="bni">&#9906;</span>Scan</button>
     <button class="bn" id="bnr-queue" onclick="switchTab('queue')"><span class="bni">&#9741;</span>Queue</button>
-    <button class="bn" id="bnr-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button>
+    <button class="bn" id="bnr-dlv" onclick="switchTab('deliver')"><span class="bni">&#128666;</span>Deliver</button><button class="bn" id="bnr-inv" onclick="switchTab('inv')" style="display:none"><span class="bni">&#128230;</span>INV</button>
     <button class="bn" id="bnr-hist" onclick="switchTab('history')"><span class="bni">&#128203;</span>History</button>
     <button class="bn on" id="bnr-rem" onclick="switchTab('rem')"><span class="bni">&#9638;</span>REM</button>
   </nav>
@@ -943,7 +991,8 @@ function showScreen(id){
 
 function switchTab(tab){
   stopCamera(); if(typeof dlvStopCamera==='function') dlvStopCamera(); if(typeof remStopCamera==='function') remStopCamera();
-  ['home','attendance','scan','queue','history','deliver','rem'].forEach(t=>{
+  if(typeof invStopCamera==='function') invStopCamera();
+  ['home','attendance','scan','queue','history','deliver','rem','inv'].forEach(t=>{
     const s=document.getElementById('scr-'+t); if(s) s.classList.remove('on');
   });
   const target=document.getElementById('scr-'+tab);
@@ -961,6 +1010,7 @@ function switchTab(tab){
   if(tab==='home')       loadHomeStatus();
   if(tab==='deliver')    dlvInit();
   if(tab==='rem')        remInit();
+  if(tab==='inv')        invInit();
 }
 
 // ════════════════════════════════════════════════════════
@@ -2925,5 +2975,162 @@ function remOpenFromScan(uid){ _remScanUid=uid; switchTab('rem'); remShowPane('v
 
 </script>
 <!-- R5-WORKERAPP-GATING END -->
+﻿<script>
+/* INVTAB v1: worker inventory consumption */
+var INV = { items:[], machines:[], sel:null, stream:null, scanning:false, loaded:false };
+function _invTok(){ try{ if(typeof tok==='function') return tok(); }catch(e){} return localStorage.getItem('agi_token')||localStorage.getItem('worker_token')||localStorage.getItem('token')||''; }
+var _invPerm = null;
+function invApplyPerm(){
+  function show(ok){
+    ['bnh-inv','bna-inv','bns-inv','bnq-inv','bnr-inv'].forEach(function(id){
+      var b=document.getElementById(id); if(b) b.style.display = ok ? '' : 'none';
+    });
+  }
+  if(_invPerm !== null){ show(_invPerm); return; }
+  var t = _invTok();
+  if(!t){ show(false); return; }
+  fetch('/api/access/me',{headers:{'Authorization':'Bearer '+t}})
+    .then(function(x){ return x.json(); })
+    .then(function(me){
+      _invPerm = !!(me && (me.superadmin || (Array.isArray(me.permissions) && me.permissions.indexOf('inventory.consume')>=0)));
+      show(_invPerm);
+    })
+    .catch(function(){ show(false); });
+}
+[800,2000,4000].forEach(function(d){ setTimeout(invApplyPerm, d); });
+function invInit(){
+  invApplyPerm();
+  var dEl=document.getElementById('inv-date'); if(dEl && !dEl.value) dEl.value=new Date().toISOString().slice(0,10);
+  invLoadMine();
+  if(INV.loaded){ invRenderMine(); return; }
+  fetch('/api/inventory/worker-items',{headers:{'Authorization':'Bearer '+_invTok()}})
+    .then(function(x){ return x.json(); })
+    .then(function(j){
+      if(j.error){ showFlash('&#9888;','Inventory','No permission: '+j.error,'#ff6464'); return; }
+      INV.items=j.items||[]; INV.machines=j.machines||[]; INV.loaded=true;
+      var ms=document.getElementById('inv-machine');
+      ms.innerHTML='<option value="">-</option>'+INV.machines.map(function(m){return '<option value="'+m.id+'">'+m.code+' '+(m.name||'')+'</option>';}).join('');
+      invRenderMine();
+    }).catch(function(e){ showFlash('&#9888;','Inventory',e.message,'#ff6464'); });
+}
+function invClearSel(){
+  INV.sel=null;
+  document.getElementById('inv-card').style.display='none';
+  document.getElementById('inv-qty').value=''; document.getElementById('inv-note').value='';
+  var sr=document.getElementById('inv-search'); sr.value=''; sr.focus();
+  document.getElementById('inv-results').innerHTML='';
+}
+function invFilter(){
+  if(INV.sel){ INV.sel=null; document.getElementById('inv-card').style.display='none'; }
+  var q=(document.getElementById('inv-search').value||'').trim().toLowerCase();
+  var box=document.getElementById('inv-results');
+  if(!q){ box.innerHTML=''; return; }
+  var hits=INV.items.filter(function(i){
+    return (i.code||'').toLowerCase().indexOf(q)>=0 || (i.name||'').toLowerCase().indexOf(q)>=0 ||
+           (i.name_ar||'').indexOf(q)>=0 || (i.spec||'').toLowerCase().indexOf(q)>=0;
+  }).slice(0,12);
+  box.innerHTML = hits.map(function(i){
+    return '<div onclick="invPick('+i.id+')" style="padding:11px 8px;border-bottom:1px solid var(--border);cursor:pointer">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">'+
+        '<span style="font-weight:700;font-size:.8rem;font-family:monospace">'+i.code+'</span>'+
+        '<span dir="auto" style="font-weight:700;font-size:.85rem;unicode-bidi:plaintext">'+(i.name_ar||i.name)+'</span></div>'+
+      '<div style="font-size:.72rem;color:var(--mu);text-align:left;margin-top:2px">'+i.name+' &middot; '+(+i.stock)+' '+i.unit+(i.location?' &middot; &#128205;'+i.location:'')+'</div></div>';
+  }).join('') || '<div style="padding:8px;color:var(--mu);font-size:.75rem">No matches</div>';
+}
+function invPick(id){
+  fetch('/api/inventory/worker-items/'+id,{headers:{'Authorization':'Bearer '+_invTok()}})
+    .then(function(x){return x.json();})
+    .then(function(it){
+      if(it.error){ showFlash('&#9888;','Item',it.error,'#ff6464'); return; }
+      INV.sel=it;
+      document.getElementById('inv-card').style.display='';
+      document.getElementById('inv-card-title').textContent=it.code;
+      document.getElementById('inv-card-ar').textContent=it.name_ar||'';
+      document.getElementById('inv-card-en').textContent=it.name||'';
+      document.getElementById('inv-card-meta').textContent=(it.spec||'')+(it.location?' \u00b7 \ud83d\udccd '+it.location:'');
+      document.getElementById('inv-card-stock').textContent='\u0627\u0644\u0645\u062e\u0632\u0648\u0646 Stock: '+(+it.stock)+' '+it.unit;
+      var ph=document.getElementById('inv-card-photo');
+      if(it.photo){ ph.src=it.photo; ph.style.display=''; } else ph.style.display='none';
+      document.getElementById('inv-results').innerHTML='';
+      document.getElementById('inv-search').value=it.code;
+      document.getElementById('inv-qty').focus();
+    });
+}
+function invScanToggle(){ if(INV.scanning){ invStopCamera(); } else { invStartScan(); } }
+function invStartScan(){
+  document.getElementById('inv-scan-area').style.display='';
+  INV.scanning=true;
+  document.getElementById('inv-scan-btn').textContent='\u2715 Stop';
+  loadJsQR().then(function(){
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640}}}).then(function(st){
+      INV.stream=st;
+      var v=document.getElementById('inv-video'); v.srcObject=st; v.play();
+      var cv=document.createElement('canvas'), cx=cv.getContext('2d');
+      (function tick(){
+        if(!INV.scanning) return;
+        if(v.readyState===v.HAVE_ENOUGH_DATA){
+          cv.width=v.videoWidth; cv.height=v.videoHeight;
+          cx.drawImage(v,0,0);
+          var id2=cx.getImageData(0,0,cv.width,cv.height);
+          var code=window.jsQR&&window.jsQR(id2.data,cv.width,cv.height);
+          if(code&&code.data){
+            var t=String(code.data).trim();
+            var hit=INV.items.find(function(i){ return i.code===t; });
+            if(hit){
+              if(typeof vibrate==='function') vibrate([30]);
+              invStopCamera(); invPick(hit.id); return;
+            } else {
+              document.getElementById('inv-scan-status').textContent='Not an item code: '+t.slice(0,30);
+            }
+          }
+        }
+        requestAnimationFrame(tick);
+      })();
+    }).catch(function(e){ document.getElementById('inv-scan-status').textContent='Camera: '+e.message; });
+  });
+}
+function invStopCamera(){
+  INV.scanning=false;
+  if(INV.stream){ INV.stream.getTracks().forEach(function(t){t.stop();}); INV.stream=null; }
+  var sa=document.getElementById('inv-scan-area'); if(sa) sa.style.display='none';
+  var b=document.getElementById('inv-scan-btn'); if(b) b.innerHTML='&#128247; Scan QR';
+}
+function invConsume(){
+  if(!INV.sel){ showFlash('&#9888;','Inventory','Pick an item first','#ff6464'); return; }
+  var qty=+document.getElementById('inv-qty').value;
+  if(!qty||qty<=0){ showFlash('&#9888;','Inventory','Enter quantity','#ff6464'); return; }
+  var btn=document.getElementById('inv-consume-btn'); btn.disabled=true;
+  fetch('/api/inventory/consume',{method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+_invTok()},
+    body:JSON.stringify({item_id:INV.sel.id, qty:qty,
+      machine_id:document.getElementById('inv-machine').value||null,
+      date:document.getElementById('inv-date').value||null,
+      note:document.getElementById('inv-note').value||null})})
+  .then(function(x){return x.json();})
+  .then(function(j){
+    btn.disabled=false;
+    if(j.error){ showFlash('&#9888;','Consume failed',j.error,'#ff6464'); return; }
+    if(typeof vibrate==='function') vibrate([30,50,30]);
+    showFlash('&#10003;','Consumed',qty+' '+j.item.unit+' \u2014 '+(j.item.name_ar||j.item.name)+' \u00b7 stock now '+(+j.stock),'var(--a3)');
+    var it=INV.items.find(function(i){return i.id===j.item.id;}); if(it) it.stock=j.stock;
+    document.getElementById('inv-qty').value=''; document.getElementById('inv-note').value='';
+    document.getElementById('inv-card-stock').textContent='Stock: '+(+j.stock)+' '+(j.item.unit||'');
+    invLoadMine();
+  }).catch(function(e){ btn.disabled=false; showFlash('&#9888;','Error',e.message,'#ff6464'); });
+}
+function invLoadMine(){
+  var el=document.getElementById('inv-mine'); if(!el) return;
+  fetch('/api/inventory/my-consumptions',{headers:{'Authorization':'Bearer '+_invTok()}})
+    .then(function(x){ return x.json(); })
+    .then(function(rows){
+      if(!Array.isArray(rows)){ el.innerHTML='<span>-</span>'; return; }
+      el.innerHTML = rows.length ? rows.map(function(m){
+        var t=(m.created_at||'').slice(11,16);
+        return '<div dir="auto">'+t+' \u2014 '+(+m.qty)+' '+(m.unit||'')+' \u2014 '+(m.name_ar||m.name)+(m.machine_code?' ('+m.machine_code+')':'')+(m.date!==new Date().toISOString().slice(0,10)?' \u2190 '+m.date:'')+'</div>';
+      }).join('') : '<span>No consumptions recorded today</span>';
+    }).catch(function(){ el.innerHTML='<span>-</span>'; });
+}
+</script>
+
 </body>
 </html>

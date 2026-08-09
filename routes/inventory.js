@@ -43,6 +43,35 @@ try { db.prepare(`CREATE TABLE IF NOT EXISTS inv_counts (
 try { db.prepare(`CREATE TABLE IF NOT EXISTS inv_count_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT, count_id INTEGER NOT NULL, item_id INTEGER NOT NULL,
   system_qty REAL, counted_qty REAL, note TEXT, UNIQUE(count_id, item_id))`).run(); } catch(e) {}
+try { db.prepare(`CREATE TABLE IF NOT EXISTS inv_types (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT UNIQUE NOT NULL, prefix TEXT NOT NULL,
+  name TEXT NOT NULL, name_ar TEXT, active INTEGER DEFAULT 1, sort INTEGER DEFAULT 0)`).run(); } catch(e) {}
+try { db.prepare(`CREATE TABLE IF NOT EXISTS inv_locations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE NOT NULL, name TEXT, name_ar TEXT,
+  active INTEGER DEFAULT 1, sort INTEGER DEFAULT 0)`).run(); } catch(e) {}
+try { db.prepare(`CREATE TABLE IF NOT EXISTS inv_units (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE NOT NULL, name_ar TEXT,
+  active INTEGER DEFAULT 1, sort INTEGER DEFAULT 0)`).run(); } catch(e) {}
+try { db.prepare(`CREATE TABLE IF NOT EXISTS inv_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, name_ar TEXT,
+  active INTEGER DEFAULT 1, sort INTEGER DEFAULT 0)`).run(); } catch(e) {}
+try { db.prepare(`CREATE TABLE IF NOT EXISTS inv_subcategories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, category_id INTEGER NOT NULL, name TEXT NOT NULL,
+  name_ar TEXT, active INTEGER DEFAULT 1, sort INTEGER DEFAULT 0)`).run(); } catch(e) {}
+try { db.prepare('ALTER TABLE inv_items ADD COLUMN category_id INTEGER').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE inv_items ADD COLUMN subcategory_id INTEGER').run(); } catch(e) {}
+try {
+  const seeded = db.prepare('SELECT COUNT(*) c FROM inv_types').get().c;
+  if(!seeded){
+    const t = db.prepare('INSERT INTO inv_types (key,prefix,name,name_ar,sort) VALUES (?,?,?,?,?)');
+    t.run('spare_part','SP','Spare Part','قطع غيار',1);
+    t.run('tool','TL','Tool','أداة',2);
+    t.run('consumable','CN','Consumable','مستهلكات',3);
+    t.run('ppe','PP','PPE','معدات حماية',4);
+    db.prepare("INSERT OR IGNORE INTO inv_units (code,sort) SELECT DISTINCT unit, 0 FROM inv_items WHERE unit IS NOT NULL AND unit!=''").run();
+    db.prepare("INSERT OR IGNORE INTO inv_locations (code,sort) SELECT DISTINCT location, 0 FROM inv_items WHERE location IS NOT NULL AND location!=''").run();
+  }
+} catch(e) {}
 
 const STOCK_SQL = `COALESCE((SELECT SUM(CASE
   WHEN kind IN ('in','custody_return') THEN qty
@@ -65,7 +94,8 @@ function acr(txt, len, isOrigin){
   return base.slice(0, len);
 }
 function genCode(category, machineCode, company, origin){
-  const pfx = CAT_PFX[category] || 'SP';
+  let pfx = CAT_PFX[category] || 'SP';
+  try{ const t = db.prepare('SELECT prefix FROM inv_types WHERE key=?').get(category); if(t && t.prefix) pfx = t.prefix; }catch(e){}
   const mach = machineCode ? String(machineCode).replace(/[^A-Za-z0-9]/g,'').toUpperCase() : 'GEN';
   const co = acr(company,3), or = acr(origin,3,true);
   const block = (co||or) ? (co+or) : 'GEN';
@@ -258,6 +288,112 @@ router.post('/invoices', requireAdmin, (req,res)=>{
   }catch(e){ res.status(500).json({error:e.message}); }
 });
 
+// -- worker app: consumption (gated by inventory.consume) --------------------
+const P = require('../middleware/permissions');
+router.get('/worker-items', P.requirePerm('inventory.consume'), (req,res)=>{
+  try{
+    const items = db.prepare(`SELECT i.id, i.code, i.name, i.name_ar, i.spec, i.unit, i.location,
+      COALESCE((SELECT SUM(CASE WHEN kind IN ('in','adjust') THEN qty WHEN kind='out' THEN -qty ELSE 0 END) FROM inv_movements WHERE item_id=i.id),0) AS stock,
+      CASE WHEN i.photo IS NOT NULL AND i.photo!='' THEN 1 ELSE 0 END AS has_photo
+      FROM inv_items i WHERE i.active=1 ORDER BY i.code`).all();
+    let machines=[]; try{ machines = db.prepare('SELECT id, code, name FROM machines WHERE 1 ORDER BY code').all(); }catch(e){}
+    res.json({items, machines});
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+router.get('/worker-items/:id', P.requirePerm('inventory.consume'), (req,res)=>{
+  try{
+    const it = db.prepare(`SELECT i.id, i.code, i.name, i.name_ar, i.spec, i.unit, i.location, i.photo,
+      COALESCE((SELECT SUM(CASE WHEN kind IN ('in','adjust') THEN qty WHEN kind='out' THEN -qty ELSE 0 END) FROM inv_movements WHERE item_id=i.id),0) AS stock
+      FROM inv_items i WHERE i.id=? AND i.active=1`).get(+req.params.id);
+    if(!it) return res.status(404).json({error:'Item not found'});
+    res.json(it);
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+router.get('/my-consumptions', P.requirePerm('inventory.consume'), (req,res)=>{
+  try{
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date||'')) ? String(req.query.date) : new Date().toISOString().slice(0,10);
+    const rows = db.prepare(`SELECT m.id, m.qty, m.date, m.note, m.created_at, i.code, i.name, i.name_ar, i.unit,
+      (SELECT code FROM machines WHERE id=m.machine_id) AS machine_code
+      FROM inv_movements m JOIN inv_items i ON i.id=m.item_id
+      WHERE m.kind='out' AND m.worker_id=? AND m.date=? ORDER BY m.created_at DESC LIMIT 50`).all(req.user.id, d);
+    res.json(rows);
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+router.post('/consume', P.requirePerm('inventory.consume'), (req,res)=>{
+  try{
+    const b = req.body||{};
+    let it = null;
+    if(b.item_id) it = db.prepare('SELECT * FROM inv_items WHERE id=? AND active=1').get(+b.item_id);
+    else if(b.code) it = db.prepare('SELECT * FROM inv_items WHERE code=? AND active=1').get(String(b.code).trim());
+    if(!it) return res.status(404).json({error:'Item not found'});
+    const qty = +b.qty;
+    if(!qty || qty<=0) return res.status(400).json({error:'Quantity must be > 0'});
+    db.prepare(`INSERT INTO inv_movements (item_id,kind,qty,unit_cost_jod,ref_type,machine_id,worker_id,worker_name,note,date,created_by)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+      it.id, 'out', qty, +it.unit_cost_jod||0, 'worker_app',
+      b.machine_id?+b.machine_id:null, req.user.id, req.user.name,
+      b.note?String(b.note).trim():null,
+      (/^\d{4}-\d{2}-\d{2}$/.test(String(b.date||'')) ? String(b.date) : new Date().toISOString().slice(0,10)),
+      req.user.name);
+    const stock = db.prepare(`SELECT COALESCE(SUM(CASE WHEN kind IN ('in','adjust') THEN qty WHEN kind='out' THEN -qty ELSE 0 END),0) s FROM inv_movements WHERE item_id=?`).get(it.id).s;
+    res.status(201).json({ok:true, item:{id:it.id, code:it.code, name:it.name, name_ar:it.name_ar, unit:it.unit}, stock});
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// -- taxonomy lists (types/locations/units/categories) -----------------------
+router.get('/lists', (req,res)=>{
+  try{
+    const cats = db.prepare('SELECT * FROM inv_categories ORDER BY sort,name').all();
+    const subs = db.prepare('SELECT * FROM inv_subcategories ORDER BY sort,name').all();
+    cats.forEach(c=>{ c.subs = subs.filter(x=>x.category_id===c.id); });
+    res.json({
+      types: db.prepare('SELECT * FROM inv_types ORDER BY sort,id').all(),
+      locations: db.prepare('SELECT * FROM inv_locations ORDER BY sort,code').all(),
+      units: db.prepare('SELECT * FROM inv_units ORDER BY sort,code').all(),
+      categories: cats
+    });
+  }catch(e){ res.status(500).json({error:e.message}); }
+});
+const LIST_CFG = {
+  types:        { table:'inv_types',        fields:['name','name_ar','active','sort'],                 usedSql:"SELECT COUNT(*) c FROM inv_items WHERE category=(SELECT key FROM inv_types WHERE id=?)" },
+  locations:    { table:'inv_locations',    fields:['code','name','name_ar','active','sort'],          usedSql:"SELECT COUNT(*) c FROM inv_items WHERE location=(SELECT code FROM inv_locations WHERE id=?)" },
+  units:        { table:'inv_units',        fields:['code','name_ar','active','sort'],                 usedSql:"SELECT COUNT(*) c FROM inv_items WHERE unit=(SELECT code FROM inv_units WHERE id=?)" },
+  categories:   { table:'inv_categories',   fields:['name','name_ar','active','sort'],                 usedSql:"SELECT (SELECT COUNT(*) FROM inv_items WHERE category_id=?)+(SELECT COUNT(*) FROM inv_subcategories WHERE category_id=?) c" },
+  subcategories:{ table:'inv_subcategories',fields:['category_id','name','name_ar','active','sort'],   usedSql:"SELECT COUNT(*) c FROM inv_items WHERE subcategory_id=?" }
+};
+Object.entries(LIST_CFG).forEach(([path,cfg])=>{
+  router.post('/'+path, requireAdmin, (req,res)=>{
+    try{
+      if(path==='types') return res.status(400).json({error:'Adding new types is not supported yet - type keys drive code prefixes and custody logic'});
+      const b=req.body||{};
+      const cols=cfg.fields.filter(f=>b[f]!==undefined);
+      if(!cols.length) return res.status(400).json({error:'no fields'});
+      const r=db.prepare(`INSERT INTO ${cfg.table} (${cols.join(',')}) VALUES (${cols.map(()=>'?').join(',')})`).run(...cols.map(c=>b[c]));
+      res.status(201).json({id:r.lastInsertRowid});
+    }catch(e){ res.status(500).json({error:e.message}); }
+  });
+  router.put('/'+path+'/:id', requireAdmin, (req,res)=>{
+    try{
+      const b=req.body||{};
+      const cols=cfg.fields.filter(f=>b[f]!==undefined && !(path==='types'&&(f==='key'||f==='prefix')));
+      if(!cols.length) return res.status(400).json({error:'no fields'});
+      db.prepare(`UPDATE ${cfg.table} SET ${cols.map(c=>c+'=?').join(',')} WHERE id=?`).run(...cols.map(c=>b[c]), +req.params.id);
+      res.json({ok:true});
+    }catch(e){ res.status(500).json({error:e.message}); }
+  });
+  router.delete('/'+path+'/:id', requireAdmin, (req,res)=>{
+    try{
+      if(path==='types') return res.status(400).json({error:'Types cannot be deleted'});
+      const used = path==='categories'
+        ? db.prepare(cfg.usedSql).get(+req.params.id, +req.params.id).c
+        : db.prepare(cfg.usedSql).get(+req.params.id).c;
+      if(used) return res.status(400).json({error:'In use by '+used+' record(s) - deactivate instead'});
+      db.prepare(`DELETE FROM ${cfg.table} WHERE id=?`).run(+req.params.id);
+      res.json({ok:true});
+    }catch(e){ res.status(500).json({error:e.message}); }
+  });
+});
+
 // -- stock counts (cycle counting) -------------------------------------------
 router.get('/counts', (req,res)=>{
   try{ res.json(db.prepare('SELECT * FROM inv_counts ORDER BY id DESC').all()); }
@@ -284,7 +420,7 @@ router.get('/counts/:id', (req,res)=>{
   try{
     const c = db.prepare('SELECT * FROM inv_counts WHERE id=?').get(+req.params.id);
     if(!c) return res.status(404).json({error:'Not found'});
-    c.items = db.prepare(`SELECT ci.*, i.code, i.name, i.unit, i.category, i.location, i.unit_cost_jod, CASE WHEN i.photo IS NOT NULL AND i.photo!='' THEN 1 ELSE 0 END AS has_photo
+    c.items = db.prepare(`SELECT ci.*, i.code, i.name, i.unit, i.category, i.location, i.unit_cost_jod, i.name_ar, i.category_id, i.subcategory_id, CASE WHEN i.photo IS NOT NULL AND i.photo!='' THEN 1 ELSE 0 END AS has_photo
       FROM inv_count_items ci JOIN inv_items i ON i.id=ci.item_id WHERE ci.count_id=? ORDER BY i.code`).all(c.id);
     res.json(c);
   }catch(e){ res.status(500).json({error:e.message}); }
@@ -352,7 +488,7 @@ router.delete('/counts/:id', requireAdmin, (req,res)=>{
 // -- items CRUD --------------------------------------------------------------
 router.get('/items', (req,res)=>{
   try{
-    const rows = db.prepare(`SELECT i.id,i.code,i.name,i.name_ar,i.category,i.spec,i.unit,i.criticality,i.lead_time_days,i.min_stock,i.reorder_level,i.location,i.unit_cost_jod,i.notes,i.active,i.company,i.origin,i.created_at, CASE WHEN i.photo IS NOT NULL AND i.photo!='' THEN 1 ELSE 0 END AS has_photo, ${STOCK_SQL} AS stock FROM inv_items i ORDER BY i.code`).all();
+    const rows = db.prepare(`SELECT i.id,i.code,i.name,i.name_ar,i.category,i.spec,i.unit,i.criticality,i.lead_time_days,i.min_stock,i.reorder_level,i.location,i.unit_cost_jod,i.notes,i.active,i.company,i.origin,i.created_at,i.category_id,i.subcategory_id, (SELECT name FROM inv_categories WHERE id=i.category_id) AS cat_name, (SELECT name FROM inv_subcategories WHERE id=i.subcategory_id) AS sub_name, CASE WHEN i.photo IS NOT NULL AND i.photo!='' THEN 1 ELSE 0 END AS has_photo, ${STOCK_SQL} AS stock FROM inv_items i ORDER BY i.code`).all();
     const links = db.prepare(`SELECT im.item_id, im.machine_id, im.station, m.code AS machine_code, m.name AS machine_name
       FROM inv_item_machines im JOIN machines m ON m.id=im.machine_id`).all();
     const lm = {};
@@ -367,11 +503,11 @@ router.post('/items', requireAdmin, (req,res)=>{
     if(!b.name) return res.status(400).json({error:'name required'});
     const _mc = machCodeForLinks((b.machine_links||[]).map(x=>x.machine_id));
     const code = b.code || genCode(b.category||'spare_part', _mc, b.company, b.origin);
-    const r = db.prepare(`INSERT INTO inv_items (code,name,name_ar,category,spec,unit,criticality,lead_time_days,min_stock,reorder_level,location,notes,company,origin,created_by)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(code, b.name, b.name_ar||null, b.category||'spare_part',
+    const r = db.prepare(`INSERT INTO inv_items (code,name,name_ar,category,spec,unit,criticality,lead_time_days,min_stock,reorder_level,location,notes,company,origin,category_id,subcategory_id,created_by)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(code, b.name, b.name_ar||null, b.category||'spare_part',
       b.spec||null, b.unit||'pc', b.criticality||'normal', b.lead_time_days||null,
       b.min_stock??null, b.reorder_level??null, b.location||null, b.notes||null,
-      b.company||null, b.origin||null, req.user.name);
+      b.company||null, b.origin||null, b.category_id?+b.category_id:null, b.subcategory_id?+b.subcategory_id:null, req.user.name);
     (b.machine_links||[]).forEach(x=>{ try{ db.prepare('INSERT INTO inv_item_machines (item_id,machine_id,station) VALUES (?,?,?)').run(r.lastInsertRowid, +x.machine_id, x.station||null); }catch(e){} });
     res.status(201).json(db.prepare('SELECT * FROM inv_items WHERE id=?').get(r.lastInsertRowid));
   }catch(e){ res.status(500).json({error:e.message}); }
@@ -401,7 +537,7 @@ router.put('/items/:id', requireAdmin, (req,res)=>{
   try{
     const b=req.body||{}; const it=db.prepare('SELECT * FROM inv_items WHERE id=?').get(+req.params.id);
     if(!it) return res.status(404).json({error:'Not found'});
-    const f=['code','name','name_ar','category','spec','unit','criticality','lead_time_days','min_stock','reorder_level','location','notes','active','company','origin'];
+    const f=['code','name','name_ar','category','spec','unit','criticality','lead_time_days','min_stock','reorder_level','location','notes','active','company','origin','category_id','subcategory_id'];
     db.prepare(`UPDATE inv_items SET ${f.map(k=>k+'=?').join(',')} WHERE id=?`)
       .run(...f.map(k=>b[k]!==undefined?b[k]:it[k]), it.id);
     if(Array.isArray(b.machine_links)){
