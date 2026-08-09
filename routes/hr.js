@@ -630,6 +630,82 @@ router.get('/leave', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+try { db.prepare('ALTER TABLE payroll_adjustments ADD COLUMN source_leave_id INTEGER').run(); } catch(e) {}
+
+// ── Working-day leave computation (schedule + holidays + edge hours) ─────────
+function computeLeaveDaysSrv(date_from, date_to, edgeFrom, edgeTo){
+  const sched = getSchedule();
+  let wd; try{ wd = new Set(JSON.parse(sched.work_days)); }catch(e){ wd = new Set(['mon','tue','wed','thu','sat','sun']); }
+  const hols = new Set(db.prepare('SELECT date FROM holidays').all().map(h=>h.date));
+  const DOW=['sun','mon','tue','wed','thu','fri','sat'];
+  const mins=t=>{const[a,b]=String(t).split(':').map(Number);return a*60+(b||0);};
+  const start=sched.start_time||'08:00', end=sched.end_time||'16:30', thuEnd=sched.thursday_end_time||null;
+  const isoLocal=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const workDates=[];
+  const d0=new Date(date_from+'T00:00:00'), d1=new Date((date_to||date_from)+'T00:00:00');
+  for(let d=new Date(d0); d<=d1; d.setDate(d.getDate()+1)){
+    const iso=isoLocal(d), dow=DOW[d.getDay()];
+    if(!wd.has(dow)) continue;
+    if(hols.has(iso)) continue;
+    workDates.push({iso,dow,frac:1});
+  }
+  const shiftLen=dw=>mins(dw==='thu'&&thuEnd?thuEnd:end)-mins(start);
+  if(workDates.length){
+    const first=workDates[0], last=workDates[workDates.length-1];
+    if(edgeFrom && edgeTo && workDates.length===1 && first.iso===date_from){
+      first.frac=Math.min(1,Math.max(0,(mins(edgeTo)-mins(edgeFrom))/shiftLen(first.dow)));
+    } else {
+      if(edgeFrom && first.iso===date_from){
+        const L=shiftLen(first.dow);
+        first.frac=Math.min(1,Math.max(0,(mins(first.dow==='thu'&&thuEnd?thuEnd:end)-mins(edgeFrom))/L));
+      }
+      if(edgeTo && last.iso===(date_to||date_from)){
+        const L=shiftLen(last.dow);
+        last.frac=Math.min(1,Math.max(0,(mins(edgeTo)-mins(start))/L));
+      }
+    }
+  }
+  const days=+workDates.reduce((a,x)=>a+x.frac,0).toFixed(2);
+  return {days, workDates};
+}
+
+// ── Sick/Injury 25% rule: regenerate auto-adjustments for a leave ────────────
+function syncSickAdjustments(leaveId){
+  try{
+    db.prepare('DELETE FROM payroll_adjustments WHERE source_leave_id=?').run(leaveId);
+    const lv = db.prepare('SELECT * FROM leave_requests WHERE id=?').get(leaveId);
+    if(!lv || lv.status!=='approved' || lv.leave_kind==='hourly') return;
+    if(!/sick|injury/i.test(lv.type||'')) return;
+    const {days, workDates} = computeLeaveDaysSrv(lv.date_from, lv.date_to, lv.time_from, lv.time_to);
+    if(days<=3 || !workDates.length) return;
+    const w = db.prepare('SELECT monthly_salary FROM workers WHERE id=?').get(lv.worker_id);
+    const daily = (+(w&&w.monthly_salary)||0)/30;
+    if(daily<=0) return;
+    let acc=0; const perMonth={};
+    workDates.forEach(x=>{
+      const before=acc; acc+=x.frac;
+      const excess=Math.max(0, acc-3) - Math.max(0, before-3);
+      if(excess>0.0001){ const m=x.iso.slice(0,7); perMonth[m]=(perMonth[m]||0)+excess; }
+    });
+    let t = db.prepare("SELECT id FROM adjustment_types WHERE title='Sick Leave 25%' LIMIT 1").get();
+    if(!t){
+      const r=db.prepare("INSERT INTO adjustment_types (direction,title,description,is_active) VALUES ('deduction','Sick Leave 25%','Auto 25% deduction for sick/injury leave beyond 3 working days',1)").run();
+      t={id:r.lastInsertRowid};
+    }
+    Object.entries(perMonth).forEach(([m,ex])=>{
+      // Deductions are stored NEGATIVE - payroll sums raw amounts (sign = direction)
+      const amt=-(+(0.25*daily*ex).toFixed(2));
+      if(amt>=0) return;
+      db.prepare(`INSERT INTO payroll_adjustments
+        (worker_id,worker_name,adjustment_date,type,adj_type_id,amount,description,note,payroll_month,created_by,source_leave_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(lv.worker_id, lv.worker_name, lv.date_to, 'Sick Leave 25%', t.id, amt,
+          'Auto: 25% deduction for '+(+ex.toFixed(2))+' working day(s) beyond 3 (leave #'+leaveId+', '+lv.type+')',
+          null, m, 'system (sick rule)', leaveId);
+    });
+  }catch(e){ console.warn('[sick rule]', e.message); }
+}
+
 router.post('/leave', (req, res) => {
   try {
     const { date_from, date_to, type, reason, leave_kind, hours, notes, worker_id } = req.body;
@@ -647,12 +723,9 @@ router.post('/leave', (req, res) => {
       // Hourly leave: tracked in hours, date_from = date_to = the day
       days = 0; // no full days deducted directly
     } else {
-      // Vacation: count calendar days (excluding friday)
-      const sched = getSchedule();
-      const weekendDay = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6}[sched.weekend_day||'fri'] ?? 5;
-      const d = new Date(date_from);
-      const end = new Date(date_to || date_from);
-      while (d <= end) { if (d.getDay() !== weekendDay) days++; d.setDate(d.getDate()+1); }
+      // Full-day leave: working days per schedule + holidays, with optional
+      // mid-shift edge times (time_from first day / time_to last day)
+      days = computeLeaveDaysSrv(date_from, date_to, req.body.time_from||null, req.body.time_to||null).days;
     }
     const { time_from, time_to, medical_report } = req.body;
     // For hourly: calculate hours from time_from/time_to if not provided
@@ -668,6 +741,7 @@ router.post('/leave', (req, res) => {
         days, type||'vacation', reason||null, kind, finalHrs, notes||null,
         time_from||null, time_to||null, medical_report||null
       );
+    syncSickAdjustments(r.lastInsertRowid);
     res.status(201).json(db.prepare('SELECT * FROM leave_requests WHERE id=?').get(r.lastInsertRowid));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -676,6 +750,7 @@ router.delete('/leave/:id', requireAdmin, (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM leave_requests WHERE id=?').get(+req.params.id);
     if (!row) return res.status(404).json({ error: 'Not found' });
+    db.prepare('DELETE FROM payroll_adjustments WHERE source_leave_id=?').run(+req.params.id);
     db.prepare('DELETE FROM leave_requests WHERE id=?').run(+req.params.id);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -698,9 +773,9 @@ router.patch('/leave/:id', requireAdmin, (req, res) => {
       if (kind === 'hourly') {
         days = 0;
       } else {
-        days = 0;
-        const d = new Date(newFrom); const end = new Date(newTo);
-        while (d <= end) { if (d.getDay() !== weekendDay) days++; d.setDate(d.getDate()+1); }
+        const _ef = req.body.time_from !== undefined ? req.body.time_from : row.time_from;
+        const _et = req.body.time_to   !== undefined ? req.body.time_to   : row.time_to;
+        days = computeLeaveDaysSrv(newFrom, newTo, _ef||null, _et||null).days;
       }
       db.prepare(`UPDATE leave_requests SET date_from=?,date_to=?,leave_kind=?,hours=?,days=?,type=?,reason=?,notes=? WHERE id=?`)
         .run(newFrom, newTo, kind, hrs, days, type||row.type, reason||row.reason, notes||row.notes, +req.params.id);
@@ -709,17 +784,12 @@ router.patch('/leave/:id', requireAdmin, (req, res) => {
       db.prepare(`UPDATE leave_requests SET status=?,reviewed_by=?,reviewed_at=datetime('now','localtime') WHERE id=?`)
         .run(status, req.user.name, +req.params.id);
     }
+    syncSickAdjustments(+req.params.id);
     res.json(db.prepare('SELECT * FROM leave_requests WHERE id=?').get(+req.params.id));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Admin: delete leave request
-router.delete('/leave/:id', requireAdmin, (req, res) => {
-  try {
-    db.prepare('DELETE FROM leave_requests WHERE id=?').run(+req.params.id);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
+// (duplicate DELETE /leave/:id removed - handled above with adjustment cleanup)
 
 // ══ PAYROLL (full calculation) ═════════════════════════════════════════════
 // ──────────────────────────────────────────────────────────────────────────
