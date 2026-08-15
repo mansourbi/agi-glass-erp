@@ -2617,8 +2617,6 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             </select>
             <select id="rs-f-family" onchange="renderSettingsRSCatalog()" style="font-size:.7rem;padding:5px 8px;width:auto">
               <option value="" data-i18n="All Families">All Families</option>
-              <option value="float" data-i18n="Float">Float</option>
-              <option value="patterned" data-i18n="Patterned">Patterned</option>
             </select>
             <select id="rs-f-pattern" onchange="renderSettingsRSCatalog()" style="font-size:.7rem;padding:5px 8px;width:auto">
               <option value="" data-i18n="All Patterns">All Patterns</option>
@@ -6617,8 +6615,15 @@ async function renderSettingsRSCatalog(){
   const fComp=(document.getElementById('rs-f-company')?.value||'');
   const fFam=(document.getElementById('rs-f-family')?.value||'');
   const fPat=(document.getElementById('rs-f-pattern')?.value||'');
-  // keep the pattern dropdown fed from live data (preserving selection)
+  // family + pattern dropdowns fed from live data (preserving selection)
   (function(){
+    const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
+    const fsel=document.getElementById('rs-f-family');
+    if(fsel){
+      const cur=fsel.value;
+      const fams=[...new Set(rawSheetCatalog.map(x=>(x.family||'float').trim().toLowerCase()).filter(Boolean))].sort();
+      fsel.innerHTML='<option value="">All Families</option>'+fams.map(p=>'<option value="'+p+'"'+(p===cur?' selected':'')+'>'+cap(p)+'</option>').join('');
+    }
     const sel=document.getElementById('rs-f-pattern'); if(!sel) return;
     const cur=sel.value;
     const pats=[...new Set(rawSheetCatalog.map(x=>(x.pattern||'').trim()).filter(Boolean))].sort();
@@ -6667,7 +6672,11 @@ async function renderSettingsRSCatalog(){
       '<td><span class="bge bg-new" style="font-size:.58rem">'+s.type.charAt(0).toUpperCase()+s.type.slice(1)+'</span></td>'+
       '<td><span style="display:inline-flex;align-items:center;gap:4px;font-size:.7rem">'+
         '<span class="color-dot" style="background:'+dot+'"></span>'+s.color.charAt(0).toUpperCase()+s.color.slice(1)+'</span></td>'+
-      '<td style="font-size:.68rem">'+((s.family||'float')==='patterned'?'<span class="bge" style="font-size:.58rem;background:rgba(255,180,80,.12);color:var(--a4);border:1px solid var(--a4)">Patterned</span>':'Float')+'</td>'+
+      '<td style="font-size:.68rem">'+(function(){
+        var fam=(s.family||'float'); var cap=fam.charAt(0).toUpperCase()+fam.slice(1);
+        return fam==='float' ? cap
+          : '<span class="bge" style="font-size:.58rem;background:rgba(255,180,80,.12);color:var(--a4);border:1px solid var(--a4)">'+cap+'</span>';
+      })()+'</td>'+
       '<td style="font-size:.68rem" dir="auto">'+(s.pattern||(s.pattern_any?'<span style="color:var(--mu)">any</span>':''))+'</td>'+
       '<td class="mn" style="color:var(--a4)">'+s.thickness+'mm</td>'+
       '<td class="mn" style="color:var(--tx2);white-space:nowrap">'+s.w+' x '+s.h+'</td>'+
@@ -8316,8 +8325,10 @@ window._remFamOK = function(r){
   if(!sh) return true;
   const fam = sh.family || 'float';
   if((r.family || 'float') !== fam) return false;
-  if(fam === 'patterned' && !sh.pattern_any){
-    const norm = t => { t = String(t||'').trim().toLowerCase(); if(t==='\u0641\u0644\u0648\u062a\u062f'||t==='\u0641\u0644') t='fluted'; return t; };
+  // Pattern must agree whenever either side declares one (patterned glass,
+  // antique mirror s-codes, ...). pattern_any sheets accept any pattern.
+  const norm = t => { t = String(t||'').trim().toLowerCase(); if(t==='\u0641\u0644\u0648\u062a\u062f'||t==='\u0641\u0644') t='fluted'; return t; };
+  if(!sh.pattern_any && (norm(sh.pattern) || norm(r.pattern))){
     return norm(r.pattern) === norm(sh.pattern);
   }
   return true;
@@ -11280,7 +11291,7 @@ function renderCutLabels(){
         <div class="lbl-info">
           <div class="lbl-uid">${item.uid}${isManual?'<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span>':''}</div>
           <div class="lbl-size">&#9632; ${item.w} &times; ${item.h} mm</div>
-          <div class="lbl-glass">${item.thickness}mm ${typeStr} &bull; ${colorStr}${patStr?' &bull; '+patStr:''}</div>
+          <div class="lbl-glass">${item.thickness}mm ${typeStr} &bull; ${(x=>String(x||'float').charAt(0).toUpperCase()+String(x||'float').slice(1))(item.family)}${patStr?' ('+patStr+')':''} &bull; ${colorStr}</div>
           <hr class="lbl-divider">
           <div class="lbl-procs">${isManual?'<span style="background:var(--a4);color:#000;border-radius:2px;padding:0 3px;font-size:.75em;margin-right:3px">REM</span>':''}${procNames.join(' — ')||'—'}</div>
           ${ord.notes?`<div class="lbl-procs" style="border-top:1px solid #eee;margin-top:0.3mm;padding-top:0.3mm">${ord.notes}</div>`:''}
@@ -14012,7 +14023,7 @@ var _isAscii=function(v){ return v!=null && /^[\x00-\x7F]*$/.test(String(v)); };
       <div class="lbl-info">
         <div class="lbl-uid">${r.uid}<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px;vertical-align:middle">REM</span></div>
         <div class="lbl-size">&#9632; ${r.w} &times; ${r.h} mm</div>
-        <div class="lbl-glass">${r.thickness}mm ${typeStr} &bull; ${colorStr}${remPatStr?' &bull; '+remPatStr:''}</div>
+        <div class="lbl-glass">${r.thickness}mm ${typeStr} &bull; ${(x=>String(x||'float').charAt(0).toUpperCase()+String(x||'float').slice(1))(r.family)}${remPatStr?' ('+remPatStr+')':''} &bull; ${colorStr}</div>
         ${r.slot_code?`<div style="font-size:1.4rem;font-weight:800;letter-spacing:.5px;color:#000;margin:3px 0;text-align:center">&#128205; ${r.slot_code}</div>`:''}
         <hr class="lbl-divider">
         <div class="lbl-procs">${[r.brand, r.origin].filter(Boolean).join(' &mdash; ') || '—'}</div>
@@ -14157,8 +14168,12 @@ async function remPrintSessionLabels(){
     const remPat=(r.pattern||'').trim();
     const remPatStr=remPat?(/^s\d{3}$/i.test(remPat)?remPat.toUpperCase():remPat.charAt(0).toUpperCase()+remPat.slice(1)):'';
     let rawCode=r.raw_sheet_label||'';
+    const qrPat = !remPat ? '' :
+      /^s\d{3}$/i.test(remPat) ? remPat.toUpperCase() :
+      /^[\x00-\x7F]+$/.test(remPat) ? remPatStr :
+      /\u0641\u0644/.test(remPat) ? 'Fluted' : '';
     let qrText='REMNANT ID:'+r.uid+'\n'+'SIZE:'+r.w+'x'+r.h+'mm\n'+'THK:'+r.thickness+'mm\n'
-      +'GLASS:'+typeStr+'/'+colorStr+(remPatStr?'/'+remPatStr:'')+'\n'
+      +'GLASS:'+typeStr+'/'+colorStr+(qrPat?'/'+qrPat:'')+'\n'
       +(r.created_at?('DATE:'+String(r.created_at).slice(0,10)+'\n'):'')
       +((rawCode && /^[\x00-\x7F]*$/.test(String(rawCode)))?('SOURCE:'+rawCode+'\n'):'')+(r.slot_code?('SLOT:'+r.slot_code+'\n'):'')+'AGI GLASS';
     const logoSrc=(cfg&&cfg.qr_logo)||(cfg&&cfg.factory_logo)||null;
@@ -14168,7 +14183,7 @@ async function remPrintSessionLabels(){
     card.innerHTML=`<div class="lbl-inner"><div class="lbl-qr">${logoBarHtml}<div id="${qid}"></div></div><div class="lbl-sep"></div><div class="lbl-info">`
       +`<div class="lbl-uid">${r.uid}<span style="font-size:.55em;background:var(--a4);color:#000;border-radius:2px;padding:0 3px;margin-left:4px">REM</span></div>`
       +`<div class="lbl-size">&#9632; ${r.w} &times; ${r.h} mm</div>`
-      +`<div class="lbl-glass">${r.thickness}mm ${typeStr} &bull; ${colorStr}${remPatStr?' &bull; '+remPatStr:''}</div>`
+      +`<div class="lbl-glass">${r.thickness}mm ${typeStr} &bull; ${(x=>String(x||'float').charAt(0).toUpperCase()+String(x||'float').slice(1))(r.family)}${remPatStr?' ('+remPatStr+')':''} &bull; ${colorStr}</div>`
       +(r.slot_code?`<div style="font-size:1.4rem;font-weight:800;letter-spacing:.5px;color:#000;margin:3px 0;text-align:center">&#128205; ${r.slot_code}</div>`:'')
       +`<hr class="lbl-divider">`
       +`<div class="lbl-procs">${[r.brand,r.origin].filter(Boolean).join(' &mdash; ')||(String(r.created_at||'').slice(0,10))}</div>`
@@ -14179,7 +14194,7 @@ async function remPrintSessionLabels(){
     try{ new QRCode(qrEl,{text:qrText,width:152,height:152,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M}); }
     catch(e){ try{ new QRCode(qrEl,{text:qrText,width:152,height:152,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.L}); }catch(e2){} }
   });
-  setTimeout(()=>{
+  const _buildAndPrint=()=>{
     const old=document.getElementById('label-print-root'); if(old) old.remove();
     const root=document.createElement('div'); root.id='label-print-root';
     stage.querySelectorAll('.lcard').forEach(card=>{
@@ -14204,7 +14219,18 @@ async function remPrintSessionLabels(){
         styleEl.textContent='@page{size:A4 portrait;margin:5mm}';
       },1500);
     },250);
-  },400);
+  };
+  let _qrTries=0;
+  (function _qrPoll(){
+    const bad=[...stage.querySelectorAll('div[id^="qr-batch-"]')].filter(q=>{
+      const cv=q.querySelector('canvas'), im=q.querySelector('img');
+      return !((cv&&cv.width>0)||(im&&im.src&&im.src.length>50));
+    });
+    if(bad.length===0 || ++_qrTries>60){
+      if(bad.length) console.warn('[session labels] QR failed to render for:', bad.map(b=>b.id.replace('qr-batch-','')));
+      _buildAndPrint();
+    } else setTimeout(_qrPoll,100);
+  })();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
