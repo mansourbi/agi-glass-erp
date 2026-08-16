@@ -412,11 +412,12 @@ function syncOrderLabels(orderId, orderNum, orderDate) {
   try {
     const items = db.prepare('SELECT * FROM order_items WHERE order_id=?').all(orderId);
     const upsert = db.prepare(`
-      INSERT INTO label_items (uid,code,w,h,thickness,glass_type,color,processes,bevel_mm,drill_count,cutout_count,order_id,order_num,date)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      INSERT INTO label_items (uid,code,w,h,thickness,glass_type,color,family,pattern,processes,bevel_mm,drill_count,cutout_count,order_id,order_num,date)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(uid) DO UPDATE SET
         w=excluded.w, h=excluded.h, thickness=excluded.thickness,
         glass_type=excluded.glass_type, color=excluded.color,
+        family=excluded.family, pattern=excluded.pattern,
         processes=excluded.processes, bevel_mm=excluded.bevel_mm,
         drill_count=excluded.drill_count, cutout_count=excluded.cutout_count,
         order_id=excluded.order_id, order_num=excluded.order_num
@@ -428,6 +429,7 @@ function syncOrderLabels(orderId, orderNum, orderDate) {
           upsert.run(
             uid, uid, +item.w||0, +item.h||0, +item.thickness||6,
             item.glass_type||'glass', item.color||'clear',
+            item.family||'float', item.pattern||null,
             item.processes||'[]',
             +item.bevel_mm||0, +item.drill_count||0, +item.cutout_count||0,
             orderId, orderNum, orderDate

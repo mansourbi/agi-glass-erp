@@ -521,10 +521,11 @@ router.post('/manufacturers', requireAdmin, (req, res) => {
     const d = req.body || {};
     if (!d.name || !d.name.trim()) return res.status(400).json({ error: 'name required' });
     const r = db.prepare(`INSERT INTO manufacturers
-      (name, country, notes, sort_order, created_by)
-      VALUES (?,?,?,?,?)`).run(
+      (name, country, code, notes, sort_order, created_by)
+      VALUES (?,?,?,?,?,?)`).run(
       d.name.trim(),
       d.country || '',
+      (d.code || '').trim().toUpperCase() || null,
       d.notes || '',
       +d.sort_order || 0,
       (req.user && req.user.name) || 'admin'
@@ -542,9 +543,9 @@ router.put('/manufacturers/:id', requireAdmin, (req, res) => {
     if (!cur) return res.status(404).json({ error: 'Not found' });
     const d = { ...cur, ...(req.body || {}) };
     db.prepare(`UPDATE manufacturers SET
-      name=?, country=?, notes=?, active=?, sort_order=?
+      name=?, country=?, code=?, notes=?, active=?, sort_order=?
       WHERE id=?`).run(
-      d.name, d.country || '', d.notes || '',
+      d.name, d.country || '', ((d.code || '').trim().toUpperCase() || null), d.notes || '',
       (d.active === false || d.active === 0) ? 0 : 1,
       +d.sort_order || 0, +req.params.id
     );

@@ -351,6 +351,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 .pc-igu{border-color:rgba(150,220,255,.3);color:#a0e0ff;background:rgba(150,220,255,.07)}
 
 /* MODAL */
+.mbg.mbg-top{z-index:10001}
 .mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(5px);
   z-index:300;align-items:center;justify-content:center;padding:16px}
 .mbg.on{display:flex}
@@ -2410,6 +2411,8 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           <input type="text" id="mfg-name" class="inp" placeholder="e.g. XYG, Guardian, QIN"></div>
         <div class="fg"><label class="lbl" data-i18n="Country">Country</label>
           <input type="text" id="mfg-country" class="inp" placeholder="e.g. China"></div>
+        <div class="fg"><label class="lbl"><span data-i18n="Code">Code</span> <span style="color:var(--mu);font-size:.62rem" data-i18n="(used in material codes)">(used in material codes)</span></label>
+          <input type="text" id="mfg-code" class="inp" maxlength="6" style="text-transform:uppercase" placeholder="e.g. SSG, AGC"></div>
       </div>
       <div class="fg"><label class="lbl" data-i18n="Notes">Notes</label>
         <textarea id="mfg-notes" class="inp" rows="3" style="resize:vertical" placeholder="Quality notes, contact info, etc."></textarea></div>
@@ -3847,6 +3850,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
                 max-height:260px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
             </div>
           </div>
+          <div id="o-pattern-wrap" style="display:none;margin-top:6px">
+            <label class="lbl" style="margin-bottom:2px"><span data-i18n="Pattern">Pattern</span> <span style="color:var(--mu);font-size:.62rem" data-i18n="(which patterned/antique glass)">(which patterned/antique glass)</span></label>
+            <input id="o-pattern" class="inp" list="o-pattern-opts" style="width:100%;font-size:.76rem" dir="auto" placeholder="fluted / s208 / Flutelite-B ...">
+            <datalist id="o-pattern-opts"></datalist>
+          </div>
           <div id="o-family-badge" style="font-family:'Cairo','DM Mono',monospace;font-size:.65rem;padding:6px 10px;border-radius:var(--r);background:rgba(0,204,255,.07);border:1px solid rgba(0,204,255,.2);color:var(--a);display:none;white-space:nowrap"></div>
         </div>
         <!-- hidden fields used by addOI -->
@@ -5167,6 +5175,37 @@ function onFamilyChange(val){
     return;
   }
   const parts=val.split('|'); const thick=parts[0], type=parts[1], color=(parts.length>=5?parts[3]:parts[2]);
+  // Pattern field: only for patterned/antique families whose key has no baked-in pattern
+  (function(){
+    const wrap=document.getElementById('o-pattern-wrap'); if(!wrap) return;
+    const fam=(parts.length>=5?parts[2]:'float'), keyPat=(parts.length>=5?parts[4]:'');
+    const needs = (fam==='patterned'||fam==='antique') && !keyPat;
+    wrap.style.display = needs ? '' : 'none';
+    if(!needs){ const pi=document.getElementById('o-pattern'); if(pi) pi.value=''; }
+    else {
+      // Patterns limited to what physically exists for this exact combo
+      // (thickness+type+color+family) in the sheet catalog / family entries;
+      // family-wide fallback if the combo has no cataloged sheets yet.
+      const buildList=()=>{
+        const dl=document.getElementById('o-pattern-opts'); if(!dl) return;
+        const combo=new Set(), famWide=new Set();
+        const consider=(pTh,pTy,pCo,pFa,pat)=>{
+          if(!pat) return; pat=String(pat).trim(); if(!pat) return;
+          if(String(pFa||'float')!==fam) return;
+          famWide.add(pat);
+          if(String(pTh)===String(thick) && String(pTy||'glass')===type && String(pCo||'clear')===color) combo.add(pat);
+        };
+        (typeof glassFamilies!=='undefined'?glassFamilies:[]).forEach(g=>consider(g.thickness,g.type,g.color,g.family,g.pattern));
+        (typeof rawSheetCatalog!=='undefined'?rawSheetCatalog:[]).forEach(r2=>consider(r2.thickness,(r2.glass_type||r2.type),r2.color,r2.family,r2.pattern));
+        const list=[...(combo.size?combo:famWide)].sort();
+        dl.innerHTML=list.map(p=>'<option value="'+p.replace(/"/g,'&quot;')+'">').join('');
+      };
+      buildList();
+      if(typeof rawSheetCatalog==='undefined' || !rawSheetCatalog.length){
+        try{ AGI.RawSheets.list().then(rs=>{ window.rawSheetCatalog=rs; buildList(); }).catch(()=>{}); }catch(e){}
+      }
+    }
+  })();
   document.getElementById('bulk-thick').value=thick;
   document.getElementById('bulk-type').value=type;
   document.getElementById('bulk-color').value=color;
@@ -5284,6 +5323,7 @@ async function openOrderModal(id=null){
   document.getElementById('fp-search-inp').value='';
   // Populate glass family dropdown
   document.getElementById('o-family').value = '';
+  (function(){ var pw=document.getElementById('o-pattern-wrap'), pi=document.getElementById('o-pattern'); if(pw) pw.style.display='none'; if(pi) pi.value=''; })();
   document.getElementById('fam-search-inp').value = '';
   document.getElementById('fam-picker-list').style.display = 'none';
   const badge=document.getElementById('o-family-badge'); if(badge) badge.style.display='none';
@@ -5367,12 +5407,20 @@ async function openOrderModal(id=null){
     // Restore family from first item
     const fi=(o.items||[])[0];
     if(fi){
-      const fkey=famKey5((fi.thickness||6),(fi.glassType||'glass'),fi.family,(fi.color||'clear'),fi.pattern);
       const fams2=buildFamilyOptions();
-      const fobj=fams2.find(f=>f.key===fkey);
-      document.getElementById('o-family').value=fkey;
-      document.getElementById('fam-search-inp').value=fobj?fobj.label:fkey;
-      onFamilyChange(fkey);
+      const exactKey=famKey5((fi.thickness||6),(fi.glassType||'glass'),fi.family,(fi.color||'clear'),fi.pattern);
+      const genericKey=famKey5((fi.thickness||6),(fi.glassType||'glass'),fi.family,(fi.color||'clear'),null);
+      // Prefer an exact picker entry; else the generic family entry (pattern goes to the Pattern field)
+      let fobj=fams2.find(f2=>f2.key===exactKey), useKey=exactKey, manualPat=null;
+      if(!fobj){ fobj=fams2.find(f2=>f2.key===genericKey); if(fobj){ useKey=genericKey; manualPat=fi.pattern||null; } }
+      const cap=t=>t?String(t).charAt(0).toUpperCase()+String(t).slice(1):'';
+      const composed=(fi.thickness||6)+'mm '+cap(fi.color||'clear')+' '+cap(fi.family||'float')+(fi.pattern?' ('+fi.pattern+')':'')+' '+cap(fi.glassType||'glass');
+      document.getElementById('o-family').value=useKey;
+      document.getElementById('fam-search-inp').value=fobj?fobj.label:composed;
+      onFamilyChange(useKey);
+      (function(){ const pw=document.getElementById('o-pattern-wrap'), pi=document.getElementById('o-pattern');
+        if(pi) pi.value = manualPat || '';
+        if(pw && manualPat) pw.style.display=''; })();
     }
     (o.items||[]).forEach(item=>addOI(item));
     setTimeout(refreshPieceCodes,30);
@@ -5768,7 +5816,8 @@ async function saveOrder(){
   if(!famKey){alert('Please select a Glass Family (thickness/type/color) for this order.');return}
   const [reqThick,reqType,reqFamily,reqColor,reqPattern]=famKey.split('|');
   const mismatch=items.find(i=>String(i.thickness)!==reqThick||i.glassType!==reqType||i.color!==reqColor);
-  items.forEach(i=>{ i.family=reqFamily||'float'; i.pattern=reqPattern||null; }); // stamp family identity on every piece
+  const manualPattern=(document.getElementById('o-pattern')?.value||'').trim()||null;
+  items.forEach(i=>{ i.family=reqFamily||'float'; i.pattern=reqPattern||manualPattern||null; }); // stamp family identity on every piece
   if(mismatch){
     alert('All pieces must match the selected glass family: '+reqThick+'mm '+reqColor+' '+reqType+'. Piece "'+mismatch.code+'" does not match. Create a separate order for different glass families.');
     return;
@@ -17337,7 +17386,7 @@ async function renderManufacturers(){
 
 async function purManufacturerEdit(id){
   document.getElementById('mfg-mt').textContent = id ? 'Edit Manufacturer' : 'Add Manufacturer';
-  ['mfg-id','mfg-name','mfg-country','mfg-notes'].forEach(k => {
+  ['mfg-id','mfg-name','mfg-country','mfg-code','mfg-notes'].forEach(k => {
     const el = document.getElementById(k); if (el) el.value = '';
   });
   if (id) {
@@ -17346,9 +17395,12 @@ async function purManufacturerEdit(id){
       document.getElementById('mfg-id').value      = m.id;
       document.getElementById('mfg-name').value    = m.name || '';
       document.getElementById('mfg-country').value = m.country || '';
+      const ce=document.getElementById('mfg-code'); if(ce) ce.value = m.code || '';
       document.getElementById('mfg-notes').value   = m.notes || '';
     } catch (e) { alert('Failed to load manufacturer: ' + e.message); return; }
   }
+  const _mm=document.getElementById('m-manufacturer');
+  if(_mm) _mm.classList.add('mbg-top');
   OM('m-manufacturer');
 }
 
@@ -17356,7 +17408,7 @@ async function purManufacturerSave(){
   const name = document.getElementById('mfg-name').value.trim();
   if (!name) { alert('Name is required.'); return; }
   const id = +document.getElementById('mfg-id').value;
-  const body = {
+  const body = { code: (document.getElementById('mfg-code')?.value||'').trim().toUpperCase() || null, 
     name,
     country: document.getElementById('mfg-country').value.trim(),
     notes: document.getElementById('mfg-notes').value.trim(),
@@ -24501,8 +24553,15 @@ window.addEventListener('beforeunload', function(e){
     var thk=(t0%1!==0)?String(t0).replace('.',''):String(t0).padStart(2,'0');
     var fam=FAM[g('rs-family').toLowerCase()]||g('rs-family').slice(0,3).toUpperCase()||'FLO';
     var comp=g('rs-company').trim(), org=g('rs-origin').trim();
+    // Priority: manufacturer's explicit code > sibling sheet's segment > COMP map > derived letters
+    var mfgCode='';
+    try{
+      var mfgList=(window._pur&&window._pur._mfgList)||[];
+      var mfgHit=mfgList.find(function(m){return m.name&&String(m.name).toLowerCase()===comp.toLowerCase();});
+      if(mfgHit&&mfgHit.code) mfgCode=String(mfgHit.code).replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase();
+    }catch(e){}
     var sib=cat.find(function(x){return x.company&&comp&&String(x.company).toLowerCase()===comp.toLowerCase()&&x.code&&x.code.split('-').length>=3&&x.code.split('-')[1].length>=6;});
-    var comp3=sib?sib.code.split('-')[1].slice(0,3):(COMP[comp.toLowerCase()]||comp.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()||'XXX');
+    var comp3=mfgCode||(sib?sib.code.split('-')[1].slice(0,3):(COMP[comp.toLowerCase()]||comp.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()||'XXX'));
     var org3=ORG[org.toLowerCase()]||org.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase()||'XXX';
     var col=COL[g('rs-color').toLowerCase()]||g('rs-color').slice(0,3).toUpperCase()||'CLR';
     var prefix=thk+fam+'-'+comp3+org3+'-'+col+'-';
