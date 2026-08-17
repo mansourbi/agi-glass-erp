@@ -115,6 +115,17 @@ router.put('/:id', (req, res) => {
         join_date=?,dob=?,notes_hr=?,vacation_days_balance=?,social_security_pct=?,photo_url=?,
         updated_at=datetime('now') WHERE id=?`).run(...base);
     }
+    // Salary-history enrichment: the DB trigger just logged any salary/rate change
+    // with changed_by='(auto)'; stamp the real editor + optional reason/effective date.
+    try {
+      db.prepare(`UPDATE worker_salary_history
+        SET changed_by=?, reason=COALESCE(?, reason), effective_from=COALESCE(?, effective_from)
+        WHERE worker_id=? AND changed_by='(auto)'`)
+        .run((req.user && req.user.name) || 'admin',
+             (req.body.salary_reason || '').trim() || null,
+             (req.body.salary_effective_from || '').trim() || null,
+             targetId);
+    } catch(e) { console.warn('[salary history]', e.message); }
     // Mirror the vacation balance to the vacation_balance table (the source of truth for payroll).
     // Only admin can set this via this endpoint; a worker editing their own profile should
     // not accidentally overwrite their banked balance. The UI normally hides the field from workers.
@@ -269,6 +280,17 @@ router.delete('/:id/documents/:idx', requireAdmin, (req, res) => {
     db.prepare('UPDATE workers SET documents=? WHERE id=?').run(JSON.stringify(docs), +req.params.id);
     res.json(docs);
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/workers/:id/salary-history
+router.get('/:id/salary-history', (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.id !== +req.params.id)
+      return res.status(403).json({ error: 'Forbidden' });
+    res.json(db.prepare(`SELECT id, old_monthly, new_monthly, old_hourly, new_hourly,
+      effective_from, reason, changed_by, created_at
+      FROM worker_salary_history WHERE worker_id=? ORDER BY id DESC`).all(+req.params.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;

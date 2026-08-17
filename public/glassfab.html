@@ -21742,7 +21742,38 @@ async function openWorkerProfile(id){
   // Employment
   document.getElementById('wkp-emptype').value=w.employment_type||'hourly';
   document.getElementById('wkp-hourly').value=w.hourly_rate||'';
-  document.getElementById('wkp-salary').value=w.monthly_salary||'';
+  (function(){
+        var el=document.getElementById('wkp-salary');
+        el.value=w.monthly_salary||''; el.dataset.orig=String(w.monthly_salary||'');
+        if(!window._salHistLoad){
+          window._salHistLoad=async function(wid){
+            try{
+              var host=document.getElementById('wkp-salhist');
+              if(!host){
+                host=document.createElement('div'); host.id='wkp-salhist';
+                host.style.cssText='margin-top:10px;border-top:1px solid var(--border);padding-top:8px';
+                var mb=document.getElementById('wkp-salary').closest('.mb');
+                if(mb) mb.appendChild(host); else return;
+              }
+              host.innerHTML='<div style="font-size:.68rem;color:var(--mu)">Loading salary history...</div>';
+              var r=await fetch('/api/workers/'+wid+'/salary-history',{headers:{Authorization:'Bearer '+localStorage.getItem('agi_token')}});
+              if(!r.ok){ host.innerHTML=''; return; }
+              var rows=await r.json();
+              var fmt=function(v){ return (v===null||v===undefined||v==='')?'\u2014':(+v).toFixed(2).replace(/\.00$/,''); };
+              host.innerHTML='<div style="font-size:.7rem;font-weight:700;margin-bottom:4px">\uD83D\uDCB0 <span data-i18n="Salary History">Salary History</span></div>'+
+                (rows.length? rows.map(function(h){
+                  return '<div style="font-size:.66rem;display:flex;gap:8px;padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.06)">'+
+                    '<span class="mn" style="color:var(--mu);min-width:74px">'+(h.effective_from||String(h.created_at||'').slice(0,10))+'</span>'+
+                    '<span class="mn">'+fmt(h.old_monthly)+' \u2192 <b>'+fmt(h.new_monthly)+'</b> JOD</span>'+
+                    '<span class="mn" style="color:var(--mu)">('+fmt(h.old_hourly)+' \u2192 '+fmt(h.new_hourly)+'/hr)</span>'+
+                    '<span style="color:var(--mu)">'+(h.changed_by||'')+(h.reason?' \u00b7 '+h.reason:'')+'</span>'+
+                  '</div>';
+                }).join('') : '<div style="font-size:.65rem;color:var(--mu)">No records</div>');
+            }catch(e){}
+          };
+        }
+        window._salHistLoad(w.id);
+      })();
   document.getElementById('wkp-ss').value=w.social_security_pct||'';
   document.getElementById('wkp-vac-junior').value=w.vac_days_junior||14;
   document.getElementById('wkp-vac-senior').value=w.vac_days_senior||21;
@@ -21801,6 +21832,13 @@ async function saveWorkerProfile(section){
     employment_type:document.getElementById('wkp-emptype').value,
     hourly_rate:+document.getElementById('wkp-hourly').value||null,
     monthly_salary:+document.getElementById('wkp-salary').value||null,
+      salary_reason:(function(){
+        var el=document.getElementById('wkp-salary'); if(!el) return null;
+        var orig=String(el.dataset.orig||''), cur=String(el.value||'');
+        if(orig===cur) return null;
+        var r=prompt('Salary change: '+(orig||'\u2014')+' \u2192 '+(cur||'\u2014')+' JOD\nReason (optional):','');
+        return (r||'').trim()||null;
+      })(),
     social_security_pct:+document.getElementById('wkp-ss').value||0,
     vac_days_junior:+document.getElementById('wkp-vac-junior').value||14,
     vac_days_senior:+document.getElementById('wkp-vac-senior').value||21,
