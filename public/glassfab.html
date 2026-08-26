@@ -377,6 +377,56 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
   padding:6px 9px;display:flex;align-items:center;gap:6px;font-family:'Cairo','DM Mono',monospace;font-size:.7rem}
 
 /* DASHBOARD MATRIX */
+.rpanel table{font-size:.68rem;width:auto!important;max-width:100%;table-layout:auto;border-collapse:collapse}
+/* Responsive: let content wrap so columns share the available width instead of
+   forcing the table wider than the viewport. */
+.rpanel table td{padding:2px 6px!important;line-height:1.3;white-space:normal!important;overflow-wrap:break-word;max-width:none}
+/* Headers never break mid-word (PIECES was rendering as "PIEC ES") */
+.rpanel table th{padding:2px 6px!important;line-height:1.3;font-size:.58rem;letter-spacing:.3px;white-space:nowrap!important}
+/* Numeric columns hug their content; the leftover width goes to text columns */
+.rpanel table td.mn{white-space:nowrap!important;width:1%}
+/* Sales: keep the thickness column narrow so it stops swallowing the middle */
+/* Sales: shrink-to-fit instead of stretching across the whole screen, so the
+   grouped rows do not leave a dead gap in the middle. */
+#sr-tbl{width:auto!important;max-width:100%}
+/* Workers: the process-chip column claimed its full single-line width (2000px+).
+   Fixed layout makes the chips wrap inside a sane column instead. */
+#rpanel-workers-rep table{width:100%!important;table-layout:fixed}
+#rpanel-workers-rep th:nth-child(1),#rpanel-workers-rep td:nth-child(1){width:160px}
+#rpanel-workers-rep th:nth-child(2),#rpanel-workers-rep td:nth-child(2){width:60px}
+#rpanel-workers-rep th:nth-child(3),#rpanel-workers-rep td:nth-child(3){width:80px}
+#rpanel-workers-rep th:nth-child(5),#rpanel-workers-rep td:nth-child(5){width:110px}
+#rpanel-workers-rep td:nth-child(4){white-space:normal!important}
+#rpanel-workers-rep td:nth-child(4) .chip{margin:1px 2px}
+/* Final products: table hugs content; the label column is capped so the
+   numbers sit next to it instead of being pushed to the far edge. */
+/* The .tw wrapper was shrink-wrapping to its table (2000px+), so max-width:100%
+   had nothing sane to resolve against. Constrain the wrapper, then give the
+   final-products table explicit columns so the label wraps instead of stretching. */
+.rpanel .tw{width:100%;max-width:100%;overflow-x:auto}
+#rpanel-fp-rep table{width:auto!important;table-layout:fixed}
+#rpanel-fp-rep th:nth-child(1),#rpanel-fp-rep td:nth-child(1){width:420px;white-space:normal!important;word-break:break-word}
+#rpanel-fp-rep th:nth-child(2),#rpanel-fp-rep td:nth-child(2){width:80px}
+#rpanel-fp-rep th:nth-child(3),#rpanel-fp-rep td:nth-child(3){width:80px}
+#rpanel-fp-rep th:nth-child(4),#rpanel-fp-rep td:nth-child(4){width:100px}
+#rpanel-fp-rep th:nth-child(5),#rpanel-fp-rep td:nth-child(5){width:110px}
+#rpanel-fp-rep th:nth-child(n+2),#rpanel-fp-rep td:nth-child(n+2){text-align:right;white-space:nowrap}
+/* Report controls should not stretch across the whole panel */
+.rpanel input[type="date"]{width:150px!important;flex:0 0 auto}
+.rpanel select[multiple]{width:280px!important;max-width:100%;flex:0 0 auto}
+.rpanel select:not([multiple]){max-width:220px}
+#sr-tbl th:nth-child(1),#sr-tbl td:nth-child(1){width:100px;text-align:left}
+#sr-tbl th:nth-child(2),#sr-tbl td:nth-child(2){width:170px;text-align:left}
+#sr-tbl th:nth-child(3),#sr-tbl td:nth-child(3){width:80px;text-align:left}
+#sr-tbl th:nth-child(n+4),#sr-tbl td:nth-child(n+4){width:110px;white-space:nowrap;text-align:right}
+/* Numeric cells stay on one line - they are short and must not break */
+.rpanel table td.mn,.rpanel table th.mn{white-space:nowrap!important;width:1%}
+.rpanel .tw,.rpanel .matrix-wrap{overflow-x:auto;max-width:100%}
+.rpanel .card{padding:8px 12px!important;margin-bottom:8px!important}
+.rpanel .sbox{padding:6px 10px!important}
+.rpanel .inp{padding:3px 6px!important;font-size:.68rem!important}
+.rpanel .btn{font-size:.64rem!important}
+.rpanel .tw{max-height:calc(100vh - 240px);overflow:auto}
 .matrix-wrap{overflow:auto;max-height:calc(100vh - 220px)}
 .matrix{border-collapse:collapse;width:100%;font-size:.63rem}
 .matrix th,.matrix td{padding:3px 6px;border:1px solid var(--border);text-align:center;white-space:nowrap}
@@ -11795,7 +11845,7 @@ async function renderCuttingReport(){
   const body=document.getElementById('cutrep-body');
   if(body) body.innerHTML=
     '<table style="width:100%;border-collapse:collapse;font-size:.72rem"><thead><tr style="text-align:left;color:var(--mu)"><th style="padding:6px 8px">Date</th><th style="padding:6px 8px">Sheets</th><th style="padding:6px 8px">m&sup2;</th><th style="padding:6px 8px">Moves</th></tr></thead><tbody>'+
-    days.filter(d=>d.sheets>0||d.movements>0).map(d=>'<tr style="border-top:1px solid var(--border)"><td style="padding:6px 8px;font-family:DM Mono,monospace">'+d.date+'</td><td style="padding:6px 8px">'+d.sheets.toFixed(2)+'</td><td style="padding:6px 8px">'+d.sqm.toFixed(1)+'</td><td style="padding:6px 8px;color:var(--mu)">'+d.movements+'</td></tr>').join('')+
+    days.filter(d=>d.sheets>0||d.movements>0).slice().reverse().map(d=>'<tr style="border-top:1px solid var(--border)"><td style="padding:6px 8px;font-family:DM Mono,monospace">'+d.date+'</td><td style="padding:6px 8px">'+d.sheets.toFixed(2)+'</td><td style="padding:6px 8px">'+d.sqm.toFixed(1)+'</td><td style="padding:6px 8px;color:var(--mu)">'+d.movements+'</td></tr>').join('')+
     '</tbody></table>';
   _cutRepDays=days;
 }
@@ -11829,16 +11879,33 @@ function exportCuttingReportExcel(){
 async function showReport(id){
   document.querySelectorAll('.rpanel').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.rtab').forEach(t=>t.classList.remove('on'));
-  document.getElementById('rpanel-'+id).classList.add('on');
+  // Panels such as Sales are injected at runtime; a missing node used to throw
+  // here and abort the whole function, so the next report never rendered until
+  // the page was reloaded.
+  // The Sheet Runout overlay appends #runout-view outside the .rpanel system and
+  // shows itself by setting inline display on its siblings. Undo both, or its
+  // table stays visible underneath whichever report is selected next.
+  (function(){
+    const rv=document.getElementById('runout-view');
+    if(rv) rv.style.display='none';
+    const pg=document.getElementById('pg-reports');
+    if(pg) [...pg.children].forEach(c=>{ if(c.id!=='runout-view') c.style.display=''; });
+    const rb=document.getElementById('rpt-runout-btn');
+    if(rb) rb.classList.remove('on');
+  })();
+  const _panel=document.getElementById('rpanel-'+id);
+  if(_panel) _panel.classList.add('on');
   document.querySelectorAll('.rtab').forEach(t=>{if(t.textContent.toLowerCase().replace(/\s/g,'-').includes(id.split('-')[0]))t.classList.add('on')});
-  if(id==='productivity') await renderProdReport();
-  if(id==='hourly-rep') await renderHourlyReport();
-  if(id==='orders-rep'){ try{ orders=await AGI.Orders.list({include_items:1}); }catch(e){} renderOrdersReport(); }
-  if(id==='workers-rep') await renderWorkersReport();
-  if(id==='attendance-rep') await renderAttendanceReport();
-  if(id==='fp-rep') await renderFpReport();
-  if(id==='vac-rep') initVacReport();
-  if(id==='cutting-rep') await renderCuttingReport();
+  try{
+    if(id==='productivity') await renderProdReport();
+    if(id==='hourly-rep') await renderHourlyReport();
+    if(id==='orders-rep'){ try{ orders=await AGI.Orders.list({include_items:1}); }catch(e){} renderOrdersReport(); }
+    if(id==='workers-rep') await renderWorkersReport();
+    if(id==='attendance-rep') await renderAttendanceReport();
+    if(id==='fp-rep') await renderFpReport();
+    if(id==='vac-rep') initVacReport();
+    if(id==='cutting-rep') await renderCuttingReport();
+  }catch(e){ console.warn('[showReport] '+id+':', e && e.message); }
 }
 // ── Orders Report ────────────────────────────────────────────────────────
 function renderOrdersReport(){
@@ -11978,7 +12045,7 @@ function renderOrdersReport(){
     const {totals,byThick}=bucketMetrics(dayOrders);
     daily14.push({key,label,metrics:totals,byThick});
   }
-  buildChart('ord-chart-daily','ord-legend-daily',daily14);
+  buildChart('ord-chart-daily','ord-legend-daily',daily14.slice().reverse());
 
   // ── WEEKLY — Last 8 weeks (Sat start) ────────────────────────────────
   const lastSat=new Date(now); lastSat.setDate(lastSat.getDate()-((lastSat.getDay()+1)%7));
@@ -11994,7 +12061,7 @@ function renderOrdersReport(){
     const {totals,byThick}=bucketMetrics(wOrders);
     weekly8.push({key:wKey,label,metrics:totals,byThick});
   }
-  buildChart('ord-chart-weekly','ord-legend-weekly',weekly8);
+  buildChart('ord-chart-weekly','ord-legend-weekly',weekly8.slice().reverse());
 
   // ── MONTHLY — Last 12 months inclusive of current month ──────────────
   const monthly12=[];
@@ -12014,7 +12081,7 @@ function renderOrdersReport(){
     monthly12.push({key,label,metrics:totals,byThick});
   }
 
-  buildChart('ord-chart-monthly','ord-legend-monthly',monthly12);
+  buildChart('ord-chart-monthly','ord-legend-monthly',monthly12.slice().reverse());
 }
 
 function exportOrdersReportExcel(){
@@ -12750,20 +12817,94 @@ async function renderWorkersReport(){
 }
 
 async function renderFpReport(){
-  let stats=[];
-  try{ stats=await AGI.FinalProducts.stats(); }catch(e){ console.warn('fp report:',e.message); }
+  if(window.__fpBusy) return;           // never let two runs overlap
+  window.__fpBusy=true;
+  try{ await _renderFpReportInner(); } finally { window.__fpBusy=false; }
+}
+async function _renderFpReportInner(){
   const tbody=document.getElementById('rep-fp-body'); if(!tbody) return;
-  if(!stats.length){
-    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px">No final products defined yet</td></tr>';
+  // Date range controls, injected once; default = current month to today
+  const panel=document.getElementById('rpanel-fp-rep');
+  let fromEl=document.getElementById('fp-rep-from'), toEl=document.getElementById('fp-rep-to');
+  if(panel && !fromEl){
+    const bar=document.createElement('div');
+    bar.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px';
+    bar.innerHTML='<span style="font-size:.6rem;color:var(--mu);letter-spacing:1px">FROM</span>'
+      +'<input type="date" id="fp-rep-from" class="inp">'
+      +'<span style="font-size:.6rem;color:var(--mu);letter-spacing:1px">TO</span>'
+      +'<input type="date" id="fp-rep-to" class="inp">'
+      +'<button class="btn ba bsm" id="fp-rep-apply" style="font-size:.64rem">▶ Apply</button>'
+      +'<button class="btn bg bsm" id="fp-rep-prev" style="font-size:.64rem">Previous month</button>'
+      +'<button class="btn bg bsm" id="fp-rep-month" style="font-size:.64rem">This month</button>'
+      +'<button class="btn bg bsm" id="fp-rep-all" style="font-size:.64rem">All time</button>';
+    panel.insertBefore(bar, panel.firstChild);
+    fromEl=document.getElementById('fp-rep-from'); toEl=document.getElementById('fp-rep-to');
+    // Delegated: the date fields are enhanced by a custom picker that may set
+    // .value without firing a change event on the original element.
+    bar.addEventListener('change',function(e){ if(e.target&&/^fp-rep-(from|to)$/.test(e.target.id)) renderFpReport(); });
+    // (no 'input' listener: it re-ran the whole report - and the orders fetch -
+    //  on every keystroke, which froze the page. 'change' + Apply is enough.)
+    const _d=(y,m,day)=>new Date(y,m,day).toLocaleDateString('en-CA');
+    document.getElementById('fp-rep-apply').onclick=function(){ renderFpReport(); };
+    document.getElementById('fp-rep-month').onclick=function(){
+      const n=new Date(); fromEl.value=_d(n.getFullYear(),n.getMonth(),1); toEl.value=n.toLocaleDateString('en-CA'); renderFpReport();
+    };
+    document.getElementById('fp-rep-prev').onclick=function(){
+      const n=new Date();
+      fromEl.value=_d(n.getFullYear(),n.getMonth()-1,1);
+      toEl.value=_d(n.getFullYear(),n.getMonth(),0);   // last day of previous month
+      renderFpReport();
+    };
+    document.getElementById('fp-rep-all').onclick=function(){ fromEl.value=''; toEl.value=''; renderFpReport(); };
+  }
+  if(fromEl && !fromEl.value){
+    const n=new Date();
+    fromEl.value=new Date(n.getFullYear(),n.getMonth(),1).toLocaleDateString('en-CA');
+    toEl.value=n.toLocaleDateString('en-CA');
+  }
+  const dFrom=fromEl?fromEl.value:'', dTo=toEl?toEl.value:'';
+  if(!orders || !orders.length){
+    try{ orders=await AGI.Orders.list({include_items:1}); }catch(e){ console.warn('fp report orders:',e.message); }
+  }
+  // finalProducts may not be loaded yet when this report runs first
+  if(!window.finalProducts || !window.finalProducts.length){
+    try{ window.finalProducts = await AGI.FinalProducts.list(); }
+    catch(e){
+      try{ window.finalProducts = await fetch('/api/finalproducts',{headers:{Authorization:'Bearer '+(localStorage.getItem('agi_token')||'')}}).then(r=>r.json()); }
+      catch(e2){ console.warn('fp labels:', e2.message); }
+    }
+  }
+  const fpMap={}; (window.finalProducts||[]).forEach(fp=>fpMap[fp.id]={label:fp.label||fp.name||('#'+fp.id),category:fp.category||''});
+  const agg={};
+  (orders||[]).forEach(o=>{
+    if(o.status==='cancelled'||o.cancelled_at) return;
+    const d=(o.date||o.created_at||'').slice(0,10);
+    if(dFrom && d<dFrom) return;
+    if(dTo && d>dTo) return;
+    const fid=o.finalProductId||o.final_product_id; if(!fid) return;
+    if(!agg[fid]) agg[fid]={fid,orders:0,qty:0,sqm:0};
+    const A=agg[fid]; A.orders++;
+    (o.items||[]).forEach(i=>{ const q=+i.qty||0; A.qty+=q; A.sqm+=((+i.w||0)*(+i.h||0)/1e6)*q; });
+  });
+  const rows=Object.values(agg).sort((a,b)=>b.sqm-a.sqm);
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px">No orders in this period</td></tr>';
     return;
   }
-  tbody.innerHTML=stats.map(r=>`<tr>
-    <td><strong>${r.label}</strong></td>
-    <td class="mn">${r.category||'—'}</td>
-    <td class="mn" style="color:var(--a)">${r.order_count}</td>
-    <td class="mn">${r.total_qty}</td>
-    <td class="mn" style="color:var(--a3)">${(+r.total_sqm||0).toFixed(3)}</td>
-  </tr>`).join('');
+  const T={orders:0,qty:0,sqm:0};
+  tbody.innerHTML=rows.map(r=>{
+    const meta=fpMap[r.fid]||{label:'#'+r.fid,category:''};
+    T.orders+=r.orders; T.qty+=r.qty; T.sqm+=r.sqm;
+    return '<tr><td><strong>'+meta.label+'</strong></td>'
+      +'<td class="mn">'+(meta.category||'—')+'</td>'
+      +'<td class="mn" style="color:var(--a)">'+r.orders+'</td>'
+      +'<td class="mn">'+r.qty+'</td>'
+      +'<td class="mn" style="color:var(--a3)">'+r.sqm.toFixed(3)+'</td></tr>';
+  }).join('')
+    +'<tr style="border-top:2px solid var(--a)"><td colspan="2" style="font-weight:700">TOTAL</td>'
+    +'<td class="mn" style="font-weight:700">'+T.orders+'</td>'
+    +'<td class="mn" style="font-weight:700">'+T.qty+'</td>'
+    +'<td class="mn" style="font-weight:700;color:var(--a3)">'+T.sqm.toFixed(3)+'</td></tr>';
 }
 
 async function renderAttendanceReport(){
@@ -12780,6 +12921,12 @@ async function renderAttendanceReport(){
   let rows = [];
   try{ rows = await AGI.Attendance.list({date_from:dateFrom, date_to:dateTo}); }
   catch(e){ console.warn('att report:',e.message); }
+  // Holidays so non-working days still appear as labelled rows
+  let _holidayMap = {};
+  try{
+    const _hr = await fetch('/api/holidays',{headers:{Authorization:'Bearer '+(localStorage.getItem('agi_token')||'')}});
+    if(_hr.ok){ const _hs = await _hr.json(); (Array.isArray(_hs)?_hs:[]).forEach(h=>{ if(h.date) _holidayMap[String(h.date).slice(0,10)] = h.name||'Holiday'; }); }
+  }catch(e){ /* holidays are optional */ }
 
   const thead = document.getElementById('rep-att-head');
   const tbody = document.getElementById('rep-att-body');
@@ -12790,8 +12937,17 @@ async function renderAttendanceReport(){
     return;
   }
 
+
   // Collect all unique dates and workers (sorted)
-  const dates   = [...new Set(rows.map(r=>r.date))].sort();
+  const _allDates = [];
+  (function(){
+    const d0=new Date(dateFrom+'T00:00:00'), d1=new Date(dateTo+'T00:00:00');
+    for(let d=new Date(d0); d<=d1; d.setDate(d.getDate()+1)){
+      _allDates.push(new Date(d).toISOString().slice(0,10));
+    }
+  })();
+  const _rowDates=[...new Set(rows.map(r=>r.date))];
+  const dates=[...new Set([..._allDates,..._rowDates])].sort().reverse();   // newest first
   const workerMap = {};
   rows.forEach(r=>{ if(!workerMap[r.worker_id]) workerMap[r.worker_id]=r.worker_name; });
   const workers = Object.entries(workerMap).sort((a,b)=>a[1].localeCompare(b[1]));
@@ -12823,7 +12979,11 @@ async function renderAttendanceReport(){
   tbody.innerHTML = dates.map(date=>{
     const day = new Date(date+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
     const isWeekend = new Date(date+'T00:00:00').getDay()===5; // Friday
-    const rowStyle = isWeekend ? 'background:rgba(255,180,0,.05)' : '';
+    const holName = _holidayMap[date] || '';
+    const noData  = !lookup[date];
+    const rowStyle = holName ? 'background:rgba(0,204,255,.07)'
+                   : isWeekend ? 'background:rgba(255,180,0,.05)'
+                   : (noData ? 'opacity:.75' : '');
     const cells = workers.map(([wid])=>{
       const r = lookup[date]?.[wid];
       if(!r) return '<td style="border-left:1px solid var(--border2);color:var(--mu);text-align:center">—</td><td style="color:var(--mu);text-align:center">—</td><td style="color:var(--mu);text-align:center">—</td>';
@@ -12836,7 +12996,8 @@ async function renderAttendanceReport(){
              `<td style="color:var(--a);text-align:center;font-size:.72rem">${pout}</td>` +
              `<td style="color:${totColor};text-align:center;font-size:.72rem;font-weight:700">${tot}</td>`;
     }).join('');
-    return `<tr style="${rowStyle}"><td class="mn" style="white-space:nowrap;color:${isWeekend?'var(--a2)':'var(--tx2)'}">${day}</td>${cells}</tr>`;
+    const dayLabel = day + (holName ? ' <span style="color:var(--a4);font-size:.6rem">• '+holName+'</span>' : (isWeekend ? ' <span style="color:var(--a2);font-size:.6rem">• weekend</span>' : ''));
+    return `<tr style="${rowStyle}"><td class="mn" style="white-space:nowrap;color:${holName?'var(--a4)':isWeekend?'var(--a2)':'var(--tx2)'}">${dayLabel}</td>${cells}</tr>`;
   }).join('');
 }
 
@@ -19970,7 +20131,7 @@ async function _leaveCtx(){
   const tok = localStorage.getItem('agi_token')||'';
   let sched=null, hols=[];
   try{ sched = await fetch('/api/hr/schedule',{headers:{Authorization:'Bearer '+tok}}).then(x=>x.json()); if(Array.isArray(sched)) sched=sched[0]; }catch(e){}
-  try{ const h = await fetch('/api/hr/holidays',{headers:{Authorization:'Bearer '+tok}}).then(x=>x.json()); if(Array.isArray(h)) hols=h; }catch(e){}
+  try{ const h = await fetch('/api/holidays',{headers:{Authorization:'Bearer '+tok}}).then(x=>x.json()); if(Array.isArray(h)) hols=h; }catch(e){}
   const wd = (()=>{ try{ return JSON.parse(sched.work_days); }catch(e){ return ['mon','tue','wed','thu','sat','sun']; } })();
   _lvCtx = {
     workDays: new Set(wd),
@@ -24250,8 +24411,50 @@ function doLogout(){
       TS+=o.subtotal||0; TQ+=(o.area_sqm||0); TP+=o.total_pieces||0; TO+=1; });
     const list=Object.values(rows).sort((a,b)=> b.period.localeCompare(a.period)||a.cust.localeCompare(b.cust)||String(a.thick).localeCompare(String(b.thick),undefined,{numeric:true}));
     _last=list; const fmt=n=>Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-    body.innerHTML = list.length? list.map(r=>'<tr><td class="mn">'+r.period+'</td><td>'+r.cust+'</td><td class="mn">'+r.thick+'</td><td class="mn" style="text-align:right;font-weight:600;color:var(--a3)">'+fmt(r.sales)+'</td><td class="mn" style="text-align:right">'+fmt(r.sqm)+'</td><td class="mn" style="text-align:right">'+r.pieces+'</td><td class="mn" style="text-align:right">'+r.orders+'</td></tr>').join('')
-      +'<tr style="border-top:2px solid var(--a)"><td colspan="3" style="font-weight:700">TOTAL ('+list.length+' groups)</td><td class="mn" style="text-align:right;font-weight:700;color:var(--a3)">'+fmt(TS)+'</td><td class="mn" style="text-align:right;font-weight:700">'+fmt(TQ)+'</td><td class="mn" style="text-align:right;font-weight:700">'+TP+'</td><td class="mn" style="text-align:right;font-weight:700">'+TO+'</td></tr>'
+    // Collapsible: period > customer > thickness, each level sorted by sales desc
+    const perMap={};
+    list.forEach(r=>{
+      if(!perMap[r.period]) perMap[r.period]={period:r.period,sales:0,sqm:0,pieces:0,orders:0,custs:{}};
+      const P=perMap[r.period]; P.sales+=r.sales; P.sqm+=r.sqm; P.pieces+=r.pieces; P.orders+=r.orders;
+      if(!P.custs[r.cust]) P.custs[r.cust]={cust:r.cust,sales:0,sqm:0,pieces:0,orders:0,thicks:{}};
+      const C=P.custs[r.cust]; C.sales+=r.sales; C.sqm+=r.sqm; C.pieces+=r.pieces; C.orders+=r.orders;
+      const tk=String(r.thick);
+      if(!C.thicks[tk]) C.thicks[tk]={thick:tk,sales:0,sqm:0,pieces:0,orders:0};
+      const T=C.thicks[tk]; T.sales+=r.sales; T.sqm+=r.sqm; T.pieces+=r.pieces; T.orders+=r.orders;
+    });
+    const periods=Object.values(perMap).sort((x,y)=>String(y.period).localeCompare(String(x.period)));
+    window.__srOpen=window.__srOpen||{}; window.__srOpenC=window.__srOpenC||{};
+    const nums=(o)=>'<td class="mn" style="text-align:right">'+fmt(o.sales)+'</td>'
+      +'<td class="mn" style="text-align:right">'+fmt(o.sqm)+'</td>'
+      +'<td class="mn" style="text-align:right">'+o.pieces+'</td>'
+      +'<td class="mn" style="text-align:right">'+o.orders+'</td>';
+    body.innerHTML = periods.length ? periods.map(P=>{
+      const pOpen=!!window.__srOpen[P.period];
+      const custs=Object.values(P.custs).sort((x,y)=>y.sales-x.sales);
+      let h='<tr style="cursor:pointer;background:rgba(0,204,255,.06)" onclick="window.__srToggle(\''+P.period+'\')">'
+        +'<td class="mn" style="font-weight:700">'+(pOpen?'\u25BE':'\u25B8')+' '+P.period+'</td>'
+        +'<td style="color:var(--mu);font-size:.66rem">'+custs.length+' customer'+(custs.length===1?'':'s')+'</td>'
+        +'<td></td>'+nums(P)+'</tr>';
+      if(pOpen){
+        custs.forEach(C=>{
+          const ck=P.period+'|'+C.cust, cOpen=!!window.__srOpenC[ck];
+          const tks=Object.values(C.thicks).sort((x,y)=>y.sales-x.sales);
+          h+='<tr style="cursor:pointer;background:rgba(255,255,255,.02)" onclick="window.__srToggleC(\''+ck.replace(/'/g,"\\'")+'\')">'
+            +'<td></td>'
+            +'<td style="padding-left:14px!important">'+(cOpen?'\u25BE':'\u25B8')+' '+C.cust+'</td>'
+            +'<td style="color:var(--mu);font-size:.62rem">'+tks.length+' thk</td>'+nums(C)+'</tr>';
+          if(cOpen){
+            h+=tks.map(T=>'<tr><td></td><td></td><td class="mn" style="color:var(--a4)">'+T.thick+'</td>'+nums(T)+'</tr>').join('');
+          }
+        });
+      }
+      return h;
+    }).join('')
+      +'<tr style="border-top:2px solid var(--a)"><td colspan="3" style="font-weight:700">TOTAL ('+periods.length+' periods)</td>'
+      +'<td class="mn" style="text-align:right;font-weight:700">'+fmt(TS)+'</td>'
+      +'<td class="mn" style="text-align:right">'+fmt(TQ)+'</td>'
+      +'<td class="mn" style="text-align:right">'+TP+'</td>'
+      +'<td class="mn" style="text-align:right">'+TO+'</td></tr>'
       : '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:14px">No sales in range</td></tr>';
     const card=(l,v)=>'<div style="background:rgba(0,204,255,.06);border:1px solid rgba(0,204,255,.2);border-radius:8px;padding:8px 16px"><div style="font-size:.58rem;color:var(--mu)">'+l+'</div><div style="font-size:1.15rem;font-weight:700;color:var(--a)">'+v+'</div></div>';
     el('sr-cards').innerHTML=card('TOTAL SALES (JOD)',fmt(TS))+card('SQM',fmt(TQ))+card('PIECES',TP)+card('ORDERS',TO);
@@ -24260,6 +24463,8 @@ function doLogout(){
     const lines=[head.join(',')].concat(rows.map(r=>[r.period,'"'+String(r.cust).replace(/"/g,'""')+'"',r.thick,r.sales.toFixed(2),r.sqm.toFixed(2),r.pieces,r.orders].join(',')));
     const blob=new Blob([lines.join(NL)],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='sales-report.csv'; document.body.appendChild(a); a.click(); a.remove(); }
   window.showSalesReport=function(){ if(!ensureUI()) return; const pg=el('pg-reports'); pg.querySelectorAll('.rtab').forEach(t=>t.classList.remove('on')); el('rtab-sales').classList.add('on'); pg.querySelectorAll('.rpanel').forEach(p=>p.style.display='none'); el('rpanel-sales-rep').style.display='block'; renderSales(); };
+  window.__srToggle=function(p){ window.__srOpen=window.__srOpen||{}; window.__srOpen[p]=!window.__srOpen[p]; renderSales(); };
+  window.__srToggleC=function(k){ window.__srOpenC=window.__srOpenC||{}; window.__srOpenC[k]=!window.__srOpenC[k]; renderSales(); };
   window.renderSales=renderSales; window.exportSalesCSV=exportSalesCSV;
   if(typeof window.showReport==='function'){ const _sr=window.showReport; window.showReport=function(){ const r=_sr.apply(this,arguments); const sp=el('rpanel-sales-rep'),sb=el('rtab-sales'); if(sp)sp.style.display='none'; if(sb)sb.classList.remove('on'); return r; }; }
   ensureUI();
