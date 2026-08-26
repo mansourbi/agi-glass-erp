@@ -94,8 +94,12 @@
       '<div class="pp-pane on" id="pp-profiles"><div class="pp-head" style="margin:0 0 12px"><div style="flex:1"></div>'+
         '<button class="pp-btn pri" id="pp-newprof">+ New profile</button></div>'+
         '<div class="pp-card"><table class="pp-tbl"><thead><tr><th>Name</th><th>Basis</th><th style="text-align:right">Base rate</th>'+
-        '<th style="text-align:right">Min / piece</th><th>Rules</th><th>Used by</th><th></th></tr></thead>'+
-        '<tbody id="pp-profrows"><tr><td colspan="7" class="pp-empty">Loading...</td></tr></tbody></table></div></div>'+
+        '<th style="text-align:right">Min / piece</th>'+
+        '<th style="text-align:right" title="Minimum billable area per piece">Min area m2</th>'+
+        '<th style="text-align:right" title="Oversize threshold">Over m2</th>'+
+        '<th style="text-align:right" title="Oversize surcharge">Over %</th>'+
+        '<th>Rules</th><th>Used by</th><th></th></tr></thead>'+
+        '<tbody id="pp-profrows"><tr><td colspan="10" class="pp-empty">Loading...</td></tr></tbody></table></div></div>'+
       '<div class="pp-pane" id="pp-products"><div class="pp-card"><table class="pp-tbl"><thead><tr><th>Product</th><th>FP id</th>'+
         '<th>Default profile</th></tr></thead><tbody id="pp-prodrows"><tr><td colspan="3" class="pp-empty">Loading...</td></tr></tbody></table></div></div>'+
       '<div class="pp-pane" id="pp-cats"><div class="pp-head" style="margin:0 0 12px"><div style="flex:1"></div>'+
@@ -127,7 +131,10 @@
       '<div class="pp-f"><label>Name</label><input id="pp-pm-name" placeholder="e.g. 6mm Mir 1cm 5-2"><span class="hint">Your own label - name it however you like.</span></div>'+
       '<div class="pp-r2"><div class="pp-f"><label>Basis</label><select id="pp-pm-basis"><option value="per_sqm">Per m2</option><option value="per_linear_meter">Per linear meter</option></select></div>'+
       '<div class="pp-f"><label>Base rate (JD)</label><input id="pp-pm-rate" type="number" step="0.01" placeholder="0"></div></div>'+
-      '<div class="pp-f"><label>Minimum per piece (JD)</label><input id="pp-pm-min" type="number" step="0.01" placeholder="0"><span class="hint">Charged when a piece is too small to reach this on rate alone.</span></div>'+
+      '<div class="pp-r2"><div class="pp-f"><label>Min billable area (m2)</label><input id="pp-pm-minarea" type="number" step="0.001" placeholder="blank = off"></div>'+
+    '<div class="pp-f"><label>Oversize over (m2)</label><input id="pp-pm-ovt" type="number" step="0.01" placeholder="blank = off"></div></div>'+
+    '<div class="pp-f"><label>Oversize surcharge (%)</label><input id="pp-pm-ovp" type="number" step="0.5" placeholder="e.g. 15"></div>'+
+    '<div class="pp-f"><label>Minimum per piece (JD)</label><input id="pp-pm-min" type="number" step="0.01" placeholder="0"><span class="hint">Charged when a piece is too small to reach this on rate alone.</span></div>'+
       '</div><div class="pp-mf"><button class="pp-btn" id="pp-pm-x">Cancel</button><button class="pp-btn pri" id="pp-pm-s">Create profile</button></div></div></div>'+
      '<div class="pp-mbg" id="pp-cmodal"><div class="pp-mdl"><h3 id="pp-cmt">New category</h3><div class="pp-mb">'+
       '<div class="pp-f"><label>Label</label><input id="pp-cm-label" placeholder="e.g. Unique Cut-out"></div>'+
@@ -171,7 +178,7 @@
   async function loadProfiles(){
     try{ PROFILES=await api('GET','/profiles'); }catch(e){ toast(e.message,true); return; }
     var tb=document.getElementById('pp-profrows'); if(!tb)return;
-    if(!PROFILES.length){ tb.innerHTML='<tr><td colspan="7" class="pp-empty">No profiles yet.</td></tr>'; return; }
+    if(!PROFILES.length){ tb.innerHTML='<tr><td colspan="10" class="pp-empty">No profiles yet.</td></tr>'; return; }
     tb.innerHTML='';
     PROFILES.forEach(function(p){
       var tr=document.createElement('tr'); tr.className='r';
@@ -179,6 +186,9 @@
         '<td><span class="pp-pill g">'+(p.basis==='per_linear_meter'?'per LM':'per m2')+'</span></td>'+
         '<td style="text-align:right"><input class="pp-inp" value="'+p.base_rate+'" data-f="base_rate" data-id="'+p.id+'"></td>'+
         '<td style="text-align:right"><input class="pp-inp" value="'+p.min_per_piece+'" data-f="min_per_piece" data-id="'+p.id+'"></td>'+
+        '<td style="text-align:right"><input class="pp-inp" value="'+(p.min_billable_area==null?'':p.min_billable_area)+'" data-f="min_billable_area" data-id="'+p.id+'" placeholder="-"></td>'+
+        '<td style="text-align:right"><input class="pp-inp" value="'+(p.oversize_threshold_sqm==null?'':p.oversize_threshold_sqm)+'" data-f="oversize_threshold_sqm" data-id="'+p.id+'" placeholder="-"></td>'+
+        '<td style="text-align:right"><input class="pp-inp" value="'+(p.oversize_pct==null?'':p.oversize_pct)+'" data-f="oversize_pct" data-id="'+p.id+'" placeholder="-"></td>'+
         '<td><a href="#" style="color:var(--a)" data-rules="'+p.id+'">'+p.rule_count+' rule'+(p.rule_count==1?'':'s')+' &#9662;</a></td>'+
         '<td>'+(p.default_count?'<span class="pp-pill">'+p.default_count+' product'+(p.default_count==1?'':'s')+'</span>':'<span class="pp-mut">-</span>')+'</td>'+
         '<td><div class="pp-act"><button class="pp-btn gh sm" data-edit="'+p.id+'">Edit</button>'+
@@ -204,12 +214,20 @@
     document.getElementById('pp-pmt').textContent=p?'Edit profile':'New profile';
     document.getElementById('pp-pm-s').textContent=p?'Save changes':'Create profile';
     document.getElementById('pp-pm-name').value=p?p.name:''; document.getElementById('pp-pm-basis').value=p?p.basis:'per_sqm';
+    ['pp-pm-minarea','pp-pm-ovt','pp-pm-ovp'].forEach(function(k){var el=document.getElementById(k); if(el) el.value='';});
+    if(p){ var _ma=document.getElementById('pp-pm-minarea'), _ot=document.getElementById('pp-pm-ovt'), _op=document.getElementById('pp-pm-ovp');
+           if(_ma) _ma.value=(p.min_billable_area==null?'':p.min_billable_area);
+           if(_ot) _ot.value=(p.oversize_threshold_sqm==null?'':p.oversize_threshold_sqm);
+           if(_op) _op.value=(p.oversize_pct==null?'':p.oversize_pct); }
     document.getElementById('pp-pm-rate').value=p?p.base_rate:''; document.getElementById('pp-pm-min').value=p?p.min_per_piece:'';
     document.getElementById('pp-pmodal').classList.add('on'); document.getElementById('pp-pm-name').focus(); }
   function closeProfile(){document.getElementById('pp-pmodal').classList.remove('on');}
   async function saveProfile(){
     var b={name:document.getElementById('pp-pm-name').value.trim(),basis:document.getElementById('pp-pm-basis').value,
-      base_rate:document.getElementById('pp-pm-rate').value||0,min_per_piece:document.getElementById('pp-pm-min').value||0};
+      base_rate:document.getElementById('pp-pm-rate').value||0,min_per_piece:document.getElementById('pp-pm-min').value||0,
+      min_billable_area:document.getElementById('pp-pm-minarea')?document.getElementById('pp-pm-minarea').value:'',
+      oversize_threshold_sqm:document.getElementById('pp-pm-ovt')?document.getElementById('pp-pm-ovt').value:'',
+      oversize_pct:document.getElementById('pp-pm-ovp')?document.getElementById('pp-pm-ovp').value:''};
     if(!b.name){toast('Name is required',true);return;}
     try{ await api(PMID?'PUT':'POST',PMID?'/profiles/'+PMID:'/profiles',b); closeProfile(); toast(PMID?'Profile saved':'Profile created'); loadProfiles(); }
     catch(e){ toast(e.message,true); }
@@ -577,21 +595,28 @@
       ? '<div class="op-ovr"><label>Finalized profile</label><div class="op-prof" dir="auto" style="font-size:.95rem;margin-top:2px">'+esc(resolved.profile_name||'\u2014')+'</div></div>'
       : '<div class="op-ovr"><label>Override for this order</label><select id="op-prof-sel" class="pp-sel">'+profOpts+'</select></div>';
     var dtype=(choice&&choice.discount_type)||'', dval=(choice&&choice.discount_value!=null)?choice.discount_value:'';
-    var discSel='<select id="op-disc-type" class="pp-sel"><option value=""'+(dtype===''?' selected':'')+'>No discount</option><option value="pct"'+(dtype==='pct'?' selected':'')+'>Percent %</option><option value="flat"'+(dtype==='flat'?' selected':'')+'>Flat JOD</option></select>';
+    var discSel='<select id="op-disc-type" class="pp-sel"><option value=""'+(dtype===''?' selected':'')+'>No discount</option><option value="pct"'+(dtype==='pct'?' selected':'')+'>Percent %</option><option value="flat"'+(dtype==='flat'?' selected':'')+'>Flat JOD</option><option value="target_total"'+(dtype==='target_total'?' selected':'')+'>Set total</option></select>';
     var discInp='<input id="op-disc-val" class="pp-inp" type="number" step="0.01" min="0" placeholder="0" value="'+esc(dval)+'"'+(dtype===''?' disabled':'')+'>';
     var chList='';
     (charges||[]).forEach(function(c){
-      chList+='<div class="op-ch-row"><span dir="auto">'+esc(c.description||c.category_label||'Charge')+(c.category_label?' <em class="op-mut">('+esc(c.category_label)+')</em>':'')+'</span>'+
+      chList+='<div class="op-ch-row"><span dir="auto">'+(c.piece_uid?'<em class="op-mut" style="color:#4ab8e0">#'+esc(c.piece_uid)+'</em> ':'')+esc(c.description||c.category_label||'Charge')+((c.basis&&c.basis!=='total')?' <em class="op-mut">('+esc(c.basis)+' \u00D7 '+esc(c.rate)+')</em>':'')+(c.category_label?' <em class="op-mut">('+esc(c.category_label)+')</em>':'')+'</span>'+
         '<span><b>'+jd(c.amount)+'</b> <button class="op-x" data-ch="'+c.id+'" type="button" title="Remove">\u00D7</button></span></div>';
     });
     if(!chList) chList='<div class="op-mut" style="padding:4px 0">No manual charges.</div>';
     var catOpts='<option value="">(no category)</option>';
     (cats||[]).forEach(function(c){ catOpts+='<option value="'+c.id+'">'+esc(c.label)+'</option>'; });
     var nBase=bd?bd.value_base:0, nRule=bd?bd.value_rule_extras:0, nMan=bd?bd.manual_extras:0, nDisc=bd?bd.discount:0, nTot=bd?bd.subtotal:0;
-    var rows='';
+    var rows='', pieceOpts='', isFin=!!(snap && snap.finalized);
     if(bd && bd.lines && bd.lines.length){
-      bd.lines.forEach(function(l){ rows+='<tr><td>'+l.w+'\u00D7'+l.h+'</td><td>'+l.qty+'</td><td>'+jd(l.area)+'</td><td>'+jd(l.base_unit)+'</td><td>'+jd(l.extras_unit)+'</td><td><b>'+jd(l.line_base+l.line_extras)+'</b></td></tr>'; });
-    } else { rows='<tr><td colspan="6" class="op-mut" style="text-align:center;padding:14px">No priced items.</td></tr>'; }
+      bd.lines.forEach(function(l){
+        var pf=(l.fees||[]).reduce(function(s,x){ return s+(+x.amount||0); },0);
+        var flags=(l.min_hit?' <span style="color:#e0b341" title="Billed at minimum area">[MIN]</span>':'')+(l.ov_hit?' <span style="color:#e06341" title="Oversize surcharge applied">[OVR]</span>':'');
+        var bill=(l.billed_area!=null?l.billed_area:l.area);
+        rows+='<tr><td>'+l.w+'\u00D7'+l.h+'</td><td>'+l.qty+'</td><td>'+jd(l.area)+'</td><td>'+jd(bill)+flags+'</td><td>'+jd(l.base_unit)+'</td><td>'+jd((+l.oversize_unit||0)+(+l.extras_unit||0))+'</td><td>'+jd(pf)+'</td><td><b>'+jd(l.line_base+(+l.line_oversize||0)+l.line_extras+pf)+'</b></td>'+
+          '<td>'+(isFin?'':'<button class="op-pfee pp-btn" type="button" data-piece="'+l.id+'" title="Add fee to this piece" style="padding:1px 7px">+</button>')+'</td></tr>';
+        pieceOpts+='<option value="'+l.id+'">#'+l.id+' \u2014 '+l.w+'\u00D7'+l.h+'</option>';
+      });
+    } else { rows='<tr><td colspan="9" class="op-mut" style="text-align:center;padding:14px">No priced items.</td></tr>'; }
     var noProfileNote = bd ? '' : '<div class="op-empty" style="padding:12px;color:#f0a500">No price profile resolved. Pick an override below, or set a product/customer default.</div>';
     var actionBar;
     if(final){
@@ -609,6 +634,8 @@
         '<div class="op-card"><h4>Discount</h4><div class="op-disc">'+discSel+discInp+'</div></div>'+
         '<div class="op-card"><h4>Manual charges</h4><div id="op-charges">'+chList+'</div>'+
           '<div class="op-addcharge"><select id="op-ch-cat" class="pp-sel">'+catOpts+'</select>'+
+          '<select id="op-ch-scope" class="pp-sel" title="Apply to"><option value="">Whole order</option>'+pieceOpts+'</select>'+
+          '<select id="op-ch-basis" class="pp-sel" title="Basis"><option value="total">Total JOD</option><option value="per_piece">Per piece</option><option value="per_sqm">Per m\u00B2</option></select>'+
           '<input id="op-ch-desc" class="pp-inp" placeholder="description">'+
           '<input id="op-ch-amt" class="pp-inp" type="number" step="0.01" min="0" placeholder="JOD">'+
           '<button id="op-ch-add" class="pp-btn" type="button">Add</button></div>'+
@@ -624,15 +651,21 @@
           '<div class="op-r"><span>Base</span><b>'+jd(nBase)+'</b></div>'+
           '<div class="op-r"><span>Rule extras</span><b>'+jd(nRule)+'</b></div>'+
           '<div class="op-r"><span>Manual charges</span><b>'+jd(nMan)+'</b></div>'+
+          ((bd&&+bd.value_oversize)?('<div class="op-r"><span>Oversize surcharge</span><b>'+jd(bd.value_oversize)+'</b></div>'):'')+
+          ((bd&&+bd.ext_sell)?('<div class="op-r"><span>External process (via AGI)</span><b>'+jd(bd.ext_sell)+'</b></div>'):'')+
           '<div class="op-r"><span>Discount</span><b>'+(nDisc?'-':'')+jd(nDisc)+'</b></div>'+
-          '<div class="op-r op-total"><span>Total</span><b>'+jd(nTot)+' JOD</b></div>'+
+          '<div class="op-r"><span>Net</span><b>'+jd(nTot)+'</b></div>'+
+          (bd?('<div class="op-r"><span>VAT '+(bd.vat_pct!=null?bd.vat_pct:16)+'%</span><b>'+jd(bd.vat)+'</b></div>'):'')+
+          ((bd&&bd.rounding_adj)?('<div class="op-r"><span>Rounding</span><b>'+(bd.rounding_adj>0?'+':'')+jd(bd.rounding_adj)+'</b></div>'):'')+
+          '<div class="op-r op-total"><span>Total</span><b>'+jd(bd&&bd.total!=null?bd.total:nTot)+' JOD</b></div>'+
+          ((bd&&bd.weight_kg)?('<div class="op-r op-mut" style="font-size:.9em"><span>Weight</span><b>'+jd(bd.weight_kg)+' kg</b></div>'):'')+
         '</div>'+
         actionBar+
       '</div>'+
       noProfileNote+
       adjustments+
       '<div class="op-card"><h4>Item breakdown'+(final?' (finalized)':'')+'</h4>'+
-        '<table class="pp-tbl op-bd"><thead><tr><th>Size (mm)</th><th>Qty</th><th>Area m\u00B2</th><th>Base/pc</th><th>Extras/pc</th><th>Line total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+        '<table class="pp-tbl op-bd"><thead><tr><th>Size (mm)</th><th>Qty</th><th>Area m\u00B2</th><th>Billed m\u00B2</th><th>Base/pc</th><th>Extras/pc</th><th>Fees</th><th>Line total</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '</div>';
     wirePricing(host, oid, final);
   }
@@ -650,9 +683,20 @@
       var add=host.querySelector('#op-ch-add');
       if(add) add.onclick=function(){
         var cat=host.querySelector('#op-ch-cat').value||null, desc=host.querySelector('#op-ch-desc').value||null, amt=parseFloat(host.querySelector('#op-ch-amt').value);
+        var scopeEl=host.querySelector('#op-ch-scope'), basisEl=host.querySelector('#op-ch-basis');
+        var scope=scopeEl?(scopeEl.value||null):null, basis=basisEl?(basisEl.value||'total'):'total';
         if(!(amt>0)){ toast('Enter an amount greater than 0',1); return; }
-        api2('/'+oid+'/charges','POST',{category_id:cat,description:desc,amount:amt}).then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); });
+        var body={category_id:cat,description:desc,basis:basis,piece_uid:scope};
+        if(basis==='total') body.amount=amt; else body.rate=amt;
+        api2('/'+oid+'/charges','POST',body).then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); });
       };
+      host.querySelectorAll('.op-pfee').forEach(function(b){ b.onclick=function(){
+        var sc=host.querySelector('#op-ch-scope'); if(!sc) return;
+        sc.value=b.dataset.piece;
+        var bs=host.querySelector('#op-ch-basis'); if(bs&&bs.value==='total') bs.value='per_piece';
+        var d=host.querySelector('#op-ch-desc'); if(d){ d.focus(); d.scrollIntoView({block:'center',behavior:'smooth'}); }
+        sc.style.outline='2px solid #4ab8e0'; setTimeout(function(){ sc.style.outline=''; },1200);
+      }; });
       host.querySelectorAll('.op-x').forEach(function(b){ b.onclick=function(){ api2('/'+oid+'/charges/'+b.dataset.ch,'DELETE').then(function(){ renderOrderPricing(); }).catch(function(e){ toast(e.message,1); }); }; });
     }
     var fin=host.querySelector('#op-finalize');

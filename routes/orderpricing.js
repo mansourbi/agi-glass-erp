@@ -6,6 +6,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+let _engine=null; try { _engine = require('./pricing2').engine; } catch(e) { console.warn('[orderpricing] engine unavailable:', e.message); }
 router.use(requireAuth);
 
 // ── Idempotent migration: add snapshot columns to orders ──
@@ -55,8 +56,28 @@ function computeArea(orderId) {
 function buildSnapshot(orderId, customerOrderPrice) {
   const order = db.prepare('SELECT id, customer_id, final_product_id FROM orders WHERE id=?').get(orderId);
   if (!order) return null;
-  const { price, source } = resolvePrice(customerOrderPrice, order.customer_id, order.final_product_id);
   const area = computeArea(orderId);
+  // Engine-first: minimums, oversize, rule extras, manual fees, discount all included.
+  if (_engine) {
+    try {
+      const pv = _engine.buildPreview(orderId, { rate_override: customerOrderPrice });
+      const bd = pv && pv.payload && pv.payload.breakdown;
+      if (bd) {
+        const rv = pv.payload.resolved || {};
+        return {
+          customer_order_price: (customerOrderPrice == null || customerOrderPrice === '') ? null : Number(customerOrderPrice),
+          price_sqm: (rv.override_rate != null) ? rv.override_rate : rv.base_rate,
+          price_source: rv.source || 'engine',
+          area_sqm: area,
+          value_base: r2(bd.value_base),
+          value_extras: r2((+bd.value_oversize||0) + (+bd.value_rule_extras||0) + (+bd.manual_extras||0) + (+bd.ext_sell||0) - (+bd.discount||0)),
+          subtotal: r2(bd.subtotal)
+        };
+      }
+    } catch (e) { console.warn('[orderpricing] engine compute failed, falling back:', e.message); }
+  }
+  // Legacy fallback (no profile and no order rate): unchanged behaviour.
+  const { price, source } = resolvePrice(customerOrderPrice, order.customer_id, order.final_product_id);
   const value_base = (price == null) ? null : r2(price * area);
   const value_extras = 0;
   const subtotal = (value_base == null) ? null : r2(value_base + value_extras);

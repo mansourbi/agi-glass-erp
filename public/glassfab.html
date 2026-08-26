@@ -243,7 +243,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .nbadge{background:var(--a2);color:#fff;font-size:.55rem;padding:1px 4px;border-radius:6px}
 
 /* PAGES */
-.pg{display:none;padding:68px 20px 40px;max-width:1600px;margin:0 auto;position:relative;z-index:1;overflow:auto;min-height:calc(100vh - 60px)}
+.pg{display:none;padding:68px 20px 40px;max-width:none;margin:0 auto;position:relative;z-index:1;overflow:auto;min-height:calc(100vh - 60px)}
 .pg.on{display:block}
 .ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px}
 .pt{font-family:'Cairo','Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:3px}
@@ -1022,6 +1022,11 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             </th>
             <th class="ord-th xcol" id="xh-sqm">
               <div class="xcol-hd" onclick="sortOrders('sqm')"><span data-i18n="SQM">SQM</span>  <span class="sort-arrow" id="sa-sqm"></span></div>
+              <div class="xcol-filter"><label style="display:flex;align-items:center;gap:3px;font-size:.55rem;color:#e0b341;cursor:pointer;white-space:nowrap" title="Show only orders with no resolved price">
+                <input type="checkbox" id="xf-unpriced" onchange="renderOrders()" style="width:11px;height:11px;margin:0"><span data-i18n="Unpriced">Unpriced</span></label></div>
+            </th>
+            <th class="ord-th xcol" id="xh-kg">
+              <div class="xcol-hd" onclick="sortOrders('kg')"><span data-i18n="Weight">Weight</span> <span style="font-size:.55rem;color:var(--mu)">kg</span> <span class="sort-arrow" id="sa-kg"></span></div>
               <div class="xcol-filter"></div>
             </th>
             <th class="ord-th xcol" id="xh-pcs">
@@ -5043,6 +5048,45 @@ function getNextOrderNum(customerId, orderType, originalOrderNum){
   }
 }
 
+
+// --- Order modal: live area + weight per item and for the whole order ---
+window.__oiWeights=function(){
+  try{
+    var rows=document.querySelectorAll('#oi-list>div[id^="oi-"]');
+    var tA=0,tK=0,tP=0;
+    rows.forEach(function(r){
+      var idx=r.id.split('-')[1];
+      var w=+((document.getElementById('oiw-'+idx)||{}).value)||0;
+      var h=+((document.getElementById('oih-'+idx)||{}).value)||0;
+      var q=+((document.getElementById('oiq-'+idx)||{}).value)||0;
+      var th=+((document.getElementById('oit-'+idx)||{}).value)||0;
+      var a=(w*h)/1e6, kg=a*th*2.5;
+      tA+=a*q; tK+=kg*q; tP+=q;
+      var host=document.getElementById('oiwt-'+idx);
+      if(!host){
+        var pv=document.getElementById('oipreview-'+idx);
+        if(pv&&pv.parentElement){
+          host=document.createElement('div'); host.id='oiwt-'+idx;
+          host.style.cssText='font-family:DM Mono,monospace;font-size:.58rem;color:var(--mu);padding:1px 4px';
+          pv.parentElement.insertBefore(host, pv.nextSibling);
+        }
+      }
+      if(host) host.textContent = (w&&h) ? (a.toFixed(3)+' m\u00B2  \u00B7  '+kg.toFixed(1)+' kg'+(q>1?('  \u00D7'+q+' = '+(a*q).toFixed(3)+' m\u00B2 / '+(kg*q).toFixed(1)+' kg'):'')) : '';
+    });
+    var list=document.getElementById('oi-list');
+    if(list&&list.parentElement){
+      var tot=document.getElementById('oi-totals');
+      if(!tot){
+        tot=document.createElement('div'); tot.id='oi-totals';
+        tot.style.cssText='display:flex;gap:16px;justify-content:flex-end;padding:6px 10px;margin-top:4px;font-family:DM Mono,monospace;font-size:.66rem;color:var(--tx2);border-top:1px solid var(--border)';
+        list.parentElement.insertBefore(tot, list.nextSibling);
+      }
+      tot.innerHTML='<span>'+tP+' <span style="color:var(--mu)">pcs</span></span>'
+        +'<span style="color:var(--a3)">'+tA.toFixed(3)+' <span style="color:var(--mu)">m\u00B2</span></span>'
+        +'<span>'+tK.toFixed(1)+' <span style="color:var(--mu)">kg</span></span>';
+    }
+  }catch(e){}
+};
 function refreshPieceCodes(){
   const orderNum=document.getElementById('o-ref').value||'?';
   const rows=[...document.querySelectorAll('#oi-list>div[id^="oi-"]')];
@@ -5533,6 +5577,7 @@ function addOI(ex=null){
   // Select-all on focus for number inputs
   [wEl, hEl, qEl].forEach(inp=>{
     inp.addEventListener('focus', ()=>{ inp.select(); });
+    inp.addEventListener('input', ()=>{ if(window.__oiWeights) window.__oiWeights(); });
   });
 
   // Description: Tab → Width
@@ -5562,6 +5607,7 @@ function addOI(ex=null){
   });
 
   setTimeout(refreshPieceCodes,20);
+  setTimeout(function(){ if(window.__oiWeights) window.__oiWeights(); },40);
 }
 
 // ── Chip keyboard handler ─────────────────────────────────────
@@ -6181,7 +6227,9 @@ function getOrderMetrics(o){
   const thicks=[...new Set(items.map(i=>i.thickness+'mm'))].join(', ');
   const types =[...new Set(items.map(i=>i.glassType||'glass'))].join(', ');
   const colors=[...new Set(items.map(i=>i.color||'clear'))].join(', ');
-  return {pcs,sqm,lm,thicks,types,colors};
+  // Glass weight: area(m2) x thickness(mm) x 2.5 kg
+  const kg=items.reduce((a,i)=>a+((i.w*i.h)/1e6)*(+i.thickness||0)*2.5*(+i.qty||1),0);
+  return {pcs,sqm,lm,thicks,types,colors,kg};
 }
 
 function sortOrders(col){
@@ -6196,6 +6244,7 @@ function clearOrdFilters(){
     const el=document.getElementById(id); if(!el) return;
     if(el.tagName==='SELECT') el.value=''; else el.value='';
   });
+  const _up=document.getElementById('xf-unpriced'); if(_up) _up.checked=false;
   if(document.getElementById('of-fp')) document.getElementById('of-fp').value='';
   ['of-num','of-extref'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['of-date-from','of-date-to'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -6250,6 +6299,8 @@ async function renderOrders(){
   if(fColor)    list=list.filter(o=>(o.items||[]).some(i=>(i.color||'clear')===fColor));
   if(fFp)       list=list.filter(o=>String(o.finalProductId||o.final_product_id||'')===fFp);
   if(fOrderType) list=list.filter(o=>(o.order_type||o.orderType||'normal')===fOrderType);
+  if(document.getElementById('xf-unpriced')?.checked)
+    list=list.filter(o=>(o.subtotal==null||o.subtotal==='')||(o.price_source||o.priceSource)==='none');
 
   // Sort
   const {col,dir}=_ordSort;
@@ -6265,6 +6316,7 @@ async function renderOrders(){
     else if(col==='type'){va=ma.types;   vb=mb.types;}
     else if(col==='color'){va=ma.colors; vb=mb.colors;}
     else if(col==='sqm'){va=ma.sqm;      vb=mb.sqm;}
+    else if(col==='kg') {va=ma.kg;       vb=mb.kg;}
     else if(col==='pcs'){va=ma.pcs;      vb=mb.pcs;}
     else if(col==='lm') {va=ma.lm;       vb=mb.lm;}
     else if(col==='status'){va=a.status; vb=b.status;}
@@ -6286,7 +6338,7 @@ async function renderOrders(){
     xfEp.value=cur;
   }
   // Update sort arrows
-  ['num','customer','extref','date','thick','type','color','sqm','pcs','lm','status','fp'].forEach(k=>{
+  ['num','customer','extref','date','thick','type','color','sqm','kg','pcs','lm','status','fp'].forEach(k=>{
     const el=document.getElementById('sa-'+k); if(!el) return;
     el.className='sort-arrow'+(col===k?' on':'');
     el.textContent=col===k?(dir===1?'\u25b2':'\u25bc'):'\u25bc';
@@ -6333,7 +6385,7 @@ async function renderOrders(){
           ${o.status==='cancelled'?`<span style="font-size:.6rem;color:var(--a2)">&#10005;</span>`:''}
         </div>
       </td>
-      <td class="mn" style="color:var(--a);white-space:nowrap">${o.num}</td>
+      <td class="mn" style="color:var(--a);white-space:nowrap">${o.num}${(()=>{const src=o.price_source||o.priceSource; const st=(o.subtotal==null||o.subtotal==='')||src==='none'; return st?` <span title="Not priced - no rate resolved for this product" style="color:#e0b341;cursor:help">&#9888;</span>`:'';})()}</td>
       <td style="white-space:nowrap">${c2.name||'?'}</td>
       <td class="mn" style="color:var(--tx2);font-size:.7rem">${o.extref||'&#8212;'}</td>
       <td class="mn" style="color:var(--mu);white-space:nowrap">${o.date}</td>
@@ -6345,6 +6397,7 @@ async function renderOrders(){
       <td style="font-size:.72rem">${m.types.split(', ').map(t=>`<span class="bge" style="background:rgba(0,204,255,.08);color:var(--a);border:1px solid rgba(0,204,255,.15);font-size:.6rem">${t}</span>`).join(' ')}</td>
       <td>${colorDots} <span style="font-size:.68rem;color:var(--tx2)">${m.colors}</span></td>
       <td class="mn" style="color:var(--a3)">${m.sqm.toFixed(3)}</td>
+      <td class="mn" style="color:var(--tx2)">${m.kg.toFixed(1)}</td>
       <td class="mn">${m.pcs}</td>
       <td class="mn" style="color:var(--tx2)">${m.lm.toFixed(1)}</td>
       <td class="mn" style="font-size:.65rem">${compAt?`<span style="color:var(--a3)">${compAt}</span>${compBy?`<div style="color:var(--mu);font-size:.58rem">${compBy}</div>`:''}` : '<span style="color:var(--mu)">—</span>'}</td>
@@ -6378,6 +6431,7 @@ function renderOrdSummary(list){
   const totPcs=kpiList.reduce((a,o)=>a+getOrderMetrics(o).pcs,0);
   const totSQM=kpiList.reduce((a,o)=>a+getOrderMetrics(o).sqm,0);
   const totLM =kpiList.reduce((a,o)=>a+getOrderMetrics(o).lm,0);
+  const totKG =kpiList.reduce((a,o)=>a+getOrderMetrics(o).kg,0);
   const hasFilter=!!(document.getElementById('xf-cust')?.value||document.getElementById('xf-status')?.value||
     document.getElementById('xf-date-from')?.value||document.getElementById('xf-date-to')?.value||
     document.getElementById('xf-num')?.value||document.getElementById('xf-extref')?.value||
@@ -6392,6 +6446,7 @@ function renderOrdSummary(list){
     <div class="sbox"><div class="slbl">${t('Total Pcs')}</div><div class="sval" style="color:var(--a)">${totPcs}</div></div>
     <div class="sbox"><div class="slbl">${t('Total SQM')}</div><div class="sval" style="color:var(--a3)">${totSQM.toFixed(2)}</div></div>
     <div class="sbox"><div class="slbl">${t('Total Lin m')}</div><div class="sval" style="color:var(--tx2)">${totLM.toFixed(1)}</div></div>
+    <div class="sbox"><div class="slbl">${t('Total Weight')}</div><div class="sval" style="color:var(--tx2)">${totKG.toFixed(0)} <span style="font-size:.6rem;color:var(--mu)">kg</span></div></div>
   `;
   window.applyLang && window.applyLang();
 }
@@ -18754,7 +18809,7 @@ async function printDeliveryArabic(id){
   });
 
   let rows = '';
-  let grandSqm = 0, grandPcs = 0, grandLinM = 0;
+  let grandSqm = 0, grandPcs = 0, grandLinM = 0, grandKg = 0;
 
   orderList.forEach(orderNum=>{
     const grpItems = groups[orderNum];
@@ -18765,7 +18820,8 @@ async function printDeliveryArabic(id){
       const w = p.w||0, h = p.h||0;
       const sqm = (w*h)/1e6;
       const linM = Math.max(w,h)/1000;
-      grandSqm += sqm; grandPcs++; grandLinM += linM;
+      const pKg = sqm * (+p.thickness||0) * 2.5;
+      grandSqm += sqm; grandPcs++; grandLinM += linM; grandKg += pKg;
       const rowBg = grandPcs%2===1?'background:#f5f8ff':'';
       rows += `<tr style="border-bottom:0.5px solid #ddd;${rowBg}">
         <td style="padding:5px 4px;text-align:center;direction:rtl">${p.piece_code||p.piece_uid||''}</td>
@@ -18776,6 +18832,7 @@ async function printDeliveryArabic(id){
         <td style="padding:5px 4px;text-align:center">${w}</td>
         <td style="padding:5px 4px;text-align:center">${h}</td>
         <td style="padding:5px 4px;text-align:center">${sqm.toFixed(3)}</td>
+        <td style="padding:5px 4px;text-align:center">${pKg.toFixed(1)}</td>
       </tr>`;
     });
   });
@@ -18822,13 +18879,21 @@ async function printDeliveryArabic(id){
           <th style="padding:6px 5px;text-align:center;width:8%">عرض</th>
           <th style="padding:6px 5px;text-align:center;width:8%">طول</th>
           <th style="padding:6px 5px;text-align:center;width:8%">م²</th>
+          <th style="padding:6px 5px;text-align:center;width:8%">كغم</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
     <div style="display:flex;justify-content:flex-end;gap:24px;font-size:12px;padding-top:10px;border-top:1px solid #ddd">
+      <div>الوزن الإجمالي: <strong>${grandKg.toFixed(1)} كغم</strong></div>
       <div>إجمالي القطع: <strong>${grandPcs}</strong></div>
       <div>إجمالي المساحة: <strong>${grandSqm.toFixed(3)} م²</strong></div>
+    </div>
+    <div style="margin-top:18px;padding:10px 12px;border:1px solid #999;border-radius:4px;font-size:11.5px;line-height:1.9;text-align:justify">
+      أقر أنا المستلم الموقّع أدناه بأنني استلمت القطع المبيّنة أعلاه كاملةً من حيث العدد والمقاسات، وبحالة سليمة وخالية من أي كسر أو عيوب ظاهرة.
+    </div>
+    <div style="margin-top:34px;width:55%">
+      <div style="border-top:1px solid #666;padding-top:6px;font-size:11px;color:#555">اسم وتوقيع المستلم</div>
     </div>
   </div>
   <script>window.onload=()=>window.print();<\/script>
@@ -18907,16 +18972,17 @@ function _buildDeliveryPrintHtml(d, opts){
     return o ? (o.extref||o.ext_ref||'') : '';
   };
 
-  let rowNum=0, totalSqm=0;
+  let rowNum=0, totalSqm=0, totalKg=0;
   let rows='';
   orderOrder.forEach(orderNum=>{
     const grpPieces=orderGroups[orderNum];
     const extref=getExtref(orderNum);
-    rows+=`<tr><td colspan="6" style="padding:10px 0 4px;font-size:10px;font-weight:700;color:#111;letter-spacing:1px;border-bottom:1px solid #aaa">ORDER: ${orderNum}${extref?' — '+extref:''}</td></tr>`;
+    rows+=`<tr><td colspan="7" style="padding:10px 0 4px;font-size:10px;font-weight:700;color:#111;letter-spacing:1px;border-bottom:1px solid #aaa">ORDER: ${orderNum}${extref?' — '+extref:''}</td></tr>`;
     grpPieces.forEach(p=>{
       rowNum++;
       const w=p.w||0,h=p.h||0;
       totalSqm+=(w*h)/1e6;
+      const pKg=((w*h)/1e6)*(+p.thickness||0)*2.5; totalKg+=pKg;
       const procsArr=Array.isArray(p.processes)?p.processes:JSON.parse(p.processes||'[]');
       const procs=procsArr.map(x=>PROC_LABELS[x]||x).join(', ');
       const typeStr=(p.glass_type||'').charAt(0).toUpperCase()+(p.glass_type||'').slice(1);
@@ -18927,6 +18993,7 @@ function _buildDeliveryPrintHtml(d, opts){
         <td style="padding:7px 8px 7px 0;font-size:11px;color:#555">${p.piece_code||p.piece_uid||''}</td>
         <td style="padding:7px 8px 7px 0;text-align:center;font-size:11px">${w} × ${h}</td>
         <td style="padding:7px 8px 7px 0;font-size:11px;color:#555">${p.thickness||''}mm ${typeStr} ${colorStr}</td>
+        <td style="padding:7px 8px 7px 0;text-align:center;font-size:11px;color:#555">${pKg.toFixed(1)}</td>
         <td style="padding:7px 0 7px 0;font-size:11px;color:#555">${procs}</td>
       </tr>`;
     });
@@ -18987,16 +19054,21 @@ function _buildDeliveryPrintHtml(d, opts){
           <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Description</th>
           <th style="text-align:center;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">W × H (mm)</th>
           <th style="text-align:left;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Glass</th>
+          <th style="text-align:center;padding:6px 8px 8px 0;font-size:10px;color:#888;font-weight:600">Kg</th>
           <th style="text-align:left;padding:6px 0 8px 0;font-size:10px;color:#888;font-weight:600">Processes</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
     <div style="display:flex;justify-content:flex-end;gap:32px;font-size:12px;padding-top:10px;border-top:1px solid #ddd;margin-bottom:16px">
+      <div style="color:#555">Total weight: <strong style="color:#111">${totalKg.toFixed(1)} kg</strong></div>
       <div style="color:#555">Total pieces: <strong style="color:#111">${items.length}</strong></div>
       <div style="color:#555">Total sqm: <strong style="color:#111">${totalSqm.toFixed(3)} m²</strong></div>
     </div>
     ${notesHtml}
+    <div dir="rtl" style="margin:14px 0 4px;padding:10px 12px;border:1px solid #999;border-radius:4px;font-size:11.5px;line-height:1.9;font-family:'Cairo',Arial,sans-serif;text-align:justify">
+      أقر أنا المستلم الموقّع أدناه بأنني استلمت القطع المبيّنة أعلاه كاملةً من حيث العدد والمقاسات، وبحالة سليمة وخالية من أي كسر أو عيوب ظاهرة.
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;padding-top:20px;border-top:0.5px solid #ddd;margin-top:8px">
       <div>
         <div style="font-size:10px;font-weight:600;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:48px">Delivered by</div>
@@ -19244,6 +19316,7 @@ function adlvRenderPieces(){
       <div style="font-family:monospace;font-size:.8rem;color:var(--a);flex:1">${p.piece_uid||p.uid}</div>
       <div style="font-size:.72rem;color:var(--tx2)">${p.order_num||''}</div>
       <div style="font-size:.72rem;color:var(--tx2)">${p.w}×${p.h}mm</div>
+      <div style="font-size:.72rem;color:var(--a3);min-width:52px;text-align:right">${(((p.w*p.h)/1e6)*(+p.thickness||0)*2.5).toFixed(1)} kg</div>
       <button onclick="adlvRemovePiece('${p.piece_uid||p.uid}')" style="background:none;border:none;color:var(--mu);cursor:pointer;font-size:1rem;padding:2px 6px">&times;</button>
     </div>`).join('');
 }
@@ -19265,7 +19338,8 @@ function adlvFinalise(){
   document.getElementById('adlv-fin-company').value='';
   document.getElementById('adlv-fin-notes').value='';
   const custName=document.getElementById('adlv-customer').options[document.getElementById('adlv-customer').selectedIndex]?.dataset?.name||'';
-  document.getElementById('adlv-fin-summary').textContent=custName+' — '+_adlvPieces.length+' piece'+(_adlvPieces.length!==1?'s':'');
+  const _tkg=_adlvPieces.reduce((a,p)=>a+(((p.w*p.h)/1e6)*(+p.thickness||0)*2.5),0);
+  document.getElementById('adlv-fin-summary').textContent=custName+' — '+_adlvPieces.length+' piece'+(_adlvPieces.length!==1?'s':'')+' — '+_tkg.toFixed(1)+' kg';
   OM('m-adlv-finalise');
 }
 
@@ -23948,6 +24022,146 @@ function doLogout(){
 })();
 </script>
 
+
+<!-- PRICING_TAB v2 (engine UI over /api/pricing2) -->
+<script>
+(function(){
+  if(window.__pricingTab2) return; window.__pricingTab2=true;
+  const T=()=>localStorage.getItem('agi_token');
+  const api=async(m,p,b)=>{const r=await fetch('/api/pricing2'+p,{method:m,headers:{Authorization:'Bearer '+T(),'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j;};
+  const F=n=>(n==null?'\u2014':(+n).toFixed(2));
+  const canEdit=()=>!!(window.CAN&&(CAN('pricing.edit')||CAN('pricing.access')));
+  let OID=null, PV=null, SNAP=null;
+
+  function ensureModal(){
+    if(document.getElementById('m-pricing2')) return;
+    const d=document.createElement('div'); d.className='mbg mbg-top'; d.id='m-pricing2'; d.style.display='none';
+    d.innerHTML='<div class="mdl" style="max-width:860px;max-height:92vh;overflow:auto">'
+     +'<div class="mh"><span>\uD83D\uDCB0 <span data-i18n="Order Pricing">Order Pricing</span> <span id="pr2-num" class="mn"></span></span>'
+     +'<button class="mc" onclick="document.getElementById(\'m-pricing2\').style.display=\'none\'">\u2715</button></div>'
+     +'<div class="mb" id="pr2-body">Loading...</div></div>';
+    document.body.appendChild(d);
+  }
+  function feeRow(fl){
+    return '<tr><td>'+(fl.piece_uid?('<span class="mn" style="color:var(--a)">#'+fl.piece_uid+'</span> '):'')+(fl.label||'')+'</td>'
+     +'<td class="mn">'+(fl.basis||'total')+(fl.rate?(' \u00d7 '+fl.rate):'')+'</td>'
+     +'<td class="mn" style="text-align:right">'+F(fl.amount)+'</td>'
+     +'<td>'+(canEdit()&&!SNAP?('<button class="btn br bsm" style="font-size:.55rem" onclick="window.__pr2DelFee('+fl.id+')">\u2715</button>'):'')+'</td></tr>';
+  }
+  function render(){
+    const b=PV&&PV.breakdown, R=PV&&PV.resolved, el=document.getElementById('pr2-body');
+    if(!el) return;
+    if(!b){ el.innerHTML='<div style="color:var(--mu);font-size:.75rem">'+(PV&&PV.note||'No pricing available')+'</div>'; return; }
+    const lock=!!SNAP;
+    let h='';
+    h+='<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.72rem;margin-bottom:10px">'
+      +'<div><span style="color:var(--mu)" data-i18n="Profile">Profile</span><br><b>'+(R.profile_name||'\u2014')+'</b> <span class="mn" style="color:var(--mu)">('+R.source+', '+R.base_rate+'/m\u00b2)</span></div>'
+      +'<div><span style="color:var(--mu)" data-i18n="Billed">Billed</span><br><b>'+F(b.billed_sqm)+'</b> m\u00b2</div>'
+      +'<div><span style="color:var(--mu)" data-i18n="Weight">Weight</span><br><b>'+F(b.weight_kg)+'</b> kg</div>'
+      +(lock?'<div style="color:#e0b341">\uD83D\uDD12 <span data-i18n="Finalized">Finalized</span> '+SNAP.finalized_at.slice(0,10)+' ('+(SNAP.finalized_by||'')+')</div>':'')
+      +'</div>';
+    h+='<table class="tbl" style="font-size:.7rem;width:100%"><tbody>'
+      +'<tr><td data-i18n="Base value">Base value</td><td class="mn" style="text-align:right">'+F(b.value_base)+'</td></tr>'
+      +(b.value_oversize?'<tr><td data-i18n="Oversize surcharge">Oversize surcharge</td><td class="mn" style="text-align:right">'+F(b.value_oversize)+'</td></tr>':'')
+      +(b.value_rule_extras?'<tr><td data-i18n="Rule extras">Rule extras (holes...)</td><td class="mn" style="text-align:right">'+F(b.value_rule_extras)+'</td></tr>':'')
+      +'<tr><td data-i18n="Manual fees">Manual fees</td><td class="mn" style="text-align:right">'+F(b.manual_extras)+'</td></tr>'
+      +(b.ext_sell?'<tr><td data-i18n="External process (via AGI)">External process (via AGI)</td><td class="mn" style="text-align:right">'+F(b.ext_sell)+'</td></tr>':'')
+      +'<tr><td><b data-i18n="Subtotal">Subtotal</b></td><td class="mn" style="text-align:right"><b>'+F(b.pre_discount)+'</b></td></tr>'
+      +'<tr><td data-i18n="Discount">Discount</td><td class="mn" style="text-align:right">\u2212'+F(b.discount)+'</td></tr>'
+      +'<tr><td data-i18n="Net">Net</td><td class="mn" style="text-align:right">'+F(b.subtotal)+'</td></tr>'
+      +'<tr><td>VAT '+b.vat_pct+'%</td><td class="mn" style="text-align:right">'+F(b.vat)+'</td></tr>'
+      +'<tr><td data-i18n="Rounding">Rounding</td><td class="mn" style="text-align:right">'+(b.rounding_adj>=0?'+':'')+F(b.rounding_adj)+'</td></tr>'
+      +'<tr style="font-size:.85rem"><td><b data-i18n="TOTAL">TOTAL</b></td><td class="mn" style="text-align:right"><b>'+F(b.total)+' JOD</b></td></tr>'
+      +'</tbody></table>';
+    // fees
+    h+='<div style="margin-top:12px"><div style="font-size:.7rem;font-weight:700;margin-bottom:4px" data-i18n="Fees">Fees</div>'
+      +'<table class="tbl" style="font-size:.66rem;width:100%"><tbody>'+(b.fee_lines||[]).map(feeRow).join('')+'</tbody></table>';
+    if(canEdit()&&!lock){
+      const pieceOpts=(b.lines||[]).map(l=>'<option value="'+l.id+'">#'+l.id+' ('+l.w+'\u00d7'+l.h+')</option>').join('');
+      h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:flex-end">'
+        +'<input id="pr2-fee-label" class="inp" placeholder="Fee label (e.g. rounded edges)" style="flex:2;min-width:160px">'
+        +'<select id="pr2-fee-scope" class="inp" style="width:130px"><option value="" data-i18n="Whole order">Whole order</option>'+pieceOpts+'</select>'
+        +'<select id="pr2-fee-basis" class="inp" style="width:100px"><option value="total">Total</option><option value="per_piece">/piece</option><option value="per_sqm">/m\u00b2</option></select>'
+        +'<input id="pr2-fee-val" type="number" step="0.01" class="inp" placeholder="JOD" style="width:80px">'
+        +'<button class="btn ba bsm" onclick="window.__pr2AddFee()" data-i18n="Add">Add</button></div>';
+    }
+    h+='</div>';
+    // discount + vat
+    if(canEdit()&&!lock){
+      h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:flex-end">'
+        +'<div><div style="font-size:.6rem;color:var(--mu)" data-i18n="Discount">Discount</div>'
+        +'<select id="pr2-dtype" class="inp" style="width:120px"><option value="">\u2014</option><option value="pct">% off</option><option value="flat">Amount off</option><option value="target_total">Set total</option></select></div>'
+        +'<input id="pr2-dval" type="number" step="0.01" class="inp" style="width:90px" placeholder="value">'
+        +'<div><div style="font-size:.6rem;color:var(--mu)">VAT %</div><input id="pr2-vat" type="number" step="0.5" class="inp" style="width:70px" value="'+b.vat_pct+'"></div>'
+        +'<button class="btn ba bsm" onclick="window.__pr2SaveTerms()" data-i18n="Apply">Apply</button></div>';
+    }
+    // per-piece breakdown
+    h+='<div style="margin-top:12px"><div style="font-size:.7rem;font-weight:700;margin-bottom:4px" data-i18n="Per-piece breakdown">Per-piece breakdown</div>'
+      +'<table class="tbl" style="font-size:.63rem;width:100%"><thead><tr><th>#</th><th data-i18n="Size">Size</th><th data-i18n="Qty">Qty</th><th>m\u00b2</th><th data-i18n="Billed">Billed</th><th data-i18n="Base">Base</th><th data-i18n="Extras">Extras</th><th data-i18n="Fees">Fees</th><th data-i18n="Line">Line</th><th></th></tr></thead><tbody>'
+      +(b.lines||[]).map(l=>{
+        const fees=(l.fees||[]).reduce((s,x)=>s+x.amount,0);
+        const lt=l.line_base+l.line_oversize+l.line_extras+fees;
+        return '<tr><td class="mn">'+l.id+'</td><td class="mn">'+l.w+'\u00d7'+l.h+'</td><td class="mn">'+l.qty+'</td>'
+         +'<td class="mn">'+F(l.area)+'</td><td class="mn">'+F(l.billed_area)+(l.min_hit?' <span style="color:#e0b341">[MIN]</span>':'')+(l.ov_hit?' <span style="color:#e06341">[OVR]</span>':'')+'</td>'
+         +'<td class="mn">'+F(l.line_base)+'</td><td class="mn">'+F(l.line_oversize+l.line_extras)+'</td><td class="mn">'+F(fees)+'</td><td class="mn"><b>'+F(lt)+'</b></td>'
+         +'<td>'+((canEdit()&&!SNAP)?('<button class="btn bg bsm" style="font-size:.55rem" title="Add fee to this piece" onclick="window.__pr2TargetPiece(\''+l.id+'\')">\u2795</button>'):'')+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+    // finalize
+    if(canEdit()){
+      h+='<div style="margin-top:12px;display:flex;gap:8px">'
+        +(lock?'<button class="btn br bsm" onclick="window.__pr2Unfinalize()" data-i18n="Unlock pricing">Unlock pricing</button>'
+              :'<button class="btn ba bsm" onclick="window.__pr2Finalize()" data-i18n="Finalize price">Finalize price</button>')
+        +'</div>';
+    }
+    el.innerHTML=h;
+    const dc=PV.choice||{}; const dt=document.getElementById('pr2-dtype'), dv=document.getElementById('pr2-dval');
+    if(dt&&dc.discount_type){dt.value=dc.discount_type;} if(dv&&dc.discount_value!=null){dv.value=dc.discount_value;}
+  }
+  async function load(oid){
+    OID=oid; ensureModal();
+    document.getElementById('pr2-num').textContent='#'+oid;
+    document.getElementById('m-pricing2').style.display='flex';
+    document.getElementById('pr2-body').innerHTML='Loading...';
+    try{
+      const [pv,snap,choice]=await Promise.all([api('GET','/'+oid+'/preview'),api('GET','/'+oid+'/snapshot'),api('GET','/'+oid+'/choice')]);
+      PV=pv; PV.choice=choice; SNAP=snap.finalized?snap:null; render();
+    }catch(e){ document.getElementById('pr2-body').innerHTML='<div style="color:#e06341">'+e.message+'</div>'; }
+  }
+  window.__pr2TargetPiece=function(pid){
+    const sc=document.getElementById('pr2-fee-scope'); if(!sc) return;
+    sc.value=String(pid);
+    const lb=document.getElementById('pr2-fee-label');
+    if(lb){ lb.focus(); lb.scrollIntoView({block:'center',behavior:'smooth'}); }
+    sc.style.outline='2px solid var(--a)'; setTimeout(()=>{sc.style.outline='';},1200);
+  };
+  window.__pr2AddFee=async function(){
+    const basis=document.getElementById('pr2-fee-basis').value;
+    const val=+document.getElementById('pr2-fee-val').value;
+    const scope=document.getElementById('pr2-fee-scope').value;
+    const body={description:document.getElementById('pr2-fee-label').value||null, basis, piece_uid:scope||null};
+    if(basis==='total') body.amount=val; else body.rate=val;
+    try{ await api('POST','/'+OID+'/charges',body); load(OID); }catch(e){ alert(e.message); }
+  };
+  window.__pr2DelFee=async function(id){ try{ await api('DELETE','/'+OID+'/charges/'+id); load(OID); }catch(e){ alert(e.message); } };
+  window.__pr2SaveTerms=async function(){
+    const dt=document.getElementById('pr2-dtype').value||null;
+    const body={ discount_type:dt, discount_value:dt?+document.getElementById('pr2-dval').value:null,
+                 vat_pct:+document.getElementById('pr2-vat').value, profile_id:(PV.choice&&PV.choice.profile_id)||null };
+    try{ await api('PUT','/'+OID+'/choice',body); load(OID); }catch(e){ alert(e.message); }
+  };
+  window.__pr2Finalize=async function(){ if(!confirm('Freeze this price? Order pricing will lock.'))return; try{ await api('POST','/'+OID+'/finalize'); load(OID); }catch(e){ alert(e.message); } };
+  window.__pr2Unfinalize=async function(){ if(!confirm('Unlock pricing? The frozen snapshot will be removed.'))return; try{ await api('DELETE','/'+OID+'/finalize'); load(OID); }catch(e){ alert(e.message); } };
+  window.openOrderPricing=load;
+  // inject launcher into v1 summary strip when order modal opens
+  const mo=new MutationObserver(()=>{ const p=document.getElementById('o-price-panel');
+    if(p&&!document.getElementById('pr2-launch')){ const bt=document.createElement('button');
+      bt.id='pr2-launch'; bt.className='btn ba bsm'; bt.textContent='\uD83D\uDCB0 Pricing';
+      bt.onclick=function(){ const oid=window.__editingOrderId||window.__lastOrderId; if(!oid){ alert('Save the order first, then open pricing.'); return; } load(oid); };
+      p.appendChild(bt); } });
+  mo.observe(document.body,{childList:true,subtree:true});
+  if(typeof window.openOrderModal==='function'){ const _o=window.openOrderModal; window.openOrderModal=function(id){ window.__editingOrderId=id||null; return _o.apply(this,arguments); }; }
+})();
+</script>
 
 <!-- SALES_REPORT v2 (classification filter) -->
 <script>

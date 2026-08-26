@@ -1,0 +1,3474 @@
+[
+ {
+  "num": "REF-145",
+  "old": 113.96,
+  "new": 352,
+  "diff": 238.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-126",
+  "old": 3006.43,
+  "new": 3221.13,
+  "diff": 214.7,
+  "delivered": true
+ },
+ {
+  "num": "REF-12",
+  "old": 39.6,
+  "new": 176,
+  "diff": 136.4,
+  "delivered": true
+ },
+ {
+  "num": "REF-336",
+  "old": 332.28,
+  "new": 443.02,
+  "diff": 110.74,
+  "delivered": true
+ },
+ {
+  "num": "REF-157",
+  "old": 26.67,
+  "new": 137.4,
+  "diff": 110.73,
+  "delivered": true
+ },
+ {
+  "num": "REF-335",
+  "old": null,
+  "new": 107.86,
+  "diff": 107.86,
+  "delivered": true
+ },
+ {
+  "num": "REF-449-RC",
+  "old": null,
+  "new": 102,
+  "diff": 102,
+  "delivered": true
+ },
+ {
+  "num": "REF-324",
+  "old": null,
+  "new": 78.25,
+  "diff": 78.25,
+  "delivered": true
+ },
+ {
+  "num": "REF-402",
+  "old": 975.17,
+  "new": 1044.76,
+  "diff": 69.59,
+  "delivered": true
+ },
+ {
+  "num": "REF-349",
+  "old": 194.55,
+  "new": 259.39,
+  "diff": 64.84,
+  "delivered": true
+ },
+ {
+  "num": "REF-473",
+  "old": 101.29,
+  "new": 43.4,
+  "diff": -57.89,
+  "delivered": true
+ },
+ {
+  "num": "REF-232",
+  "old": 4.06,
+  "new": 60,
+  "diff": 55.94,
+  "delivered": true
+ },
+ {
+  "num": "REF-249",
+  "old": 1.29,
+  "new": 46,
+  "diff": 44.71,
+  "delivered": true
+ },
+ {
+  "num": "REF-463",
+  "old": 622.37,
+  "new": 666.8,
+  "diff": 44.43,
+  "delivered": true
+ },
+ {
+  "num": "REF-201",
+  "old": 560.77,
+  "new": 600.84,
+  "diff": 40.07,
+  "delivered": true
+ },
+ {
+  "num": "SAR-2",
+  "old": 102.45,
+  "new": 136.59,
+  "diff": 34.14,
+  "delivered": true
+ },
+ {
+  "num": "REF-1",
+  "old": 458.5,
+  "new": 491.31,
+  "diff": 32.81,
+  "delivered": true
+ },
+ {
+  "num": "AMR-14",
+  "old": 53.1,
+  "new": 23.85,
+  "diff": -29.25,
+  "delivered": true
+ },
+ {
+  "num": "REF-467",
+  "old": 406.49,
+  "new": 435.49,
+  "diff": 29,
+  "delivered": false
+ },
+ {
+  "num": "REF-194",
+  "old": 403.48,
+  "new": 432.25,
+  "diff": 28.77,
+  "delivered": true
+ },
+ {
+  "num": "REF-319",
+  "old": 2.6,
+  "new": 30,
+  "diff": 27.4,
+  "delivered": true
+ },
+ {
+  "num": "REF-17",
+  "old": 376.81,
+  "new": 403.66,
+  "diff": 26.85,
+  "delivered": true
+ },
+ {
+  "num": "REF-128",
+  "old": 92.26,
+  "new": 115.97,
+  "diff": 23.71,
+  "delivered": true
+ },
+ {
+  "num": "REF-100",
+  "old": 326.34,
+  "new": 349.67,
+  "diff": 23.33,
+  "delivered": true
+ },
+ {
+  "num": "REF-389",
+  "old": 43.26,
+  "new": 19.93,
+  "diff": -23.33,
+  "delivered": true
+ },
+ {
+  "num": "REF-481",
+  "old": 63.3,
+  "new": 86.62,
+  "diff": 23.32,
+  "delivered": true
+ },
+ {
+  "num": "REF-237",
+  "old": 67.77,
+  "new": 90.34,
+  "diff": 22.57,
+  "delivered": true
+ },
+ {
+  "num": "REF-64",
+  "old": 39.13,
+  "new": 16.76,
+  "diff": -22.37,
+  "delivered": true
+ },
+ {
+  "num": "REF-205",
+  "old": 298.62,
+  "new": 319.92,
+  "diff": 21.3,
+  "delivered": true
+ },
+ {
+  "num": "REF-77",
+  "old": 14.84,
+  "new": 36,
+  "diff": 21.16,
+  "delivered": true
+ },
+ {
+  "num": "REF-475",
+  "old": 13.59,
+  "new": 34,
+  "diff": 20.41,
+  "delivered": true
+ },
+ {
+  "num": "REF-49",
+  "old": 285.04,
+  "new": 305.36,
+  "diff": 20.32,
+  "delivered": true
+ },
+ {
+  "num": "REF-SA-2",
+  "old": 0.69,
+  "new": 20,
+  "diff": 19.31,
+  "delivered": true
+ },
+ {
+  "num": "REF-SA-1",
+  "old": 0.92,
+  "new": 20,
+  "diff": 19.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-302",
+  "old": 208.6,
+  "new": 227.68,
+  "diff": 19.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-124",
+  "old": 18.62,
+  "new": 36,
+  "diff": 17.38,
+  "delivered": true
+ },
+ {
+  "num": "REF-148",
+  "old": 242.55,
+  "new": 259.84,
+  "diff": 17.29,
+  "delivered": true
+ },
+ {
+  "num": "REF-453",
+  "old": 11.6,
+  "new": 28.84,
+  "diff": 17.24,
+  "delivered": true
+ },
+ {
+  "num": "REF-313",
+  "old": 47.34,
+  "new": 63.08,
+  "diff": 15.74,
+  "delivered": true
+ },
+ {
+  "num": "REF-203",
+  "old": 215.18,
+  "new": 230.48,
+  "diff": 15.3,
+  "delivered": true
+ },
+ {
+  "num": "REF-318",
+  "old": 210.98,
+  "new": 226.04,
+  "diff": 15.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-144",
+  "old": 24.57,
+  "new": 10.5,
+  "diff": -14.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-458",
+  "old": null,
+  "new": 13.96,
+  "diff": 13.96,
+  "delivered": true
+ },
+ {
+  "num": "REF-186",
+  "old": 2.19,
+  "new": 16,
+  "diff": 13.81,
+  "delivered": true
+ },
+ {
+  "num": "REF-257",
+  "old": 2.19,
+  "new": 16,
+  "diff": 13.81,
+  "delivered": true
+ },
+ {
+  "num": "REF-341",
+  "old": 2.19,
+  "new": 16,
+  "diff": 13.81,
+  "delivered": true
+ },
+ {
+  "num": "REF-396-RA",
+  "old": null,
+  "new": 13.58,
+  "diff": 13.58,
+  "delivered": true
+ },
+ {
+  "num": "REF-55",
+  "old": 172.83,
+  "new": 185.16,
+  "diff": 12.33,
+  "delivered": true
+ },
+ {
+  "num": "REF-23",
+  "old": 169.89,
+  "new": 182,
+  "diff": 12.11,
+  "delivered": true
+ },
+ {
+  "num": "REF-499",
+  "old": 32.82,
+  "new": 43.72,
+  "diff": 10.9,
+  "delivered": false
+ },
+ {
+  "num": "REF-246",
+  "old": null,
+  "new": 10.68,
+  "diff": 10.68,
+  "delivered": true
+ },
+ {
+  "num": "REF-93",
+  "old": 15.2,
+  "new": 25.21,
+  "diff": 10.01,
+  "delivered": true
+ },
+ {
+  "num": "AMR-15",
+  "old": 5.55,
+  "new": 15.5,
+  "diff": 9.95,
+  "delivered": true
+ },
+ {
+  "num": "REF-465",
+  "old": 59.08,
+  "new": 68.92,
+  "diff": 9.84,
+  "delivered": true
+ },
+ {
+  "num": "REF-SA-5",
+  "old": 2.2,
+  "new": 12,
+  "diff": 9.8,
+  "delivered": true
+ },
+ {
+  "num": "REF-416",
+  "old": 28.56,
+  "new": 38.06,
+  "diff": 9.5,
+  "delivered": true
+ },
+ {
+  "num": "REF-178",
+  "old": 0.92,
+  "new": 10,
+  "diff": 9.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-269",
+  "old": 26.19,
+  "new": 35.15,
+  "diff": 8.96,
+  "delivered": true
+ },
+ {
+  "num": "REF-127",
+  "old": 16.52,
+  "new": 7.76,
+  "diff": -8.76,
+  "delivered": true
+ },
+ {
+  "num": "REF-196",
+  "old": 121.94,
+  "new": 130.62,
+  "diff": 8.68,
+  "delivered": true
+ },
+ {
+  "num": "REF-437",
+  "old": 22.62,
+  "new": 31.29,
+  "diff": 8.67,
+  "delivered": true
+ },
+ {
+  "num": "REF-394",
+  "old": 121.45,
+  "new": 130.07,
+  "diff": 8.62,
+  "delivered": true
+ },
+ {
+  "num": "REF-490",
+  "old": 119.14,
+  "new": 127.62,
+  "diff": 8.48,
+  "delivered": false
+ },
+ {
+  "num": "REF-362-RA",
+  "old": null,
+  "new": 8.21,
+  "diff": 8.21,
+  "delivered": true
+ },
+ {
+  "num": "REF-SA-4",
+  "old": 3.85,
+  "new": 12,
+  "diff": 8.15,
+  "delivered": true
+ },
+ {
+  "num": "REF-358",
+  "old": 113.54,
+  "new": 121.62,
+  "diff": 8.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-263",
+  "old": 107.45,
+  "new": 115.11,
+  "diff": 7.66,
+  "delivered": true
+ },
+ {
+  "num": "GHZ-1",
+  "old": 105.56,
+  "new": 113.03,
+  "diff": 7.47,
+  "delivered": true
+ },
+ {
+  "num": "REF-222",
+  "old": 87.92,
+  "new": 95.18,
+  "diff": 7.26,
+  "delivered": true
+ },
+ {
+  "num": "AMR-13",
+  "old": 12.67,
+  "new": 5.42,
+  "diff": -7.25,
+  "delivered": true
+ },
+ {
+  "num": "REF-474",
+  "old": 101.29,
+  "new": 108.5,
+  "diff": 7.21,
+  "delivered": true
+ },
+ {
+  "num": "REF-231",
+  "old": 6.86,
+  "new": 14,
+  "diff": 7.14,
+  "delivered": true
+ },
+ {
+  "num": "REF-172",
+  "old": 21.3,
+  "new": 28.39,
+  "diff": 7.09,
+  "delivered": true
+ },
+ {
+  "num": "REF-182",
+  "old": 0.92,
+  "new": 8,
+  "diff": 7.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-309",
+  "old": 20.94,
+  "new": 27.9,
+  "diff": 6.96,
+  "delivered": true
+ },
+ {
+  "num": "REF-SA-3",
+  "old": 2.24,
+  "new": 9,
+  "diff": 6.76,
+  "delivered": true
+ },
+ {
+  "num": "REF-146",
+  "old": 10.92,
+  "new": 17.57,
+  "diff": 6.65,
+  "delivered": true
+ },
+ {
+  "num": "REF-381",
+  "old": 87.99,
+  "new": 94.22,
+  "diff": 6.23,
+  "delivered": true
+ },
+ {
+  "num": "REF-390",
+  "old": 1.8,
+  "new": 8,
+  "diff": 6.2,
+  "delivered": true
+ },
+ {
+  "num": "REF-237-RA",
+  "old": 18.33,
+  "new": 24.41,
+  "diff": 6.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-237-RC",
+  "old": 18.33,
+  "new": 24.41,
+  "diff": 6.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-126-RC2",
+  "old": 83.58,
+  "new": 89.48,
+  "diff": 5.9,
+  "delivered": true
+ },
+ {
+  "num": "REF-424",
+  "old": 82.46,
+  "new": 88.33,
+  "diff": 5.87,
+  "delivered": true
+ },
+ {
+  "num": "REF-204",
+  "old": 60.97,
+  "new": 66.5,
+  "diff": 5.53,
+  "delivered": true
+ },
+ {
+  "num": "REF-172-RA",
+  "old": 15.99,
+  "new": 21.29,
+  "diff": 5.3,
+  "delivered": true
+ },
+ {
+  "num": "REF-359",
+  "old": 74.97,
+  "new": 80.26,
+  "diff": 5.29,
+  "delivered": true
+ },
+ {
+  "num": "REF-258",
+  "old": 73.08,
+  "new": 78.29,
+  "diff": 5.21,
+  "delivered": true
+ },
+ {
+  "num": "REF-8",
+  "old": 0.84,
+  "new": 6,
+  "diff": 5.16,
+  "delivered": true
+ },
+ {
+  "num": "REF-21",
+  "old": 72.03,
+  "new": 77.16,
+  "diff": 5.13,
+  "delivered": true
+ },
+ {
+  "num": "REF-420",
+  "old": 6.16,
+  "new": 11.27,
+  "diff": 5.11,
+  "delivered": true
+ },
+ {
+  "num": "REF-200",
+  "old": 71.47,
+  "new": 76.56,
+  "diff": 5.09,
+  "delivered": true
+ },
+ {
+  "num": "REF-482",
+  "old": 15.21,
+  "new": 20.26,
+  "diff": 5.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-16",
+  "old": 70.35,
+  "new": 75.36,
+  "diff": 5.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-214",
+  "old": 69.09,
+  "new": 74.02,
+  "diff": 4.93,
+  "delivered": true
+ },
+ {
+  "num": "REF-20",
+  "old": 67.9,
+  "new": 72.72,
+  "diff": 4.82,
+  "delivered": true
+ },
+ {
+  "num": "REF-98",
+  "old": 64.68,
+  "new": 69.3,
+  "diff": 4.62,
+  "delivered": true
+ },
+ {
+  "num": "REF-463-RC",
+  "old": 64.68,
+  "new": 69.3,
+  "diff": 4.62,
+  "delivered": true
+ },
+ {
+  "num": "REF-354",
+  "old": 64.33,
+  "new": 68.9,
+  "diff": 4.57,
+  "delivered": true
+ },
+ {
+  "num": "REF-259",
+  "old": 8.47,
+  "new": 4,
+  "diff": -4.47,
+  "delivered": true
+ },
+ {
+  "num": "REF-314",
+  "old": 8.47,
+  "new": 4,
+  "diff": -4.47,
+  "delivered": true
+ },
+ {
+  "num": "REF-299",
+  "old": 3.57,
+  "new": 8,
+  "diff": 4.43,
+  "delivered": true
+ },
+ {
+  "num": "REF-305",
+  "old": null,
+  "new": 4.25,
+  "diff": 4.25,
+  "delivered": true
+ },
+ {
+  "num": "REF-414",
+  "old": 60.06,
+  "new": 64.29,
+  "diff": 4.23,
+  "delivered": true
+ },
+ {
+  "num": "REF-436",
+  "old": 57.61,
+  "new": 61.72,
+  "diff": 4.11,
+  "delivered": true
+ },
+ {
+  "num": "REF-339",
+  "old": 12.33,
+  "new": 16.43,
+  "diff": 4.1,
+  "delivered": true
+ },
+ {
+  "num": "REF-45",
+  "old": 55.86,
+  "new": 59.83,
+  "diff": 3.97,
+  "delivered": true
+ },
+ {
+  "num": "REF-149",
+  "old": 56.14,
+  "new": 60.09,
+  "diff": 3.95,
+  "delivered": true
+ },
+ {
+  "num": "REF-173",
+  "old": 53.97,
+  "new": 57.76,
+  "diff": 3.79,
+  "delivered": true
+ },
+ {
+  "num": "REF-292",
+  "old": 51.59,
+  "new": 55.27,
+  "diff": 3.68,
+  "delivered": true
+ },
+ {
+  "num": "REF-56",
+  "old": 52.08,
+  "new": 55.75,
+  "diff": 3.67,
+  "delivered": true
+ },
+ {
+  "num": "REF-225",
+  "old": 0.4,
+  "new": 4,
+  "diff": 3.6,
+  "delivered": true
+ },
+ {
+  "num": "REF-226",
+  "old": 0.4,
+  "new": 4,
+  "diff": 3.6,
+  "delivered": true
+ },
+ {
+  "num": "REF-294",
+  "old": 0.4,
+  "new": 4,
+  "diff": 3.6,
+  "delivered": true
+ },
+ {
+  "num": "REF-152",
+  "old": 33.08,
+  "new": 36.66,
+  "diff": 3.58,
+  "delivered": true
+ },
+ {
+  "num": "REF-3",
+  "old": 50.05,
+  "new": 53.62,
+  "diff": 3.57,
+  "delivered": true
+ },
+ {
+  "num": "REF-58",
+  "old": 50.4,
+  "new": 53.97,
+  "diff": 3.57,
+  "delivered": true
+ },
+ {
+  "num": "REF-219",
+  "old": 49,
+  "new": 52.5,
+  "diff": 3.5,
+  "delivered": true
+ },
+ {
+  "num": "REF-438",
+  "old": 0.57,
+  "new": 4,
+  "diff": 3.43,
+  "delivered": true
+ },
+ {
+  "num": "REF-4",
+  "old": 48.58,
+  "new": 51.98,
+  "diff": 3.4,
+  "delivered": true
+ },
+ {
+  "num": "REF-216",
+  "old": 47.6,
+  "new": 50.99,
+  "diff": 3.39,
+  "delivered": true
+ },
+ {
+  "num": "REF-368",
+  "old": 4.62,
+  "new": 8,
+  "diff": 3.38,
+  "delivered": true
+ },
+ {
+  "num": "REF-498",
+  "old": 0.63,
+  "new": 4,
+  "diff": 3.37,
+  "delivered": true
+ },
+ {
+  "num": "REF-201-RC",
+  "old": 46.41,
+  "new": 49.67,
+  "diff": 3.26,
+  "delivered": true
+ },
+ {
+  "num": "REF-227",
+  "old": 0.76,
+  "new": 4,
+  "diff": 3.24,
+  "delivered": true
+ },
+ {
+  "num": "REF-244",
+  "old": 0.76,
+  "new": 4,
+  "diff": 3.24,
+  "delivered": true
+ },
+ {
+  "num": "REF-321",
+  "old": 0.76,
+  "new": 4,
+  "diff": 3.24,
+  "delivered": true
+ },
+ {
+  "num": "REF-411",
+  "old": 0.76,
+  "new": 4,
+  "diff": 3.24,
+  "delivered": true
+ },
+ {
+  "num": "REF-184",
+  "old": 9.75,
+  "new": 12.98,
+  "diff": 3.23,
+  "delivered": true
+ },
+ {
+  "num": "REF-184-RA",
+  "old": 9.75,
+  "new": 12.98,
+  "diff": 3.23,
+  "delivered": true
+ },
+ {
+  "num": "REF-185",
+  "old": 44.45,
+  "new": 47.57,
+  "diff": 3.12,
+  "delivered": true
+ },
+ {
+  "num": "REF-254",
+  "old": 4.88,
+  "new": 8,
+  "diff": 3.12,
+  "delivered": true
+ },
+ {
+  "num": "REF-104",
+  "old": 44.17,
+  "new": 47.26,
+  "diff": 3.09,
+  "delivered": true
+ },
+ {
+  "num": "REF-154",
+  "old": 15.6,
+  "new": 18.69,
+  "diff": 3.09,
+  "delivered": true
+ },
+ {
+  "num": "REF-477",
+  "old": 42.35,
+  "new": 45.36,
+  "diff": 3.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-417",
+  "old": 9.09,
+  "new": 12.09,
+  "diff": 3,
+  "delivered": true
+ },
+ {
+  "num": "REF-417-RC",
+  "old": 9.09,
+  "new": 12.09,
+  "diff": 3,
+  "delivered": true
+ },
+ {
+  "num": "REF-338",
+  "old": 41.93,
+  "new": 44.92,
+  "diff": 2.99,
+  "delivered": true
+ },
+ {
+  "num": "REF-41",
+  "old": 204.61,
+  "new": 207.58,
+  "diff": 2.97,
+  "delivered": true
+ },
+ {
+  "num": "REF-126-RC",
+  "old": 41.79,
+  "new": 44.74,
+  "diff": 2.95,
+  "delivered": true
+ },
+ {
+  "num": "REF-163",
+  "old": 41.79,
+  "new": 44.74,
+  "diff": 2.95,
+  "delivered": true
+ },
+ {
+  "num": "REF-126-RC3",
+  "old": 41.79,
+  "new": 44.74,
+  "diff": 2.95,
+  "delivered": true
+ },
+ {
+  "num": "REF-190",
+  "old": 8.76,
+  "new": 11.68,
+  "diff": 2.92,
+  "delivered": true
+ },
+ {
+  "num": "REF-283",
+  "old": 8.52,
+  "new": 11.33,
+  "diff": 2.81,
+  "delivered": true
+ },
+ {
+  "num": "REF-442",
+  "old": null,
+  "new": 2.8,
+  "diff": 2.8,
+  "delivered": true
+ },
+ {
+  "num": "REF-234",
+  "old": 3.22,
+  "new": 6,
+  "diff": 2.78,
+  "delivered": true
+ },
+ {
+  "num": "REF-68",
+  "old": 7.7,
+  "new": 10.46,
+  "diff": 2.76,
+  "delivered": true
+ },
+ {
+  "num": "REF-426",
+  "old": 39.06,
+  "new": 41.82,
+  "diff": 2.76,
+  "delivered": true
+ },
+ {
+  "num": "REF-177",
+  "old": 1.26,
+  "new": 4,
+  "diff": 2.74,
+  "delivered": true
+ },
+ {
+  "num": "REF-2",
+  "old": 38.64,
+  "new": 41.37,
+  "diff": 2.73,
+  "delivered": true
+ },
+ {
+  "num": "REF-334",
+  "old": 38.92,
+  "new": 41.65,
+  "diff": 2.73,
+  "delivered": true
+ },
+ {
+  "num": "REF-370",
+  "old": 38.92,
+  "new": 41.65,
+  "diff": 2.73,
+  "delivered": true
+ },
+ {
+  "num": "REF-483",
+  "old": 8.19,
+  "new": 10.91,
+  "diff": 2.72,
+  "delivered": true
+ },
+ {
+  "num": "REF-460",
+  "old": 8.01,
+  "new": 10.66,
+  "diff": 2.65,
+  "delivered": true
+ },
+ {
+  "num": "REF-380",
+  "old": 36.89,
+  "new": 39.5,
+  "diff": 2.61,
+  "delivered": true
+ },
+ {
+  "num": "REF-143",
+  "old": 1.4,
+  "new": 4,
+  "diff": 2.6,
+  "delivered": true
+ },
+ {
+  "num": "REF-243",
+  "old": 1.4,
+  "new": 4,
+  "diff": 2.6,
+  "delivered": true
+ },
+ {
+  "num": "REF-250",
+  "old": 36.26,
+  "new": 38.84,
+  "diff": 2.58,
+  "delivered": true
+ },
+ {
+  "num": "REF-392",
+  "old": 36.19,
+  "new": 38.76,
+  "diff": 2.57,
+  "delivered": true
+ },
+ {
+  "num": "REF-454",
+  "old": 5.43,
+  "new": 8,
+  "diff": 2.57,
+  "delivered": true
+ },
+ {
+  "num": "REF-13",
+  "old": 1.44,
+  "new": 4,
+  "diff": 2.56,
+  "delivered": true
+ },
+ {
+  "num": "REF-141",
+  "old": 36.26,
+  "new": 38.82,
+  "diff": 2.56,
+  "delivered": true
+ },
+ {
+  "num": "REF-139",
+  "old": 0.45,
+  "new": 3,
+  "diff": 2.55,
+  "delivered": true
+ },
+ {
+  "num": "REF-394-RC",
+  "old": 35.28,
+  "new": 37.74,
+  "diff": 2.46,
+  "delivered": true
+ },
+ {
+  "num": "REF-238",
+  "old": 7.44,
+  "new": 9.89,
+  "diff": 2.45,
+  "delivered": true
+ },
+ {
+  "num": "REF-136",
+  "old": 26.6,
+  "new": 28.98,
+  "diff": 2.38,
+  "delivered": true
+ },
+ {
+  "num": "REF-251",
+  "old": 34.37,
+  "new": 36.75,
+  "diff": 2.38,
+  "delivered": true
+ },
+ {
+  "num": "REF-34",
+  "old": 33.32,
+  "new": 35.69,
+  "diff": 2.37,
+  "delivered": true
+ },
+ {
+  "num": "REF-214-RA",
+  "old": 33.18,
+  "new": 35.52,
+  "diff": 2.34,
+  "delivered": true
+ },
+ {
+  "num": "REF-303",
+  "old": 6.96,
+  "new": 9.27,
+  "diff": 2.31,
+  "delivered": true
+ },
+ {
+  "num": "REF-297",
+  "old": 9.84,
+  "new": 12.11,
+  "diff": 2.27,
+  "delivered": true
+ },
+ {
+  "num": "REF-151",
+  "old": 31.92,
+  "new": 34.13,
+  "diff": 2.21,
+  "delivered": true
+ },
+ {
+  "num": "REF-167",
+  "old": 0.8,
+  "new": 3,
+  "diff": 2.2,
+  "delivered": true
+ },
+ {
+  "num": "REF-362",
+  "old": 21.7,
+  "new": 19.5,
+  "diff": -2.2,
+  "delivered": true
+ },
+ {
+  "num": "REF-239",
+  "old": 6.48,
+  "new": 8.63,
+  "diff": 2.15,
+  "delivered": true
+ },
+ {
+  "num": "REF-239-RA",
+  "old": 6.48,
+  "new": 8.63,
+  "diff": 2.15,
+  "delivered": true
+ },
+ {
+  "num": "REF-92",
+  "old": 10.68,
+  "new": 12.82,
+  "diff": 2.14,
+  "delivered": true
+ },
+ {
+  "num": "REF-415",
+  "old": 30.1,
+  "new": 32.22,
+  "diff": 2.12,
+  "delivered": true
+ },
+ {
+  "num": "REF-245",
+  "old": 29.33,
+  "new": 31.42,
+  "diff": 2.09,
+  "delivered": true
+ },
+ {
+  "num": "REF-168",
+  "old": 0.95,
+  "new": 3,
+  "diff": 2.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-169",
+  "old": 0.95,
+  "new": 3,
+  "diff": 2.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-187",
+  "old": 5.95,
+  "new": 8,
+  "diff": 2.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-114",
+  "old": 1.96,
+  "new": 4,
+  "diff": 2.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-312",
+  "old": 28.49,
+  "new": 30.53,
+  "diff": 2.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-210",
+  "old": 6.18,
+  "new": 8.21,
+  "diff": 2.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-210-RA",
+  "old": 6.18,
+  "new": 8.21,
+  "diff": 2.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-468",
+  "old": 6.18,
+  "new": 8.21,
+  "diff": 2.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-373",
+  "old": 28.35,
+  "new": 30.33,
+  "diff": 1.98,
+  "delivered": true
+ },
+ {
+  "num": "REF-406",
+  "old": 28.35,
+  "new": 30.33,
+  "diff": 1.98,
+  "delivered": true
+ },
+ {
+  "num": "REF-403",
+  "old": 70.28,
+  "new": 72.24,
+  "diff": 1.96,
+  "delivered": false
+ },
+ {
+  "num": "REF-486",
+  "old": 0.14,
+  "new": 2,
+  "diff": 1.86,
+  "delivered": true
+ },
+ {
+  "num": "REF-162",
+  "old": 26.04,
+  "new": 27.88,
+  "diff": 1.84,
+  "delivered": true
+ },
+ {
+  "num": "REF-343",
+  "old": 25.55,
+  "new": 27.36,
+  "diff": 1.81,
+  "delivered": true
+ },
+ {
+  "num": "REF-SA-6",
+  "old": 0.21,
+  "new": 2,
+  "diff": 1.79,
+  "delivered": true
+ },
+ {
+  "num": "REF-149-RC",
+  "old": 25.9,
+  "new": 27.68,
+  "diff": 1.78,
+  "delivered": true
+ },
+ {
+  "num": "REF-22",
+  "old": 4.8,
+  "new": 6.57,
+  "diff": 1.77,
+  "delivered": true
+ },
+ {
+  "num": "REF-208",
+  "old": 24.78,
+  "new": 26.55,
+  "diff": 1.77,
+  "delivered": true
+ },
+ {
+  "num": "REF-209",
+  "old": 24.71,
+  "new": 26.44,
+  "diff": 1.73,
+  "delivered": true
+ },
+ {
+  "num": "REF-211",
+  "old": 23.8,
+  "new": 25.5,
+  "diff": 1.7,
+  "delivered": true
+ },
+ {
+  "num": "REF-242-RA",
+  "old": 23.8,
+  "new": 25.49,
+  "diff": 1.69,
+  "delivered": true
+ },
+ {
+  "num": "REF-32",
+  "old": 23.8,
+  "new": 25.48,
+  "diff": 1.68,
+  "delivered": true
+ },
+ {
+  "num": "REF-293",
+  "old": 24.22,
+  "new": 25.9,
+  "diff": 1.68,
+  "delivered": true
+ },
+ {
+  "num": "REF-271",
+  "old": 24.36,
+  "new": 26.03,
+  "diff": 1.67,
+  "delivered": true
+ },
+ {
+  "num": "REF-367",
+  "old": 5.04,
+  "new": 6.71,
+  "diff": 1.67,
+  "delivered": true
+ },
+ {
+  "num": "REF-258-RA",
+  "old": 23.45,
+  "new": 25.11,
+  "diff": 1.66,
+  "delivered": true
+ },
+ {
+  "num": "REF-176",
+  "old": 2.37,
+  "new": 4,
+  "diff": 1.63,
+  "delivered": true
+ },
+ {
+  "num": "REF-207-RA",
+  "old": 2.37,
+  "new": 4,
+  "diff": 1.63,
+  "delivered": true
+ },
+ {
+  "num": "REF-217",
+  "old": 0.39,
+  "new": 2,
+  "diff": 1.61,
+  "delivered": true
+ },
+ {
+  "num": "REF-328",
+  "old": 0.4,
+  "new": 2,
+  "diff": 1.6,
+  "delivered": true
+ },
+ {
+  "num": "REF-413",
+  "old": 0.4,
+  "new": 2,
+  "diff": 1.6,
+  "delivered": true
+ },
+ {
+  "num": "REF-325",
+  "old": 6.44,
+  "new": 8,
+  "diff": 1.56,
+  "delivered": true
+ },
+ {
+  "num": "REF-140",
+  "old": 22.54,
+  "new": 24.09,
+  "diff": 1.55,
+  "delivered": true
+ },
+ {
+  "num": "REF-369",
+  "old": 21.63,
+  "new": 23.17,
+  "diff": 1.54,
+  "delivered": true
+ },
+ {
+  "num": "REF-416-RA",
+  "old": 4.59,
+  "new": 6.11,
+  "diff": 1.52,
+  "delivered": true
+ },
+ {
+  "num": "REF-37",
+  "old": 20.3,
+  "new": 21.74,
+  "diff": 1.44,
+  "delivered": true
+ },
+ {
+  "num": "REF-469",
+  "old": 0.56,
+  "new": 2,
+  "diff": 1.44,
+  "delivered": true
+ },
+ {
+  "num": "REF-462",
+  "old": 20.44,
+  "new": 21.87,
+  "diff": 1.43,
+  "delivered": true
+ },
+ {
+  "num": "REF-101",
+  "old": 20.3,
+  "new": 21.7,
+  "diff": 1.4,
+  "delivered": true
+ },
+ {
+  "num": "REF-456",
+  "old": 19.32,
+  "new": 20.7,
+  "diff": 1.38,
+  "delivered": true
+ },
+ {
+  "num": "REF-74",
+  "old": 18.69,
+  "new": 20.06,
+  "diff": 1.37,
+  "delivered": true
+ },
+ {
+  "num": "REF-90",
+  "old": 31.32,
+  "new": 32.68,
+  "diff": 1.36,
+  "delivered": true
+ },
+ {
+  "num": "REF-252",
+  "old": 19.95,
+  "new": 21.31,
+  "diff": 1.36,
+  "delivered": true
+ },
+ {
+  "num": "REF-65",
+  "old": 0.15,
+  "new": 1.5,
+  "diff": 1.35,
+  "delivered": true
+ },
+ {
+  "num": "REF-137",
+  "old": 24.12,
+  "new": 25.47,
+  "diff": 1.35,
+  "delivered": true
+ },
+ {
+  "num": "REF-291",
+  "old": 19.04,
+  "new": 20.38,
+  "diff": 1.34,
+  "delivered": true
+ },
+ {
+  "num": "REF-170",
+  "old": 0.7,
+  "new": 2,
+  "diff": 1.3,
+  "delivered": true
+ },
+ {
+  "num": "REF-171",
+  "old": 0.7,
+  "new": 2,
+  "diff": 1.3,
+  "delivered": true
+ },
+ {
+  "num": "REF-412",
+  "old": 0.7,
+  "new": 2,
+  "diff": 1.3,
+  "delivered": true
+ },
+ {
+  "num": "REF-366",
+  "old": 0.72,
+  "new": 2,
+  "diff": 1.28,
+  "delivered": true
+ },
+ {
+  "num": "REF-46",
+  "old": 18.2,
+  "new": 19.46,
+  "diff": 1.26,
+  "delivered": true
+ },
+ {
+  "num": "REF-63",
+  "old": 40.67,
+  "new": 41.93,
+  "diff": 1.26,
+  "delivered": true
+ },
+ {
+  "num": "REF-320",
+  "old": 17.78,
+  "new": 19.01,
+  "diff": 1.23,
+  "delivered": true
+ },
+ {
+  "num": "REF-455",
+  "old": 18.27,
+  "new": 19.5,
+  "diff": 1.23,
+  "delivered": true
+ },
+ {
+  "num": "REF-345",
+  "old": 17.15,
+  "new": 18.36,
+  "diff": 1.21,
+  "delivered": true
+ },
+ {
+  "num": "REF-425",
+  "old": 6.86,
+  "new": 8.04,
+  "diff": 1.18,
+  "delivered": true
+ },
+ {
+  "num": "REF-402-RC",
+  "old": 16.8,
+  "new": 17.96,
+  "diff": 1.16,
+  "delivered": true
+ },
+ {
+  "num": "REF-323",
+  "old": 16.59,
+  "new": 17.74,
+  "diff": 1.15,
+  "delivered": true
+ },
+ {
+  "num": "REF-21-RA",
+  "old": 15.89,
+  "new": 17.01,
+  "diff": 1.12,
+  "delivered": true
+ },
+ {
+  "num": "REF-212",
+  "old": 16.31,
+  "new": 17.42,
+  "diff": 1.11,
+  "delivered": true
+ },
+ {
+  "num": "REF-288",
+  "old": 16.52,
+  "new": 17.63,
+  "diff": 1.11,
+  "delivered": true
+ },
+ {
+  "num": "REF-260",
+  "old": 1.92,
+  "new": 3,
+  "diff": 1.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-99",
+  "old": 15.4,
+  "new": 16.47,
+  "diff": 1.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-391",
+  "old": 15.33,
+  "new": 16.38,
+  "diff": 1.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-466",
+  "old": 14.98,
+  "new": 16.03,
+  "diff": 1.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-497",
+  "old": 15.54,
+  "new": 16.59,
+  "diff": 1.05,
+  "delivered": false
+ },
+ {
+  "num": "REF-39",
+  "old": 14.77,
+  "new": 15.81,
+  "diff": 1.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-51",
+  "old": 14.77,
+  "new": 15.81,
+  "diff": 1.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-332",
+  "old": 3.21,
+  "new": 4.24,
+  "diff": 1.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-155",
+  "old": 14.91,
+  "new": 15.91,
+  "diff": 1,
+  "delivered": true
+ },
+ {
+  "num": "REF-419",
+  "old": 1,
+  "new": 2,
+  "diff": 1,
+  "delivered": true
+ },
+ {
+  "num": "REF-1-RA",
+  "old": 14.63,
+  "new": 15.6,
+  "diff": 0.97,
+  "delivered": true
+ },
+ {
+  "num": "REF-285",
+  "old": 13.72,
+  "new": 14.69,
+  "diff": 0.97,
+  "delivered": true
+ },
+ {
+  "num": "REF-327",
+  "old": 14.07,
+  "new": 15.04,
+  "diff": 0.97,
+  "delivered": true
+ },
+ {
+  "num": "REF-432",
+  "old": 13.86,
+  "new": 14.82,
+  "diff": 0.96,
+  "delivered": true
+ },
+ {
+  "num": "REF-396",
+  "old": 697.05,
+  "new": 698,
+  "diff": 0.95,
+  "delivered": true
+ },
+ {
+  "num": "REF-108-RA",
+  "old": 23.38,
+  "new": 24.32,
+  "diff": 0.94,
+  "delivered": true
+ },
+ {
+  "num": "AMR-10",
+  "old": 3.08,
+  "new": 4,
+  "diff": 0.92,
+  "delivered": true
+ },
+ {
+  "num": "REF-471",
+  "old": 12.53,
+  "new": 13.41,
+  "diff": 0.88,
+  "delivered": true
+ },
+ {
+  "num": "REF-484",
+  "old": 3.12,
+  "new": 4,
+  "diff": 0.88,
+  "delivered": false
+ },
+ {
+  "num": "REF-116",
+  "old": 1.14,
+  "new": 2,
+  "diff": 0.86,
+  "delivered": true
+ },
+ {
+  "num": "REF-322",
+  "old": 12.39,
+  "new": 13.25,
+  "diff": 0.86,
+  "delivered": true
+ },
+ {
+  "num": "REF-348",
+  "old": 12.39,
+  "new": 13.25,
+  "diff": 0.86,
+  "delivered": true
+ },
+ {
+  "num": "REF-207",
+  "old": 3.16,
+  "new": 4,
+  "diff": 0.84,
+  "delivered": true
+ },
+ {
+  "num": "REF-346",
+  "old": 12.46,
+  "new": 13.28,
+  "diff": 0.82,
+  "delivered": true
+ },
+ {
+  "num": "SHK-1",
+  "old": 2.55,
+  "new": 3.37,
+  "diff": 0.82,
+  "delivered": true
+ },
+ {
+  "num": "REF-91",
+  "old": 7.28,
+  "new": 8.09,
+  "diff": 0.81,
+  "delivered": true
+ },
+ {
+  "num": "REF-230",
+  "old": 12.04,
+  "new": 12.84,
+  "diff": 0.8,
+  "delivered": true
+ },
+ {
+  "num": "REF-230-RC",
+  "old": 11.48,
+  "new": 12.26,
+  "diff": 0.78,
+  "delivered": true
+ },
+ {
+  "num": "REF-112",
+  "old": 1.24,
+  "new": 2,
+  "diff": 0.76,
+  "delivered": true
+ },
+ {
+  "num": "REF-357",
+  "old": 11.06,
+  "new": 11.82,
+  "diff": 0.76,
+  "delivered": true
+ },
+ {
+  "num": "REF-429",
+  "old": 10.85,
+  "new": 11.61,
+  "diff": 0.76,
+  "delivered": true
+ },
+ {
+  "num": "REF-156",
+  "old": 27.12,
+  "new": 27.87,
+  "diff": 0.75,
+  "delivered": true
+ },
+ {
+  "num": "REF-102",
+  "old": 10.5,
+  "new": 11.24,
+  "diff": 0.74,
+  "delivered": true
+ },
+ {
+  "num": "REF-102-RC",
+  "old": 10.5,
+  "new": 11.24,
+  "diff": 0.74,
+  "delivered": true
+ },
+ {
+  "num": "REF-191",
+  "old": 10.43,
+  "new": 11.17,
+  "diff": 0.74,
+  "delivered": true
+ },
+ {
+  "num": "REF-265",
+  "old": 1.26,
+  "new": 2,
+  "diff": 0.74,
+  "delivered": true
+ },
+ {
+  "num": "REF-344",
+  "old": 10.71,
+  "new": 11.41,
+  "diff": 0.7,
+  "delivered": true
+ },
+ {
+  "num": "REF-451",
+  "old": 10.85,
+  "new": 11.55,
+  "diff": 0.7,
+  "delivered": true
+ },
+ {
+  "num": "REF-236",
+  "old": 46.36,
+  "new": 47.05,
+  "diff": 0.69,
+  "delivered": true
+ },
+ {
+  "num": "REF-443",
+  "old": 10.5,
+  "new": 11.18,
+  "diff": 0.68,
+  "delivered": true
+ },
+ {
+  "num": "REF-247",
+  "old": 1.33,
+  "new": 2,
+  "diff": 0.67,
+  "delivered": true
+ },
+ {
+  "num": "REF-485",
+  "old": 10.15,
+  "new": 10.8,
+  "diff": 0.65,
+  "delivered": false
+ },
+ {
+  "num": "REF-131",
+  "old": 10.01,
+  "new": 10.65,
+  "diff": 0.64,
+  "delivered": true
+ },
+ {
+  "num": "REF-179",
+  "old": 10.01,
+  "new": 10.65,
+  "diff": 0.64,
+  "delivered": true
+ },
+ {
+  "num": "REF-398",
+  "old": 9.38,
+  "new": 10.02,
+  "diff": 0.64,
+  "delivered": true
+ },
+ {
+  "num": "REF-491",
+  "old": 9.03,
+  "new": 9.65,
+  "diff": 0.62,
+  "delivered": false
+ },
+ {
+  "num": "REF-298",
+  "old": 8.12,
+  "new": 8.69,
+  "diff": 0.57,
+  "delivered": true
+ },
+ {
+  "num": "REF-496",
+  "old": 1.44,
+  "new": 2,
+  "diff": 0.56,
+  "delivered": false
+ },
+ {
+  "num": "REF-213",
+  "old": 1.47,
+  "new": 2,
+  "diff": 0.53,
+  "delivered": true
+ },
+ {
+  "num": "REF-255",
+  "old": 7.07,
+  "new": 7.57,
+  "diff": 0.5,
+  "delivered": true
+ },
+ {
+  "num": "REF-270",
+  "old": 7.14,
+  "new": 7.63,
+  "diff": 0.49,
+  "delivered": true
+ },
+ {
+  "num": "REF-304",
+  "old": 1.52,
+  "new": 2,
+  "diff": 0.48,
+  "delivered": true
+ },
+ {
+  "num": "REF-356",
+  "old": 6.09,
+  "new": 6.47,
+  "diff": 0.38,
+  "delivered": true
+ },
+ {
+  "num": "REF-135",
+  "old": 3.25,
+  "new": 3.6,
+  "diff": 0.35,
+  "delivered": true
+ },
+ {
+  "num": "REF-278",
+  "old": 5.39,
+  "new": 5.7,
+  "diff": 0.31,
+  "delivered": true
+ },
+ {
+  "num": "REF-35",
+  "old": 1.72,
+  "new": 2,
+  "diff": 0.28,
+  "delivered": true
+ },
+ {
+  "num": "REF-103",
+  "old": 4.28,
+  "new": 4.56,
+  "diff": 0.28,
+  "delivered": true
+ },
+ {
+  "num": "REF-7",
+  "old": 1.76,
+  "new": 2,
+  "diff": 0.24,
+  "delivered": true
+ },
+ {
+  "num": "REF-36",
+  "old": 3.64,
+  "new": 3.84,
+  "diff": 0.2,
+  "delivered": true
+ },
+ {
+  "num": "REF-282",
+  "old": 44.17,
+  "new": 44.34,
+  "diff": 0.17,
+  "delivered": true
+ },
+ {
+  "num": "REF-97",
+  "old": 1.84,
+  "new": 2,
+  "diff": 0.16,
+  "delivered": true
+ },
+ {
+  "num": "REF-113",
+  "old": 1.84,
+  "new": 2,
+  "diff": 0.16,
+  "delivered": true
+ },
+ {
+  "num": "REF-495",
+  "old": 1.84,
+  "new": 2,
+  "diff": 0.16,
+  "delivered": false
+ },
+ {
+  "num": "REF-235",
+  "old": 2.85,
+  "new": 3,
+  "diff": 0.15,
+  "delivered": true
+ },
+ {
+  "num": "REF-43",
+  "old": 11.44,
+  "new": 11.53,
+  "diff": 0.09,
+  "delivered": true
+ },
+ {
+  "num": "REF-161",
+  "old": 4.16,
+  "new": 4.24,
+  "diff": 0.08,
+  "delivered": true
+ },
+ {
+  "num": "REF-30",
+  "old": 4.27,
+  "new": 4.2,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-41-RC",
+  "old": 13.58,
+  "new": 13.51,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-150",
+  "old": 19.81,
+  "new": 19.74,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-180",
+  "old": 19.81,
+  "new": 19.74,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-229",
+  "old": 116.41,
+  "new": 116.34,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-240",
+  "old": 3.57,
+  "new": 3.5,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-267",
+  "old": 62.58,
+  "new": 62.51,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-340",
+  "old": 69.37,
+  "new": 69.3,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-347-RC",
+  "old": 27.65,
+  "new": 27.58,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-422",
+  "old": 258.37,
+  "new": 258.3,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-428",
+  "old": 7.63,
+  "new": 7.56,
+  "diff": -0.07,
+  "delivered": true
+ },
+ {
+  "num": "REF-6",
+  "old": 99.61,
+  "new": 99.55,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-19",
+  "old": 95.62,
+  "new": 95.56,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-52",
+  "old": 16.56,
+  "new": 16.5,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "AMR-2",
+  "old": 257.88,
+  "new": 257.82,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-121",
+  "old": 13.86,
+  "new": 13.8,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-133",
+  "old": 138.46,
+  "new": 138.4,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-138",
+  "old": 57.05,
+  "new": 56.99,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-193",
+  "old": 49.49,
+  "new": 49.43,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-199",
+  "old": 27.3,
+  "new": 27.24,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-224",
+  "old": 87.64,
+  "new": 87.58,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-280",
+  "old": 30.66,
+  "new": 30.6,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "GHZ-2",
+  "old": 142.24,
+  "new": 142.18,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-311",
+  "old": 103.04,
+  "new": 102.98,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-315",
+  "old": 9.87,
+  "new": 9.81,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-342",
+  "old": 140.63,
+  "new": 140.57,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-350",
+  "old": 27.09,
+  "new": 27.03,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-375",
+  "old": 81.04,
+  "new": 80.98,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-448",
+  "old": 10.85,
+  "new": 10.79,
+  "diff": -0.06,
+  "delivered": true
+ },
+ {
+  "num": "REF-5",
+  "old": 26.4,
+  "new": 26.35,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-10",
+  "old": 134.19,
+  "new": 134.14,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-18",
+  "old": 128.03,
+  "new": 127.98,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-38",
+  "old": 29.75,
+  "new": 29.7,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-174",
+  "old": 27.51,
+  "new": 27.46,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-133-RC2",
+  "old": 12.6,
+  "new": 12.55,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-183",
+  "old": 54.95,
+  "new": 54.9,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-198",
+  "old": 13.16,
+  "new": 13.11,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-262",
+  "old": 152.04,
+  "new": 151.99,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-281",
+  "old": 546.56,
+  "new": 546.51,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-286",
+  "old": 60.2,
+  "new": 60.15,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-281-RC",
+  "old": 15.05,
+  "new": 15,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-317",
+  "old": 23.6,
+  "new": 23.55,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-330",
+  "old": 554,
+  "new": 553.95,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "AMR-18",
+  "old": 89.35,
+  "new": 89.3,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "AMR-19",
+  "old": 44.7,
+  "new": 44.65,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-363",
+  "old": 11.76,
+  "new": 11.71,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-335-RC",
+  "old": 13.79,
+  "new": 13.74,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-371",
+  "old": 13.79,
+  "new": 13.74,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-374",
+  "old": 23.6,
+  "new": 23.55,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-399-RA",
+  "old": 21.4,
+  "new": 21.35,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-449",
+  "old": 672.64,
+  "new": 672.59,
+  "diff": -0.05,
+  "delivered": true
+ },
+ {
+  "num": "REF-14",
+  "old": 56.98,
+  "new": 56.94,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-24",
+  "old": 23.75,
+  "new": 23.71,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-25",
+  "old": 30.73,
+  "new": 30.69,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-29",
+  "old": 56.49,
+  "new": 56.45,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "AMR-1",
+  "old": 1.96,
+  "new": 2,
+  "diff": 0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-44",
+  "old": 15.26,
+  "new": 15.22,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-47",
+  "old": 71.64,
+  "new": 71.6,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-53",
+  "old": 2.24,
+  "new": 2.2,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-85",
+  "old": 3.56,
+  "new": 3.52,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-88",
+  "old": 4.44,
+  "new": 4.4,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-94",
+  "old": 10.12,
+  "new": 10.08,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-105",
+  "old": 463.68,
+  "new": 463.64,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-108",
+  "old": 183.54,
+  "new": 183.5,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-109",
+  "old": 38.24,
+  "new": 38.2,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "AMR-5",
+  "old": 2.44,
+  "new": 2.4,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-130",
+  "old": 43.19,
+  "new": 43.15,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-106-RC",
+  "old": 93.04,
+  "new": 93,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-165",
+  "old": 7.04,
+  "new": 7,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-218",
+  "old": 2.35,
+  "new": 2.31,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "AMR-11",
+  "old": 2.44,
+  "new": 2.4,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-268",
+  "old": 97.68,
+  "new": 97.64,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-272",
+  "old": 4.36,
+  "new": 4.32,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-308",
+  "old": 6.16,
+  "new": 6.12,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-310",
+  "old": 23.68,
+  "new": 23.64,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-333",
+  "old": 4,
+  "new": 3.96,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-347",
+  "old": 43.82,
+  "new": 43.78,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-364",
+  "old": 6.52,
+  "new": 6.48,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-404",
+  "old": 162.72,
+  "new": 162.68,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-431",
+  "old": 2.44,
+  "new": 2.4,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-434",
+  "old": 5.76,
+  "new": 5.72,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-447",
+  "old": 60.9,
+  "new": 60.86,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-452",
+  "old": 6.16,
+  "new": 6.12,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-457",
+  "old": 4.44,
+  "new": 4.4,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-461",
+  "old": 88.96,
+  "new": 88.92,
+  "diff": -0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-479",
+  "old": 1.96,
+  "new": 2,
+  "diff": 0.04,
+  "delivered": true
+ },
+ {
+  "num": "REF-9",
+  "old": 19.7,
+  "new": 19.67,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-11",
+  "old": 9.04,
+  "new": 9.01,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-15",
+  "old": 33.8,
+  "new": 33.77,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-28",
+  "old": 12.32,
+  "new": 12.29,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-33",
+  "old": 50.44,
+  "new": 50.41,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-107",
+  "old": 82.53,
+  "new": 82.5,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-119",
+  "old": 3.2,
+  "new": 3.17,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-123",
+  "old": 34.72,
+  "new": 34.69,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-132",
+  "old": 18.9,
+  "new": 18.87,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-142",
+  "old": 18.64,
+  "new": 18.61,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-166",
+  "old": 19.04,
+  "new": 19.01,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-128-RC",
+  "old": 9.52,
+  "new": 9.49,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "AMR-7",
+  "old": 21.98,
+  "new": 21.95,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-152-RC",
+  "old": 7.2,
+  "new": 7.17,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-192",
+  "old": 9.52,
+  "new": 9.49,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-197",
+  "old": 3.66,
+  "new": 3.63,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-202",
+  "old": 12.84,
+  "new": 12.81,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-166-RC",
+  "old": 19.04,
+  "new": 19.01,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-228",
+  "old": 4.72,
+  "new": 4.69,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-241",
+  "old": 242.45,
+  "new": 242.42,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-274",
+  "old": 25.32,
+  "new": 25.29,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-275",
+  "old": 7.6,
+  "new": 7.57,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-277",
+  "old": 47.25,
+  "new": 47.22,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-287",
+  "old": 19.67,
+  "new": 19.64,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-295",
+  "old": 10.64,
+  "new": 10.61,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-296",
+  "old": 4.35,
+  "new": 4.32,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-337",
+  "old": 24.36,
+  "new": 24.33,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-351",
+  "old": 334.25,
+  "new": 334.22,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-353",
+  "old": 15.82,
+  "new": 15.79,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-361",
+  "old": 6.6,
+  "new": 6.57,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-376",
+  "old": 27.58,
+  "new": 27.55,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-387",
+  "old": 5.56,
+  "new": 5.53,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-393",
+  "old": 27.04,
+  "new": 27.01,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-395",
+  "old": 17.12,
+  "new": 17.09,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-400",
+  "old": 6.3,
+  "new": 6.27,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-347-RC2",
+  "old": 20.86,
+  "new": 20.83,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-405",
+  "old": 4.97,
+  "new": 4.94,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "AMR-21",
+  "old": 11.8,
+  "new": 11.77,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-397-RC",
+  "old": 9.94,
+  "new": 9.91,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-440",
+  "old": 124.48,
+  "new": 124.45,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-445",
+  "old": 71.26,
+  "new": 71.23,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-446",
+  "old": 24.16,
+  "new": 24.13,
+  "diff": -0.03,
+  "delivered": true
+ },
+ {
+  "num": "REF-10-RC",
+  "old": 22.54,
+  "new": 22.52,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-26",
+  "old": 16.8,
+  "new": 16.78,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-31",
+  "old": 126.72,
+  "new": 126.7,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-60",
+  "old": 57.28,
+  "new": 57.26,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-86",
+  "old": 5.64,
+  "new": 5.62,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-87",
+  "old": 20.92,
+  "new": 20.9,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-89",
+  "old": 15,
+  "new": 14.98,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-83",
+  "old": 4.6,
+  "new": 4.58,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-96",
+  "old": 194.96,
+  "new": 194.94,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-106",
+  "old": 1016.48,
+  "new": 1016.46,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-110",
+  "old": 10.92,
+  "new": 10.9,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-117",
+  "old": 22.04,
+  "new": 22.02,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-118",
+  "old": 12.24,
+  "new": 12.22,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-125",
+  "old": 14.28,
+  "new": 14.26,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "AMR-4",
+  "old": 667.1,
+  "new": 667.12,
+  "diff": 0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-134",
+  "old": 5.2,
+  "new": 5.18,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "AMR-4-RA",
+  "old": 67.06,
+  "new": 67.04,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-160",
+  "old": 19.28,
+  "new": 19.26,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-188",
+  "old": 20.25,
+  "new": 20.23,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-189",
+  "old": 20.72,
+  "new": 20.7,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "AMR-8",
+  "old": 12.95,
+  "new": 12.93,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "AMR-9",
+  "old": 17.3,
+  "new": 17.28,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-195",
+  "old": 42.7,
+  "new": 42.68,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-206",
+  "old": 85.47,
+  "new": 85.45,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-242",
+  "old": 32.24,
+  "new": 32.22,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-204-RC",
+  "old": 31.22,
+  "new": 31.2,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-284",
+  "old": 9.96,
+  "new": 9.94,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-289",
+  "old": 204.24,
+  "new": 204.22,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-290",
+  "old": 422.32,
+  "new": 422.3,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-301",
+  "old": 19.6,
+  "new": 19.58,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-307",
+  "old": 6.92,
+  "new": 6.9,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "GHZ-3",
+  "old": 21.6,
+  "new": 21.58,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-331",
+  "old": 7.04,
+  "new": 7.02,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-360",
+  "old": 261.24,
+  "new": 261.22,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-399",
+  "old": 19.85,
+  "new": 19.83,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-407",
+  "old": 5.32,
+  "new": 5.3,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-422-RA",
+  "old": 16.59,
+  "new": 16.57,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-435",
+  "old": 7.35,
+  "new": 7.33,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-396-RA2",
+  "old": 24.95,
+  "new": 24.93,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-470",
+  "old": 18.97,
+  "new": 18.95,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-472",
+  "old": 19,
+  "new": 18.98,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-478",
+  "old": 6.04,
+  "new": 6.02,
+  "diff": -0.02,
+  "delivered": true
+ },
+ {
+  "num": "REF-487",
+  "old": 10.8,
+  "new": 10.78,
+  "diff": -0.02,
+  "delivered": false
+ },
+ {
+  "num": "REF-488",
+  "old": 15.16,
+  "new": 15.14,
+  "diff": -0.02,
+  "delivered": false
+ },
+ {
+  "num": "REF-492",
+  "old": 38.75,
+  "new": 38.73,
+  "diff": -0.02,
+  "delivered": false
+ },
+ {
+  "num": "REF-494",
+  "old": 29.8,
+  "new": 29.82,
+  "diff": 0.02,
+  "delivered": false
+ },
+ {
+  "num": "AMR-22",
+  "old": 3,
+  "new": 2.98,
+  "diff": -0.02,
+  "delivered": false
+ },
+ {
+  "num": "REF-115",
+  "old": 53.2,
+  "new": 53.19,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-153",
+  "old": 44.59,
+  "new": 44.58,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-159",
+  "old": 7.4,
+  "new": 7.39,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-233",
+  "old": 5.4,
+  "new": 5.39,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-261",
+  "old": 68.04,
+  "new": 68.03,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-279",
+  "old": 31.71,
+  "new": 31.7,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "AMR-20",
+  "old": 28.64,
+  "new": 28.63,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-388",
+  "old": 33.95,
+  "new": 33.94,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-409",
+  "old": 26.96,
+  "new": 26.95,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-421",
+  "old": 15.88,
+  "new": 15.87,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-423",
+  "old": 9.88,
+  "new": 9.87,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-433",
+  "old": 71.68,
+  "new": 71.67,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-396-RC",
+  "old": 20.35,
+  "new": 20.34,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-444",
+  "old": 19.32,
+  "new": 19.31,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-480",
+  "old": 164.15,
+  "new": 164.14,
+  "diff": -0.01,
+  "delivered": true
+ },
+ {
+  "num": "REF-489",
+  "old": 23.76,
+  "new": 23.75,
+  "diff": -0.01,
+  "delivered": false
+ }
+]

@@ -44,8 +44,12 @@ router.post('/profiles', requireAdmin, (req,res) => {
     if(!b.name) return res.status(400).json({error:'name required'});
     const basis = BASES.includes(b.basis)? b.basis : 'per_sqm';
     const lb = LENBAS.includes(b.length_basis)? b.length_basis : 'perimeter';
-    const info = db.prepare('INSERT INTO price_profiles(name,basis,length_basis,base_rate,min_per_piece,notes) VALUES(?,?,?,?,?,?)')
-      .run(b.name, basis, lb, num(b.base_rate)||0, num(b.min_per_piece)||0, b.notes||null);
+    const info = db.prepare('INSERT INTO price_profiles(name,basis,length_basis,base_rate,min_per_piece,min_billable_area,oversize_threshold_sqm,oversize_pct,notes) VALUES(?,?,?,?,?,?)')
+      .run(b.name, basis, lb, num(b.base_rate)||0, num(b.min_per_piece)||0,
+       (b.min_billable_area===''||b.min_billable_area==null)?null:num(b.min_billable_area),
+       (b.oversize_threshold_sqm===''||b.oversize_threshold_sqm==null)?null:num(b.oversize_threshold_sqm),
+       (b.oversize_pct===''||b.oversize_pct==null)?null:num(b.oversize_pct),
+       b.notes||null);
     res.json(db.prepare('SELECT * FROM price_profiles WHERE id=?').get(info.lastInsertRowid));
   } catch(e){ res.status(500).json({error:e.message}); }
 });
@@ -56,10 +60,13 @@ router.put('/profiles/:id', requireAdmin, (req,res) => {
     const b=req.body||{};
     const basis = (b.basis!=null && BASES.includes(b.basis))? b.basis : cur.basis;
     const lb = (b.length_basis!=null && LENBAS.includes(b.length_basis))? b.length_basis : cur.length_basis;
-    db.prepare('UPDATE price_profiles SET name=?,basis=?,length_basis=?,base_rate=?,min_per_piece=?,active=?,notes=? WHERE id=?')
+    db.prepare('UPDATE price_profiles SET name=?,basis=?,length_basis=?,base_rate=?,min_per_piece=?,min_billable_area=?,oversize_threshold_sqm=?,oversize_pct=?,active=?,notes=? WHERE id=?')
       .run(b.name!=null?b.name:cur.name, basis, lb,
            b.base_rate!=null?num(b.base_rate):cur.base_rate,
            b.min_per_piece!=null?num(b.min_per_piece):cur.min_per_piece,
+      b.min_billable_area!==undefined?((b.min_billable_area===''||b.min_billable_area===null)?null:num(b.min_billable_area)):cur.min_billable_area,
+      b.oversize_threshold_sqm!==undefined?((b.oversize_threshold_sqm===''||b.oversize_threshold_sqm===null)?null:num(b.oversize_threshold_sqm)):cur.oversize_threshold_sqm,
+      b.oversize_pct!==undefined?((b.oversize_pct===''||b.oversize_pct===null)?null:num(b.oversize_pct)):cur.oversize_pct,
            b.active!=null?(b.active?1:0):cur.active, b.notes!=null?b.notes:cur.notes, id);
     res.json(db.prepare('SELECT * FROM price_profiles WHERE id=?').get(id));
   } catch(e){ res.status(500).json({error:e.message}); }
