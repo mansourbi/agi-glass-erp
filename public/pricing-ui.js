@@ -76,6 +76,7 @@
   function injectNav(){
     var tabs=document.querySelector('.nav-tabs'); if(!tabs||document.getElementById('nt-pricing'))return;
     var b=document.createElement('button'); b.className='nt'; b.id='nt-pricing';
+    if(!_canSeePricing()) return;
     b.setAttribute('onclick',"SP('pricing')"); b.innerHTML='&#128209; <span data-i18n="Pricing">Pricing</span>';
     var settings=document.getElementById('nt-settings');
     if(settings&&settings.parentNode===tabs) tabs.insertBefore(b,settings); else tabs.appendChild(b);
@@ -520,6 +521,7 @@
     var mdl=m.querySelector('.mdl'); if(!mdl)return;
     var mb=mdl.querySelector('.mb'); if(!mb)return;
     injectOrderStyle();
+    if(!_canSeePricing()) return;   // no pricing tab for users without the permission
     var od=document.getElementById('od-pane'), op=document.getElementById('op-pane');
     if(!od||!op){
       od=document.createElement('div'); od.id='od-pane'; od.className='ord-pane on';
@@ -545,6 +547,13 @@
       }catch(e){}
     }
     ensurePricingRelocated();
+  }
+  function _canSeePricing(){
+    try{
+      if(window.CAN) return !!(CAN('pricing.access')||CAN('pricing.edit'));
+      var r=(window.ME&&(ME.role||ME.user&&ME.user.role))||localStorage.getItem('agi_role')||'';
+      return String(r).toLowerCase()==='admin';
+    }catch(e){ return false; }
   }
   function wrapOrderModal(){
     if(typeof window.openOrderModal==='function' && !window.openOrderModal.__pp){

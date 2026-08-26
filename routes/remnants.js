@@ -260,8 +260,8 @@ router.get('/log', (req, res) => {
       WHERE 1=1
     `;
     const p = [];
-    if (from)   { sql += ' AND rl.ts >= ?';       p.push(from); }
-    if (to)     { sql += ' AND rl.ts <  date(?, "+1 day")'; p.push(to); } // inclusive
+    if (from)   { sql += ' AND rl.ts >= ?';       p.push(String(from).replace("T"," ")); }
+    if (to)     { sql += ' AND rl.ts <  date(?, "+1 day")'; p.push(String(to).replace("T"," ")); } // inclusive
     if (action) { sql += ' AND rl.action = ?';    p.push(action); }
     if (worker) { sql += ' AND rl.worker_name = ?'; p.push(worker); }
     if (q && q.trim()) {

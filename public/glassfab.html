@@ -378,8 +378,9 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 
 /* DASHBOARD MATRIX */
 .matrix-wrap{overflow:auto;max-height:calc(100vh - 220px)}
-.matrix{border-collapse:collapse;width:100%;font-size:.68rem}
-.matrix th,.matrix td{padding:6px 10px;border:1px solid var(--border);text-align:center;white-space:nowrap}
+.matrix{border-collapse:collapse;width:100%;font-size:.63rem}
+.matrix th,.matrix td{padding:3px 6px;border:1px solid var(--border);text-align:center;white-space:nowrap}
+.matrix td.ord-col,.matrix th.ord-col{max-width:150px;overflow:hidden;text-overflow:ellipsis}
 .matrix th{background:var(--surf);font-family:'Cairo','DM Mono',monospace;font-size:.58rem;letter-spacing:1px;text-transform:uppercase;color:var(--mu)}
 .matrix th.ord-col{text-align:left}
 .mc-done{background:rgba(54,255,138,.1);color:var(--a3);font-size:.6rem;font-family:'Cairo','DM Mono',monospace}
@@ -1761,6 +1762,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">GLASS</th>
             <th style="padding:8px 12px;text-align:center;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">PIECES</th>
             <th style="padding:8px 12px;text-align:center;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">TOTAL SQM</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">TOTAL KG</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">ORDERS</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">FACTORY</th>
             <th style="padding:8px 12px;text-align:left;color:var(--mu);font-size:.65rem;letter-spacing:1px;font-weight:600">EXT PROCESS</th>
@@ -1770,7 +1772,7 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
           </tr>
         </thead>
         <tbody id="dlv-table-body">
-          <tr><td colspan="12" style="padding:40px;text-align:center;color:var(--mu)">Loading...</td></tr>
+          <tr><td colspan="13" style="padding:40px;text-align:center;color:var(--mu)">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -4687,7 +4689,7 @@ function renderOrderMatrix(containerId, compact=false){
     const isDone=o.status==='done';
     html+=`<tr style="${isCancelled?'opacity:.65':''}">
       <td style="font-size:.72rem;white-space:nowrap">${(o.date||'').slice(0,10)}${!compact?`<div style="margin-top:3px;display:flex;gap:3px"><button class="btn bg bsm" onclick="showOrderDetail(${o.id})" title="View order" data-i18n-title="View order" style="font-size:.6rem">&#128065;</button>${(o.attachments&&o.attachments.length)?`<button class="btn bg bsm" onclick="viewOrderAttachments(${o.id})" title="${o.attachments.length} attachment(s)" style="font-size:.6rem">&#128206; ${o.attachments.length}</button>`:''}</div>`:''}</td>
-      <td class="mn" style="color:var(--a);cursor:pointer" onclick="showOrderDetail(${o.id})">${((o.status==='cutting'||o.status==='done')&&!_optCovSet.has(+o.id))?`<span title="No optimization file - this order was cut outside the optimizer" style="cursor:help;margin-right:3px">&#8252;&#65039;</span>`:''}${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}</td>
+      <td class="mn" style="color:var(--a);cursor:pointer" title="Open order" onclick="event.stopPropagation();openOrderModal(${o.id})">${((o.status==='cutting'||o.status==='done')&&!_optCovSet.has(+o.id))?`<span title="No optimization file - this order was cut outside the optimizer" style="cursor:help;margin-right:3px">&#8252;&#65039;</span>`:''}${o.num}${orderTypeBadgeHTML(o.order_type||o.orderType||'normal')}</td>
       <td class="mn" style="font-size:.72rem;color:var(--mu)">${o.extref||'—'}</td>
       <td style="font-size:.72rem">${(()=>{const fp=finalProducts.find(x=>x.id==(o.finalProductId||o.final_product_id));return fp?`<span style="color:var(--a4);font-size:.68rem">${fp.label}</span>`:'<span style="color:var(--mu)">—</span>';})()}</td>
       <td><span class="bge" style="background:${isDone?'rgba(54,255,138,.15)':isCancelled?'rgba(255,90,90,.15)':'rgba(0,204,255,.1)'};color:${isDone?'var(--a3)':isCancelled?'var(--a2)':'var(--a)'};font-size:.6rem;padding:2px 6px;border-radius:3px">${isDone?'Done':isCancelled?'Cancelled':o.status==='cutting'?'In Progress':'Pending'}</span></td>
@@ -6157,7 +6159,23 @@ async function printOrderAttachments(){
     w.document.write(`<div class="att-page"><div class="att-label">${o.num} — ${a.label}</div><img src="${a.src}"></div>`);
   });
   w.document.write('</body></html>');
-  w.document.close(); w.print();
+  w.document.close();
+  // Wait until every image has actually decoded, otherwise the print preview
+  // opens before the data URLs render and comes out blank.
+  (function(){
+    const go=function(){ try{ w.focus(); w.print(); }catch(e){} };
+    const imgs=Array.from(w.document.images||[]);
+    if(!imgs.length){ setTimeout(go,150); return; }
+    let done=0, fired=false;
+    const tick=function(){ if(++done>=imgs.length && !fired){ fired=true; setTimeout(go,120); } };
+    imgs.forEach(function(im){
+      if(im.complete && im.naturalWidth){ tick(); return; }
+      im.addEventListener('load',tick,{once:true});
+      im.addEventListener('error',tick,{once:true});
+    });
+    // Safety net: never leave the user waiting more than 6s
+    setTimeout(function(){ if(!fired){ fired=true; go(); } },6000);
+  })();
 }
 
 // ── Orders sort state ─────────────────────────────────────
@@ -10631,13 +10649,21 @@ async function renderOptFiles(){
     return '<div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" '+
       'onmouseover="this.style.background=\'rgba(0,204,255,.04)\'" '+
       'onmouseout="this.style.background=\'\'">'+
+      // Actions first — always reachable without scrolling right
+      '<div style="display:flex;gap:5px;flex-shrink:0;min-width:132px" onclick="event.stopPropagation()">'+
+        '<button class="btn bg bsm" title="Open" onclick="loadOptFile('+f.id+')">&#10097;</button>'+
+        '<button class="btn '+(isDone?'ba':(_inProg?'bp':'bs'))+' bsm" title="'+(isDone?'Completed':'Record cut')+'" onclick="'+(isDone?'void(0)':'openMovementModal('+f.id+')')+'">&#9986;</button>'+
+        '<button class="btn bd bsm" onclick="deleteOptFile('+f.id+')" data-i18n="Del">Del</button>'+
+      '</div>'+
+      // Opt number, prominent
+      '<div style="flex-shrink:0;min-width:58px;font-family:DM Mono,monospace;font-size:1rem;font-weight:800;color:var(--a);text-align:right">#'+f.id+'</div>'+
       // Clickable main area — opens workspace
       '<div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px" onclick="loadOptFile('+f.id+')">'+
         // Status dot
         '<div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:'+(isDone?'var(--a3)':(_inProg?'var(--a)':'var(--a4)'))+';box-shadow:0 0 6px '+(isDone?'var(--a3)':(_inProg?'var(--a)':'var(--a4)'))+'" title="'+(isDone?'Done':(_inProg?(_done+'/'+_target+' cut'):'Pending'))+'"></div>'+
         // Name + meta
         '<div style="flex:1;min-width:0">'+
-          '<div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+'<span style="font-family:DM Mono,monospace;font-size:.7rem;color:var(--mu);margin-right:8px;opacity:.7">#'+serial+'</span>'+f.name+'</div>'+
+          '<div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+'</div>'+
           '<div style="font-family:DM Mono,monospace;font-size:.68rem;color:var(--tx2);margin-top:3px;display:flex;flex-wrap:wrap;gap:8px">'+
             (rs?'<span style="display:inline-flex;align-items:center;gap:4px"><span class="color-dot" style="background:'+dot+'"></span>'+
               '<span style="color:var(--a4)">'+(rs.notes||rs.code||rs.thickness+'mm '+rs.color+' '+rs.type)+'</span>'+
@@ -10652,8 +10678,8 @@ async function renderOptFiles(){
         // Open arrow
         '<span style="color:var(--mu);font-size:1rem;flex-shrink:0">&#10097;</span>'+
       '</div>'+
-      // Action buttons (don't propagate click)
-      '<div style="display:flex;gap:5px;flex-shrink:0" onclick="event.stopPropagation()">'+
+      // (actions moved to the leading column)
+      '<div style="display:none">'+
         '<button class="btn '+(isDone?'ba':(_inProg?'bp':'bs'))+' bsm" onclick="'+(isDone?'void(0)':'openMovementModal('+f.id+')')+'" title="'+(isDone?'Completed — locked':'Mark as Done')+'" style="'+(isDone?'opacity:.5;cursor:default':'')+'">'+(isDone?'&#10003; Done':(_inProg?('&#9986; '+_done+'/'+_target):'&#9986; Cut'))+'</button>'+
         '<button class="btn bd bsm" onclick="deleteOptFile('+f.id+')" data-i18n="Del">Del</button>'+
       '</div>'+
@@ -18551,6 +18577,7 @@ async function renderDeliveriesPage(){
     const meta = _dlvItemsCache[d.id]||{};
     const orderCounts = meta.orderCounts||{};
     const totalSqm = meta.totalSqm||0;
+    const totalKg  = meta.totalKg||0;
     const orderCodes = Object.entries(orderCounts).map(([n,cnt])=>`<span style="font-family:monospace;font-size:.65rem;background:rgba(0,204,255,.08);border:1px solid rgba(0,204,255,.15);border-radius:3px;padding:1px 5px;color:var(--a)">${n} <span style="color:var(--a4);font-weight:700">(${cnt})</span></span>`).join(' ');
     return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:.1s" onmouseover="this.style.background='var(--s1)'" onmouseout="this.style.background=''" onclick="dlvOpenDetail(${d.id})">
       <td style="padding:8px 12px;color:var(--tx);font-size:.78rem;font-weight:700;font-family:monospace;white-space:nowrap">${date}</td>
@@ -18559,6 +18586,7 @@ async function renderDeliveriesPage(){
       <td style="padding:8px 12px;font-size:.7rem;color:var(--tx2);max-width:160px">${(meta.glassSpecs&&meta.glassSpecs.length)?meta.glassSpecs.map(g=>`<span style="display:inline-block;background:rgba(255,255,255,.04);border-radius:3px;padding:1px 5px;margin:1px">${g}</span>`).join(' '):'<span style="color:var(--mu)">—</span>'}</td>
       <td style="padding:8px 12px;text-align:center;font-variant-numeric:tabular-nums">${d.piece_count||0}</td>
       <td style="padding:8px 12px;text-align:center;font-variant-numeric:tabular-nums;color:var(--a3);font-weight:600">${totalSqm.toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:center;font-variant-numeric:tabular-nums;color:var(--tx2)">${(meta.totalKg||0).toFixed(1)}</td>
       <td style="padding:8px 12px;max-width:200px">${orderCodes||'<span style="color:var(--mu)">—</span>'}</td>
       <td style="padding:8px 12px;color:var(--tx2)">${d.factory_name||'<span style="color:var(--mu)">—</span>'}</td>
       <td style="padding:8px 12px;color:var(--tx2)">${d.external_process_name||'<span style="color:var(--mu)">—</span>'}</td>
@@ -18576,8 +18604,9 @@ async function _loadDlvItemsMeta(dlvId){
     const items = full.items||[];
     const orderCounts = {};
     const glassSet = new Set();
-    let totalSqm = 0;
+    let totalSqm = 0, totalKg = 0;
     items.forEach(i=>{
+      totalKg += ((+i.w||0)*(+i.h||0)/1e6)*(+i.thickness||0)*2.5;
       const num = i.order_num||'';
       if(num) orderCounts[num] = (orderCounts[num]||0)+1;
       totalSqm += (+i.w||0)*(+i.h||0)/1e6;
@@ -18589,7 +18618,7 @@ async function _loadDlvItemsMeta(dlvId){
       const spec = parts.join(' ');
       if(spec) glassSet.add(spec);
     });
-    _dlvItemsCache[dlvId] = { orderCounts, totalSqm, glassSpecs:[...glassSet] };
+    _dlvItemsCache[dlvId] = { orderCounts, totalSqm, totalKg, glassSpecs:[...glassSet] };
   }catch(e){ _dlvItemsCache[dlvId] = { orderCounts:{}, totalSqm:0, glassSpecs:[] }; }
 }
 

@@ -9,8 +9,8 @@ router.get('/productivity', (req, res) => {
     const { from, to } = req.query;
     let where = "WHERE sl.action='done'";
     const params = [];
-    if (from) { where += ' AND sl.ts>=?'; params.push(from); }
-    if (to)   { where += ' AND sl.ts<=?'; params.push(to); }
+    if (from) { where += ' AND sl.ts>=?'; params.push(String(from).replace("T"," ")); }
+    if (to)   { where += ' AND sl.ts<=?'; params.push(String(to).replace("T"," ")); }
     const rows = db.prepare(`
       SELECT sl.process,
         COUNT(*) AS pieces_done,
@@ -75,8 +75,8 @@ router.get('/productivity-v2', (req, res) => {
     const { from, to } = req.query;
     let where = "WHERE sl.action='done'";
     const params = [];
-    if (from) { where += ' AND sl.ts>=?'; params.push(from); }
-    if (to)   { where += ' AND sl.ts<=?'; params.push(to); }
+    if (from) { where += ' AND sl.ts>=?'; params.push(String(from).replace("T"," ")); }
+    if (to)   { where += ' AND sl.ts<=?'; params.push(String(to).replace("T"," ")); }
 
     // Each (piece, process) done in the period becomes one aggregation row.
     // DISTINCT to avoid double-counting when a worker scans the same piece
@@ -228,8 +228,8 @@ router.get('/productivity-raw', (req, res) => {
     const { from, to } = req.query;
     let where = "WHERE sl.action='done'";
     const params = [];
-    if (from) { where += ' AND sl.ts>=?'; params.push(from); }
-    if (to)   { where += ' AND sl.ts<=?'; params.push(to); }
+    if (from) { where += ' AND sl.ts>=?'; params.push(String(from).replace("T"," ")); }
+    if (to)   { where += ' AND sl.ts<=?'; params.push(String(to).replace("T"," ")); }
     const rows = db.prepare(`
       SELECT
         sl.ts                AS scan_ts,

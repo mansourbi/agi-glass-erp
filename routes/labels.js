@@ -154,8 +154,8 @@ router.get('/scanlog', (req, res) => {
     let sql = "SELECT * FROM scan_log WHERE 1=1";
     const params = [];
     if (orderId) { sql += ' AND order_id=?'; params.push(+orderId); }
-    if (from)    { sql += ' AND ts>=?'; params.push(from); }
-    if (to)      { sql += ' AND ts<=?'; params.push(to); }
+    if (from)    { sql += ' AND ts>=?'; params.push(String(from).replace("T"," ")); }
+    if (to)      { sql += ' AND ts<=?'; params.push(String(to).replace("T"," ")); }
     sql += ' ORDER BY ts DESC';
     const rows = db.prepare(sql).all(...params);
     res.json(rows.map(s=>({
