@@ -95,6 +95,7 @@ app.use(require('./middleware/enforce'));
 // Public QR scan page
 app.use('/piece', require('./routes/scan'));
 
+app.use(require('compression')());   // gzip: JSON payloads compress ~85%
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/orders',    require('./routes/orders'));

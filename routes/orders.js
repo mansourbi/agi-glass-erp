@@ -73,7 +73,14 @@ router.get('/', (req, res) => {
   try {
     const { status, customerId, orderType } = req.query;
     let sql = `
-      SELECT o.*,
+      SELECT o.id, o.num, o.customer_id, o.date, o.extref, o.notes, o.status, o.created_at,
+        o.updated_at, o.final_product_id, o.completed_at, o.cancelled_at, o.cancel_reason,
+        o.cancelled_by, o.completed_by, o.order_type, o.original_order_id, o.type_reason_id,
+        o.responsible_worker_id, o.remake_notes, o.external_process_id, o.customer_order_price,
+        o.price_sqm, o.price_source, o.area_sqm, o.value_base, o.value_extras, o.subtotal, o.priced_at,
+        -- attachments deliberately excluded: 59 MB of base64 across 599 orders.
+        -- The list never renders them; GET /api/orders/:id returns the full record.
+        LENGTH(o.attachments) AS _att_len,
         c.name AS customer_name, c.code AS customer_code, c.company AS customer_company,
         otr.label AS type_reason_label,
         oo.num  AS original_order_num,
@@ -91,10 +98,20 @@ router.get('/', (req, res) => {
     if (status)     { sql += ' AND o.status=?';       params.push(status); }
     if (customerId) { sql += ' AND o.customer_id=?';  params.push(+customerId); }
     if (orderType)  { sql += ' AND o.order_type=?';   params.push(orderType); }
+    // Opt-in window for the Orders screen. Default stays 'all' because this
+    // same list feeds tracking, cutting coverage and the reports, where a
+    // silent subset would produce wrong totals.
+    if (req.query.scope === 'recent') {
+      const days = Math.max(1, +req.query.days || 30);
+      sql += " AND (o.status NOT IN ('done','cancelled') OR o.date >= date('now','-" + days + " days'))";
+    }
     sql += ' ORDER BY o.id DESC';
+    try{
+      res.set('X-Total-Orders', String(db.prepare('SELECT COUNT(*) c FROM orders').get().c));
+    }catch(e){}
     const rows = db.prepare(sql).all(...params).map(r=>({
       ...r, customerId:r.customer_id, finalProductId:r.final_product_id,
-      attachments:JSON.parse(r.attachments||'[]'), orderType:r.order_type||'normal'
+      attachments:[], has_attachments:(r._att_len||0)>2, orderType:r.order_type||'normal'
     }));
     // Optional: include items in list for performance (avoids N+1 fetches)
     if (req.query.include_items === '1') {
@@ -309,11 +326,17 @@ router.put('/:id', (req, res) => {
       if (conflict) return res.status(409).json({ error: `Order number ${newNum} already exists` });
     }
 
+    const _cur = db.prepare('SELECT attachments FROM orders WHERE id=?').get(+req.params.id);
+    const _attJson = (attachments === undefined || attachments === null)
+      ? (_cur ? _cur.attachments : '[]')                 // field absent -> keep what is stored
+      : (Array.isArray(attachments) && attachments.length === 0 && _cur && _cur.attachments && _cur.attachments.length > 2
+          ? _cur.attachments                             // empty array from a list-derived save -> keep
+          : JSON.stringify(attachments));
     db.transaction(() => {
       db.prepare(`UPDATE orders SET num=?,customer_id=?,date=?,extref=?,notes=?,attachments=?,
         order_type=?,type_reason_id=?,original_order_id=?,responsible_worker_id=?,remake_notes=?,
         external_process_id=?,updated_at=datetime('now') WHERE id=?`).run(
-        newNum,+customerId,date,extref||null,notes||null,JSON.stringify(attachments||[]),
+        newNum,+customerId,date,extref||null,notes||null,_attJson,
         order_type||'normal',
         type_reason_id?+type_reason_id:null,
         original_order_id?+original_order_id:null,

@@ -7,17 +7,42 @@ router.use(requireAuth);
 // Migration: per-file additional sheets (multi-sheet optimization). Idempotent.
 try { db.prepare('ALTER TABLE opt_files ADD COLUMN additional_sheets TEXT').run(); } catch(e) {}
 
+// List. The heavy JSON columns (cut_pieces, results) are 2.5 MB across 489
+// files and are only needed when a file is opened, so the list returns light
+// rows plus the derived numbers the cards actually display.
+// ?scope=all      -> every file
+// ?scope=recent   -> active files + anything from the last N days (default 60)
 router.get('/', (req, res) => {
-  const rows = db.prepare('SELECT * FROM opt_files ORDER BY created_at DESC').all();
-  res.json(rows.map(r => ({
-    ...r,
-    cut_pieces:    JSON.parse(r.cut_pieces||'[]'),
-    manual_pieces: JSON.parse(r.manual_pieces||'[]'),
-    order_ids:     JSON.parse(r.order_ids||'[]'),
-    raw_sheet_snap:r.raw_sheet_snap ? JSON.parse(r.raw_sheet_snap) : null,
-    additional_sheets: r.additional_sheets ? JSON.parse(r.additional_sheets) : [],
-    results:       r.results ? JSON.parse(r.results) : null
-  })));
+  const scope = req.query.scope || 'recent';
+  const days  = Math.max(1, +req.query.days || 30);
+  let sql = 'SELECT * FROM opt_files';
+  if (scope !== 'all') {
+    sql += " WHERE status!='done' OR created_at >= date('now','-" + days + " days')";
+  }
+  sql += ' ORDER BY created_at DESC';
+  const rows = db.prepare(sql).all();
+  const totalAll = db.prepare('SELECT COUNT(*) c FROM opt_files').get().c;
+  res.set('X-Total-Files', String(totalAll));
+  res.set('X-Returned-Files', String(rows.length));
+  res.json(rows.map(r => {
+    const cut = JSON.parse(r.cut_pieces||'[]');
+    const man = JSON.parse(r.manual_pieces||'[]');
+    const rez = r.results ? JSON.parse(r.results) : null;
+    return {
+      id:r.id, name:r.name, status:r.status, raw_sheet_id:r.raw_sheet_id,
+      comp_w:r.comp_w, comp_h:r.comp_h, total_sheets:r.total_sheets,
+      created_at:r.created_at, updated_at:r.updated_at, completed_at:r.completed_at,
+      raw_sheet_snap: r.raw_sheet_snap ? JSON.parse(r.raw_sheet_snap) : null,
+      order_ids: JSON.parse(r.order_ids||'[]'),
+      // derived so the card can render without the heavy payload
+      cut_pieces: cut.length,
+      manual_pieces: man.length,
+      order_nums: [...new Set(cut.map(p=>p.orderNum).filter(Boolean))],
+      covered_order_ids: [...new Set(cut.map(p=>p.orderId||p.order_id).filter(Boolean))],
+      results: rez ? { sheets:(rez.results||[]).length, tu:rez.tu, ts:rez.ts } : null,
+      _light: true
+    };
+  }));
 });
 
 router.get('/:id', (req, res) => {

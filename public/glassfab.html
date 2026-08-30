@@ -4679,6 +4679,7 @@ function renderOrderMatrix(containerId, compact=false){
   (optFiles||[]).forEach(f=>{
     const ids=Array.isArray(f.order_ids)?f.order_ids:(Array.isArray(f.orderIds)?f.orderIds:[]);
     ids.forEach(id=>{ if(id) _optCovSet.add(+id); });
+    (f.covered_order_ids||[]).forEach(id=>{ if(id) _optCovSet.add(+id); });   // light list
     const pcs=Array.isArray(f.cut_pieces)?f.cut_pieces:(Array.isArray(f.cutPieces)?f.cutPieces:[]);
     pcs.forEach(p=>{ const oid=p.orderId||p.order_id; if(oid) _optCovSet.add(+oid); });
   });
@@ -6367,6 +6368,20 @@ async function renderOrders(){
   if(fColor)    list=list.filter(o=>(o.items||[]).some(i=>(i.color||'clear')===fColor));
   if(fFp)       list=list.filter(o=>String(o.finalProductId||o.final_product_id||'')===fFp);
   if(fOrderType) list=list.filter(o=>(o.order_type||o.orderType||'normal')===fOrderType);
+  const _showAllOrders = !!(document.getElementById('xf-showall') && document.getElementById('xf-showall').checked);
+  const _ordTotal = list.length;
+  if(!_showAllOrders){
+    const _cut=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+    list=list.filter(o=>{
+      const st=o.status||'';
+      if(st!=='done' && st!=='cancelled') return true;      // anything open stays
+      return (o.date||'')>=_cut;                             // finished: last 30 days only
+    });
+  }
+  {
+    const _lbl=document.getElementById('ord-scope-label');
+    if(_lbl) _lbl.textContent=_showAllOrders?(list.length+' orders'):(list.length+' of '+_ordTotal+' (open + last 30 days)');
+  }
   if(document.getElementById('xf-unpriced')?.checked)
     list=list.filter(o=>(o.subtotal==null||o.subtotal==='')||(o.price_source||o.priceSource)==='none');
 
@@ -6412,6 +6427,19 @@ async function renderOrders(){
     el.textContent=col===k?(dir===1?'\u25b2':'\u25bc'):'\u25bc';
   });
 
+  // archive toggle (injected once)
+  if(!document.getElementById('xf-showall')){
+    const _sum=document.getElementById('ord-summary');
+    if(_sum && _sum.parentElement){
+      const b=document.createElement('div');
+      b.style.cssText='display:flex;align-items:center;gap:10px;padding:4px 2px;font-size:.68rem;color:var(--mu)';
+      b.innerHTML='<label style="display:flex;align-items:center;gap:5px;cursor:pointer">'
+        +'<input type="checkbox" id="xf-showall" style="width:12px;height:12px"> <span>Show all orders (archive)</span></label>'
+        +'<span id="ord-scope-label" style="color:var(--tx2)"></span>';
+      _sum.parentElement.insertBefore(b,_sum);
+      document.getElementById('xf-showall').addEventListener('change',renderOrders);
+    }
+  }
   const tbody=document.getElementById('ord-body');
   if(!list.length){
     tbody.innerHTML=`<tr><td colspan="18"><div class="empty"><div class="empty-i">&#9741;</div><div class="empty-t" data-i18n="No orders match filters">No orders match filters</div></div></td></tr>`;
@@ -6482,6 +6510,14 @@ async function renderOrders(){
     </tr>`;
   }).join('');
   renderOrdSummary(list);
+  // set after the summary renders, otherwise it wipes the label
+  (function(){
+    const lbl=document.getElementById('ord-scope-label');
+    if(!lbl) return;
+    const all=!!(document.getElementById('xf-showall')&&document.getElementById('xf-showall').checked);
+    const tot=(typeof orders!=='undefined')?orders.length:list.length;
+    lbl.textContent = all ? (list.length+' orders') : (list.length+' of '+tot+' shown \u2014 open + last 30 days');
+  })();
 }
 
 function renderOrdSummary(list){
@@ -6716,7 +6752,7 @@ function getSheetUsedCount(sheetId){
     if(!f.results) return;
     const rs=f.rawSheet||f.raw_sheet_snap||null;
     if(!rs||rs.id!==sheetId) return;
-    total+=(f.results.results||[]).length; // each result = 1 physical sheet
+    total+=(typeof f.results.sheets==='number')?f.results.sheets:((f.results.results||[]).length); // each result = 1 physical sheet
   });
   return total;
 }
@@ -6969,7 +7005,7 @@ async function renderStockTab(){
     const totBought=purchases.reduce((a,p)=>a+p.qty,0);
     const totUsed=optFiles.reduce((a,f)=>{
       if(!f.results) return a;
-      return a+(f.results.results||[]).length;
+      return a+((typeof f.results.sheets==='number')?f.results.sheets:(f.results.results||[]).length);
     },0);
     const lowStock=rawSheetCatalog.filter(s=>{
       const stk=getSheetStock(s.id); return stk.bought>0&&stk.remaining<=3;
@@ -7017,7 +7053,7 @@ async function renderUsageTab(){
     const sorted=[...optFiles].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
     tbody.innerHTML=sorted.map(f=>{
       const rs=f.rawSheet;
-      const sheetCount=(f.results&&f.results.results)?f.results.results.length:0;
+      const sheetCount=(f.results?((typeof f.results.sheets==='number')?f.results.sheets:(f.results.results||[]).length):0);
       const sqm=f.results?(f.results.tu/1e6).toFixed(3):'—';
       const eff=f.results&&f.results.ts>0?((f.results.tu/f.results.ts)*100).toFixed(1)+'%':'—';
       const dot=rs?COLOR_MAP[rs.color]||'#888':'#888';
@@ -10565,7 +10601,28 @@ async function exportOptFilesExcel(){
 }
 
 async function renderOptFiles(){
-  try{ optFiles=await AGI.OptFiles.list(); }catch(e){ console.warn('[optfiles]',e.message); }
+  const _showAll = !!(document.getElementById('opt-show-all') && document.getElementById('opt-show-all').checked);
+  try{
+    const tok=localStorage.getItem('agi_token')||'';
+    const r=await fetch('/api/optfiles?scope='+(_showAll?'all':'recent'),{headers:{Authorization:'Bearer '+tok}});
+    optFiles = await r.json();
+    const shown=r.headers.get('X-Returned-Files'), tot=r.headers.get('X-Total-Files');
+    const lbl=document.getElementById('opt-scope-label');
+    if(lbl && shown && tot) lbl.textContent = _showAll ? (tot+' files') : (shown+' of '+tot+' (active + last 60 days)');
+  }catch(e){ console.warn('[optfiles]',e.message); }
+  // inject the archive toggle once
+  if(!document.getElementById('opt-show-all')){
+    const host=document.getElementById('opt-files-list');
+    if(host && host.parentElement){
+      const bar=document.createElement('div');
+      bar.style.cssText='display:flex;align-items:center;gap:10px;padding:6px 4px;font-size:.68rem;color:var(--mu)';
+      bar.innerHTML='<label style="display:flex;align-items:center;gap:5px;cursor:pointer">'
+        +'<input type="checkbox" id="opt-show-all" style="width:12px;height:12px"> <span>Show archived (all files)</span></label>'
+        +'<span id="opt-scope-label" style="color:var(--tx2)"></span>';
+      host.parentElement.insertBefore(bar, host);
+      document.getElementById('opt-show-all').addEventListener('change',renderOptFiles);
+    }
+  }
   const el=document.getElementById('opt-files-list'); if(!el) return;
 
   // Populate dynamic filter dropdowns
@@ -10691,7 +10748,7 @@ async function renderOptFiles(){
     const manArr=Array.isArray(f.manualPieces)?f.manualPieces:(Array.isArray(f.manual_pieces)?f.manual_pieces:[]);
     const pcsCount=(typeof f.cut_pieces==='number'?f.cut_pieces:cutArr.length)+(typeof f.manual_pieces==='number'?f.manual_pieces:manArr.length);
     const manCount=typeof f.manual_pieces==='number'?f.manual_pieces:manArr.length;
-    const orderNums=[...new Set(cutArr.map(p=>p.orderNum).filter(Boolean))];
+    const orderNums=(f.order_nums&&f.order_nums.length)?f.order_nums:[...new Set(cutArr.map(p=>p.orderNum).filter(Boolean))];
     const rs=f.rawSheet||f.raw_sheet_snap||null;
     const dot=rs?COLOR_MAP[rs.color]||'#888':'transparent';
     const eff=f.results&&f.results.ts>0?((f.results.tu/f.results.ts)*100).toFixed(0)+'%':'—';
