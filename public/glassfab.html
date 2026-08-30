@@ -3583,12 +3583,12 @@ tr:last-child td{border-bottom:none} tr:hover td{background:rgba(0,204,255,.018)
 
           <!-- Export -->
           <button class="btn bs" style="width:100%;margin-bottom:8px;padding:10px;font-size:.78rem" onclick="exportBackup()">
-            &#11015; Export Full Backup
+            &#11015; Download Full Database Backup
           </button>
 
           <!-- Import -->
           <label class="btn by" for="import-file" style="width:100%;margin-bottom:8px;padding:10px;font-size:.78rem;justify-content:center;cursor:pointer">
-            &#11014; Import / Restore Backup
+            &#11014; Restore Instructions
           </label>
           <input type="file" id="import-file" accept=".json" onchange="importBackup(this)" style="display:none">
 
@@ -13382,7 +13382,26 @@ async function renderSettings(){
 // ═══════════════════════════════════════════════════════
 // BACKUP & RESTORE
 // ═══════════════════════════════════════════════════════
-function exportBackup(){
+async function exportBackup(){
+  // Full database snapshot from the server (all tables, indexes, triggers).
+  const tok=localStorage.getItem('agi_token')||'';
+  try{
+    showImportMsg('Preparing full database backup…','ok');
+    const m=await fetch('/api/backup/manifest',{headers:{Authorization:'Bearer '+tok}}).then(r=>r.json());
+    const r=await fetch('/api/backup/download',{headers:{Authorization:'Bearer '+tok}});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download='agi-glass-'+new Date().toISOString().slice(0,10)+'.db'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    const ts=new Date().toISOString();
+    DB.s('last-backup',ts); updateBackupInfo();
+    showImportMsg('Full backup downloaded — '+m.table_count+' tables, '+m.total_rows.toLocaleString()+' rows ('+(blob.size/1048576).toFixed(1)+' MB)','ok');
+  }catch(e){ showImportMsg('Backup failed: '+e.message,'err'); }
+  return;
+}
+function _legacyExportBackup(){
   // Collect current in-memory data (already loaded from API)
   const ts=new Date().toISOString();
   const payload={
@@ -13416,6 +13435,17 @@ function exportBackup(){
 }
 
 function importBackup(input){
+  input.value='';
+  alert('Restore is deliberately a manual, supervised procedure — it replaces the entire live database.\n\n'
+    +'1. Stop the service:   pm2 stop agi-glass\n'
+    +'2. Back up the current file:  copy C:\\agi-server\\agi-glass.db to _db_backups\\\n'
+    +'3. Replace agi-glass.db with the backup file (delete any -wal and -shm files)\n'
+    +'4. Start the service:  pm2 start agi-glass\n'
+    +'5. Log in and check Orders, Deliveries and Payroll before letting others back in.\n\n'
+    +'Nightly snapshots: C:\\agi-server\\_db_backups\\auto (30 days kept)');
+  return;
+}
+function _legacyImportBackup(input){
   const file=input.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=e=>{
