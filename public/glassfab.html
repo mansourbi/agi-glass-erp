@@ -4570,6 +4570,27 @@ async function badges(){
 // ═══════════════════════════════════════════════════════
 function OM(id){const el=document.getElementById(id);if(!el)return;el.style.display='';el.classList.add('on');}
 function CM(id){document.getElementById(id).classList.remove('on')}
+// ---- Unsaved-changes guard for the order modal ----------------------------
+// Editing an order and pressing Cancel, x or Esc used to discard everything
+// silently. Track edits inside #m-order and confirm before closing.
+window.__ordDirty=false;
+document.addEventListener('input', function(e){
+  if(e.target && e.target.closest && e.target.closest('#m-order')) window.__ordDirty=true;
+}, true);
+document.addEventListener('change', function(e){
+  if(e.target && e.target.closest && e.target.closest('#m-order')) window.__ordDirty=true;
+}, true);
+window.__ordClearDirty=function(){ window.__ordDirty=false; };
+(function(){
+  const _CM=window.CM;
+  window.CM=function(id){
+    if(id==='m-order' && window.__ordDirty){
+      if(!confirm('This order has unsaved changes.\n\nClose anyway and lose them?')) return;
+      window.__ordDirty=false;
+    }
+    return _CM.apply(this,arguments);
+  };
+})();
 // Global modal backdrop guard — applies to EVERY .mbg modal in the app.
 //
 // Why this exists: previously some modals closed when you clicked outside
@@ -5376,6 +5397,11 @@ function clearAllProcs(){
 }
 
 async function openOrderModal(id=null){
+  if(id) await _ensureFullOrder(id);
+  window.__ordDirty=false;
+  setTimeout(function(){ window.__ordDirty=false; },400);   // ignore prefill events
+  window.__ordRenumberAsked=false;
+  window.__ordRenumberOK=null;
   _editOid=id; _oic=0;
   // Ensure type reasons are loaded
   if(!orderTypeReasons.length) await loadOrderTypeReasons();
@@ -5807,14 +5833,32 @@ function onOrderTypeChange() {
       filtered.map(r => `<option value="${r.id}">${r.label}</option>`).join('');
   }
 
-  // Refresh order number preview — only for NEW orders, not edits
-  if (!_editOid) {
+  // Refresh order number preview.
+  // New orders: always. Edits: offer it, because changing an order to a remake
+  // type should give it the REF-<original>-RC number, but the operator must
+  // agree - labels may already be printed under the current number.
+  {
     const custId = parseInt(document.getElementById('o-cust')?.value);
     if (custId) {
       const origNum = document.getElementById('o-original-order-num')?.value?.trim() || null;
       const num = getNextOrderNum(custId, type, origNum);
-      document.getElementById('o-ref').value = num;
-      refreshPieceCodes();
+      const refEl = document.getElementById('o-ref');
+      if (!_editOid) {
+        refEl.value = num;
+        refreshPieceCodes();
+      } else if (num && refEl && refEl.value !== num && !window.__ordRenumberAsked) {
+        // only offer once per modal session, and only when the suffix rule applies
+        const needsSuffix = (type!=='normal') && (!REMAKE_TYPES.includes(type) || origNum);
+        if (needsSuffix) {
+          window.__ordRenumberAsked = true;
+          if (confirm('Change order number from '+refEl.value+' to '+num+' ?\n\n'
+                     +'Any labels already printed under '+refEl.value+' will need reprinting.')) {
+            refEl.value = num;
+            window.__ordRenumberOK = num;   // deliberate: saveOrder may use the field
+            refreshPieceCodes();
+          }
+        }
+      }
     }
   }
 }
@@ -5856,7 +5900,11 @@ async function saveOrder(){
   // For edits, always use the existing order's num from memory — never from the field
   // which may have been overwritten by onOrderTypeChange()
   const _existingOrder = _editOid ? orders.find(x=>x.id===_editOid) : null;
-  const orderNum = _existingOrder ? _existingOrder.num : document.getElementById('o-ref').value.trim();
+  // Edits keep the stored number unless the operator explicitly confirmed a
+  // renumber (e.g. changing an order to a remake type -> REF-<original>-RC).
+  const _fieldNum = document.getElementById('o-ref').value.trim();
+  const _renumberOK = (window.__ordRenumberOK && window.__ordRenumberOK === _fieldNum);
+  const orderNum = (_existingOrder && !_renumberOK) ? _existingOrder.num : _fieldNum;
   if(!orderNum){alert('Select a customer to generate the order number.');return}
   if(!_editOid && orders.some(o=>o.num===orderNum)){
     alert('Order '+orderNum+' already exists.');return;
@@ -5949,7 +5997,8 @@ async function saveOrder(){
     external_process_id: extProcessId};
   try{
     await apiSaveOrder(orderData, _editOid||null);
-    CM('m-order');
+    window.__ordDirty=false;   // saved successfully - no unsaved-changes prompt
+  CM('m-order');
     try{ scanLog = await AGI.Labels.scanlog(); }catch(e){}
     renderOrders(); badges();
     showToast(_editOid?'Order updated':'Order created');
@@ -5967,7 +6016,21 @@ async function delOrder(id){
 
 let _vordId=null;
 
-function viewOrder(id){
+// The orders list no longer carries attachments (they were 59 MB of base64).
+// Anything that displays them must load the full record first.
+async function _ensureFullOrder(id){
+  try{
+    const tok=localStorage.getItem('agi_token')||'';
+    const r=await fetch('/api/orders/'+id,{headers:{Authorization:'Bearer '+tok}});
+    if(!r.ok) return null;
+    const full=await r.json();
+    const i=orders.findIndex(x=>x.id===id);
+    if(i>=0) orders[i]=Object.assign({},orders[i],full);
+    return full;
+  }catch(e){ console.warn('[order detail]',e.message); return null; }
+}
+async function viewOrder(id){
+  await _ensureFullOrder(id);
   const o=orders.find(x=>x.id===id); if(!o) return;
   _vordId=id;
   const c=customers.find(x=>x.id===o.customerId)||{};
@@ -7413,7 +7476,8 @@ function navToDelivery(deliveryId){
   }, 300);
 }
 
-function viewOrderAttachments(oid){
+async function viewOrderAttachments(oid){
+  await _ensureFullOrder(oid);
   const o=orders.find(x=>x.id===oid||x.id===+oid);
   if(!o||!o.attachments||!o.attachments.length) return;
   const atts=o.attachments;
@@ -10070,7 +10134,20 @@ async function backfillOptRawSheets(){
 }
 
 async function loadOptFile(id){
-  const f=optFiles.find(x=>x.id===id); if(!f) return;
+  let f=optFiles.find(x=>x.id===id); if(!f) return;
+  // The list is now light (cut_pieces is a count, results is a summary, and
+  // additional_sheets is omitted), so always load the full record before
+  // opening the workspace.
+  try{
+    const _tok=localStorage.getItem('agi_token')||'';
+    const _r=await fetch('/api/optfiles/'+id,{headers:{Authorization:'Bearer '+_tok}});
+    if(_r.ok){
+      const _full=await _r.json();
+      f=_full;
+      const _i=optFiles.findIndex(x=>x.id===id);   // keep the cached row usable
+      if(_i>=0) optFiles[_i]=_full;
+    }
+  }catch(e){ console.warn('[loadOptFile] full fetch failed:', e.message); }
   activeOptId=f.id;
   // rawSheet is saved as 'rawSheet' locally but API returns 'raw_sheet_snap'
   activeRawSheet=f.rawSheet||f.raw_sheet_snap||null;
@@ -24437,6 +24514,278 @@ function doLogout(){
       p.appendChild(bt); } });
   mo.observe(document.body,{childList:true,subtree:true});
   if(typeof window.openOrderModal==='function'){ const _o=window.openOrderModal; window.openOrderModal=function(id){ window.__editingOrderId=id||null; return _o.apply(this,arguments); }; }
+})();
+</script>
+
+<!-- ORDER_HISTORY_REPORT v1 -->
+<script>
+(function(){
+  if(window.__ordHistRep) return; window.__ordHistRep=true;
+  let _lastData=null;
+  const el=id=>document.getElementById(id);
+  // Production timestamps (orders, scans, labels, opt files, deliveries) are stored
+  // UTC; the factory is UTC+3. Convert for display so times read as they happened.
+  const TZ=3;
+  const loc=ts=>{ if(!ts) return '-'; const d=new Date(String(ts).replace(' ','T')+(String(ts).endsWith('Z')?'':'Z')); if(isNaN(d)) return String(ts); return new Date(d.getTime()+TZ*3600000).toISOString().slice(0,16).replace('T',' '); };
+  const dayName=ts=>{ const d=new Date(String(ts).replace(' ','T')+'Z'); return isNaN(d)?'':['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d.getTime()+TZ*3600000).getUTCDay()]; };
+  const ICON={created:'\uD83D\uDCDD',labels:'\uD83C\uDFF7',opt:'\u2702',proc_start:'\u25B6',proc_end:'\u25A0',done:'\u2705',cancelled:'\u274C',dlv_open:'\uD83D\uDCE6',dlv_final:'\uD83D\uDE9A'};
+  function panelHTML(){return ''
+   +'<style>'
+   +'#rpanel-ordhist-rep{max-width:940px}'
+   +'#rpanel-ordhist-rep table{width:100%!important;table-layout:fixed;font-size:.74rem!important}'
+   +'#rpanel-ordhist-rep th,#rpanel-ordhist-rep td{padding:4px 8px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+   +'#rpanel-ordhist-rep .oh-stage th:nth-child(1),#rpanel-ordhist-rep .oh-stage td:nth-child(1){width:38%;white-space:normal}'
+   +'#rpanel-ordhist-rep .oh-stage th:nth-child(2),#rpanel-ordhist-rep .oh-stage td:nth-child(2),'
+   +'#rpanel-ordhist-rep .oh-stage th:nth-child(3),#rpanel-ordhist-rep .oh-stage td:nth-child(3){width:17%}'
+   +'#rpanel-ordhist-rep .oh-stage th:nth-child(4),#rpanel-ordhist-rep .oh-stage td:nth-child(4),'
+   +'#rpanel-ordhist-rep .oh-stage th:nth-child(5),#rpanel-ordhist-rep .oh-stage td:nth-child(5){width:14%}'
+   +'#rpanel-ordhist-rep .oh-tl th:nth-child(1),#rpanel-ordhist-rep .oh-tl td:nth-child(1){width:17%}'
+   +'#rpanel-ordhist-rep .oh-tl th:nth-child(2),#rpanel-ordhist-rep .oh-tl td:nth-child(2){width:7%}'
+   +'#rpanel-ordhist-rep .oh-tl th:nth-child(3),#rpanel-ordhist-rep .oh-tl td:nth-child(3){width:26%}'
+   +'#rpanel-ordhist-rep .oh-tl th:nth-child(4),#rpanel-ordhist-rep .oh-tl td:nth-child(4){width:34%;white-space:normal}'
+   +'#rpanel-ordhist-rep .oh-tl th:nth-child(5),#rpanel-ordhist-rep .oh-tl td:nth-child(5),'
+   +'#rpanel-ordhist-rep .oh-tl th:nth-child(6),#rpanel-ordhist-rep .oh-tl td:nth-child(6){width:8%}'
+   +'</style>'
+   +'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">'
+   +'<div><div style="font-size:.6rem;color:var(--mu);margin-bottom:4px">ORDER NUMBER</div>'
+   +'<div style="position:relative">'
+   +'<input id="oh-num" class="inp" placeholder="type any part, e.g. 501" style="width:200px" autocomplete="off">'
+   +'<div id="oh-sugg" style="display:none;position:absolute;z-index:50;left:0;right:0;top:100%;background:var(--panel);border:1px solid var(--border);border-radius:6px;max-height:220px;overflow:auto"></div>'
+   +'</div></div>'
+   +'<button class="btn ba bsm" id="oh-go">\u25B6 Show history</button>'
+   +'<button class="btn bg bsm" id="oh-print" style="display:none">\u2399 Print PDF</button>'
+   +'<span id="oh-hint" style="font-size:.62rem;color:var(--mu)">Times shown in local factory time (UTC+3)</span>'
+   +'</div>'
+   +'<div id="oh-summary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px"></div>'
+   +'<div id="oh-body"></div>';
+  }
+  function card(l,v,c){return '<div style="background:rgba(0,204,255,.06);border:1px solid rgba(0,204,255,.2);border-radius:8px;padding:7px 14px">'
+    +'<div style="font-size:.55rem;color:var(--mu);letter-spacing:1px">'+l+'</div>'
+    +'<div style="font-size:1.05rem;font-weight:800;color:'+(c||'var(--a)')+'">'+v+'</div></div>';}
+  async function run(){
+    const num=(el('oh-num').value||'').trim().toUpperCase();
+    if(!num){ el('oh-body').innerHTML='<div style="color:var(--mu);font-size:.75rem">Enter an order number.</div>'; return; }
+    el('oh-body').innerHTML='<div style="color:var(--mu);font-size:.75rem">Loading\u2026</div>';
+    el('oh-summary').innerHTML='';
+    try{
+      const tok=localStorage.getItem('agi_token')||'';
+      const r=await fetch('/api/orderhistory/'+encodeURIComponent(num),{headers:{Authorization:'Bearer '+tok}});
+      if(!r.ok){ const e=await r.json().catch(()=>({})); el('oh-body').innerHTML='<div style="color:var(--a2);font-size:.8rem">'+(e.error||('HTTP '+r.status))+'</div>'; return; }
+      const d=await r.json();
+      _lastData=d;
+      const pb=el('oh-print'); if(pb) pb.style.display='';
+      const S=d.summary||{};
+      const fmtH=v=>(v==null?'\u2014':(v>=24?(Math.round(v/24*10)/10)+'d':v+'h'));   // calendar time
+      const WD=8.5;                                                                  // one working day
+      const fmtW=v=>(v==null?'\u2014':(v>=WD?(Math.round(v/WD*10)/10)+' wd':v+'h'));  // working time
+      const chip=(l,v,c)=>'<div style="padding:4px 10px;border-radius:6px;background:rgba(0,204,255,.06);border:1px solid rgba(0,204,255,.18)">'
+        +'<div style="font-size:.5rem;color:var(--mu);letter-spacing:.8px">'+l+'</div>'
+        +'<div style="font-size:.85rem;font-weight:800;color:'+(c||'var(--a)')+'">'+v+'</div></div>';
+      el('oh-summary').innerHTML=
+        chip('ORDER',d.order.num)+chip('STATUS',d.order.status)+chip('PIECES',d.order.pieces)
+        +chip('AREA',d.order.sqm+' m\u00B2')+chip('SCANS',d.scans_count)
+        +chip('LEAD TIME',fmtH(S.lead_h),'var(--a4)')
+        +chip('WORK DAYS',fmtW(S.lead_wh),'var(--a3)')
+        +chip('HANDS-ON',fmtH(S.active_work_h)+' ('+(S.work_sessions||0)+' sess)','#e0b341');
+      let h='';
+      // ---- stage summary ----
+      const row=(stage,from,to,el2,wk)=>'<tr><td style="font-weight:600">'+stage+'</td>'
+        +'<td class="mn" style="color:var(--mu)">'+(from?loc(from):'\u2014')+'</td>'
+        +'<td class="mn" style="color:var(--mu)">'+(to?loc(to):'\u2014')+'</td>'
+        +'<td class="mn" style="text-align:right">'+fmtH(el2)+'</td>'
+        +'<td class="mn" style="text-align:right;color:var(--a3)">'+fmtW(wk)+'</td></tr>';
+      const ms=(l,v)=>'<div style="min-width:148px"><div style="font-size:.52rem;color:var(--mu);letter-spacing:.8px">'+l+'</div>'
+        +'<div class="mn" style="font-size:.72rem;color:'+(v?'var(--tx)':'var(--mu)')+'">'+(v?loc(v):'\u2014')+'</div></div>';
+      h+='<div style="display:flex;gap:14px;flex-wrap:wrap;padding:7px 10px;margin-bottom:10px;border:1px solid var(--border);border-radius:6px">'
+        +ms('ORDER CREATED',S.created_at)
+        +ms('LABELS PRINTED',S.labels_at)
+        +ms('OPTIMIZATION SAVED',S.optimized_at)
+        +ms('FIRST CUT SCAN',S.first_scan)
+        +ms('LAST SCAN',S.last_scan)
+        +ms('READY AT FACTORY',S.ready_at)
+        +ms('FIRST DELIVERY',S.first_delivery)
+        +ms('LAST DELIVERY',S.last_delivery)
+        +'</div>';
+      if(S.processes && S.processes.length){
+        h+='<div style="margin-bottom:10px"><table class="oh-stage"><thead><tr>'
+          +'<th style="text-align:left">Process</th><th style="text-align:left">First scan</th><th style="text-align:left">Last scan</th>'
+          +'<th style="text-align:right">Span</th><th style="text-align:right">Pieces</th></tr></thead><tbody>'
+          +S.processes.map(p=>'<tr><td style="font-weight:600">'+p.process+'</td>'
+            +'<td class="mn" style="color:var(--mu)">'+loc(p.first)+'</td>'
+            +'<td class="mn" style="color:var(--mu)">'+loc(p.last)+'</td>'
+            +'<td class="mn" style="text-align:right">'+fmtH(p.span_h)+'</td>'
+            +'<td class="mn" style="text-align:right">'+p.pieces+'</td></tr>').join('')
+          +'</tbody></table></div>';
+      }
+      h+='<div style="margin-bottom:10px"><table class="oh-stage"><thead><tr>'
+        +'<th style="text-align:left">Stage</th><th style="text-align:left">From</th><th style="text-align:left">To</th>'
+        +'<th style="text-align:right">Elapsed</th><th style="text-align:right">Working (8.5h/day)</th></tr></thead><tbody>'
+        +row('Queued (created \u2192 first cut)',S.created_at,S.first_scan,S.queue_h,S.queue_wh)
+        +row('Production (first \u2192 last scan)',S.first_scan,S.last_scan,S.production_h,S.production_wh)
+        +row('Ready \u2192 first collection',S.ready_at,S.first_delivery,S.wait_first_pickup_h,S.wait_first_pickup_wh)
+        +row('Ready \u2192 last collection',S.ready_at,S.last_delivery,S.wait_last_pickup_h,S.wait_last_pickup_wh)
+        +'<tr style="border-top:1px solid var(--a3)"><td style="font-weight:700;color:var(--a3)">FACTORY TIME (order \u2192 ready)</td>'
+        +'<td class="mn" style="color:var(--mu)">'+(S.created_at?loc(S.created_at):'\u2014')+'</td>'
+        +'<td class="mn" style="color:var(--mu)">'+(S.ready_at?loc(S.ready_at):'\u2014')+'</td>'
+        +'<td class="mn" style="text-align:right;font-weight:700">'+fmtH(S.factory_h)+'</td>'
+        +'<td class="mn" style="text-align:right;font-weight:700;color:var(--a3)">'+fmtW(S.factory_wh)+'</td></tr>'
+        +'<tr style="border-top:1px solid var(--a)"><td style="font-weight:700">CUSTOMER LEAD TIME (order \u2192 collected)</td>'
+        +'<td class="mn" style="color:var(--mu)">'+(S.created_at?loc(S.created_at):'\u2014')+'</td>'
+        +'<td class="mn" style="color:var(--mu)">'+(S.last_delivery?loc(S.last_delivery):'\u2014')+'</td>'
+        +'<td class="mn" style="text-align:right;font-weight:700">'+fmtH(S.lead_h)+'</td>'
+        +'<td class="mn" style="text-align:right;font-weight:700;color:var(--a3)">'+fmtW(S.lead_wh)+'</td></tr>'
+        +'</tbody></table></div>';
+      if(d.slowest_step){
+        h+='<div style="background:rgba(255,180,0,.08);border:1px solid rgba(255,180,0,.3);border-radius:6px;padding:5px 10px;margin-bottom:8px;font-size:.68rem">'
+          +'<b>Longest wait:</b> '+d.slowest_step.gap_work_hours+'h working ('+d.slowest_step.gap_hours+'h elapsed) before <b>'+d.slowest_step.label+'</b></div>';
+      }
+      h+='<details><summary style="cursor:pointer;font-size:.68rem;color:var(--a);margin-bottom:6px">Full timeline ('+d.events.length+' events)</summary>';
+      h+='<div class="tw"><table class="oh-tl"><thead><tr>'
+        +'<th>Time</th><th>Day</th><th>Event</th><th>Detail</th>'
+        +'<th style="text-align:right">Gap</th><th style="text-align:right">Work</th></tr></thead><tbody>';
+      d.events.forEach(e=>{
+        const big=e.gap_work_hours>=8;
+        h+='<tr'+(big?' style="background:rgba(255,180,0,.06)"':'')+'>'
+          +'<td class="mn">'+loc(e.ts)+'</td>'
+          +'<td class="mn" style="color:var(--mu)">'+dayName(e.ts)+'</td>'
+          +'<td>'+(ICON[e.type]||'\u2022')+' '+e.label+'</td>'
+          +'<td style="color:var(--tx2)">'+(e.detail||'')+'</td>'
+          +'<td class="mn" style="text-align:right;color:var(--mu)">'+(e.gap_hours?e.gap_hours+'h':'')+'</td>'
+          +'<td class="mn" style="text-align:right;color:'+(big?'#e0b341':'var(--tx2)')+'">'+(e.gap_work_hours?e.gap_work_hours+'h':'')+'</td></tr>';
+      });
+      h+='</tbody></table></div></details>';
+      h+='<div style="font-size:.58rem;color:var(--mu);margin-top:6px">Production events come from piece scans at the machine. Sheet cutting movements are entered into stock later and are not shown as production times.</div>';
+      el('oh-body').innerHTML=h;
+    }catch(e){ el('oh-body').innerHTML='<div style="color:var(--a2)">'+e.message+'</div>'; }
+  }
+  function printHistory(){
+    if(!_lastData) return;
+    const d=_lastData, S=d.summary||{}, WD=8.5;
+    const fh=v=>(v==null?'-':(v>=24?(Math.round(v/24*10)/10)+' d':v+' h'));
+    const fw=v=>(v==null?'-':(v>=WD?(Math.round(v/WD*10)/10)+' wd':v+' h'));
+    const rows=d.events.map(e=>'<tr><td>'+loc(e.ts)+'</td><td>'+dayName(e.ts)+'</td><td>'+e.label+'</td><td>'+(e.detail||'')+'</td>'
+      +'<td class="r">'+(e.gap_hours?e.gap_hours+'h':'')+'</td><td class="r">'+(e.gap_work_hours?e.gap_work_hours+'h':'')+'</td></tr>').join('');
+    const w=window.open('','_blank','width=900,height=1100');
+    if(!w){ alert('Pop-up blocked'); return; }
+    const _logo=(typeof cfg!=='undefined' && cfg) ? (cfg.factory_logo||cfg.qr_logo||null) : null;
+    const _fact=(typeof cfg!=='undefined' && cfg && cfg.factory) ? cfg.factory : 'AGI Glass';
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Order history '+d.order.num+'</title><style>'
+      +'*{box-sizing:border-box;margin:0;padding:0}'
+      +'body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:6mm;font-size:9.5pt}'
+      +'@page{size:A4 portrait;margin:10mm}'
+      +'.hdr{display:flex;align-items:center;gap:5mm;padding-bottom:3mm;border-bottom:2px solid #0050a0;margin-bottom:4mm}'
+      +'.hdr img{height:16mm;width:auto;object-fit:contain}'
+      +'.hdr .co{font-size:13pt;font-weight:700;color:#0050a0;letter-spacing:.5px}'
+      +'.hdr .ttl{margin-left:auto;text-align:right}'
+      +'.hdr .ttl b{display:block;font-size:14pt}'
+      +'.hdr .ttl span{font-size:8pt;color:#666}'
+      +'.sub{color:#555;font-size:8.5pt;margin-bottom:4mm}'
+      +'h2{font-size:9pt;color:#0050a0;letter-spacing:1px;text-transform:uppercase;margin:4mm 0 1.5mm}'
+      +'table{width:100%;border-collapse:collapse;margin-bottom:4mm}'
+      +'th{text-align:left;font-size:7.5pt;color:#0050a0;border-bottom:1px solid #0050a0;padding:1.8mm 1.5mm;text-transform:uppercase;letter-spacing:.4px}'
+      +'td{padding:1.5mm;border-bottom:.4px solid #e2e2e2;font-size:8.5pt}'
+      +'tr.tot td{font-weight:700;border-top:1px solid #0050a0;border-bottom:none}'
+      +'.r{text-align:right}.kpi{display:flex;gap:3mm;flex-wrap:wrap;margin-bottom:4mm}'
+      +'.kpi div{border:1px solid #cfd8e3;border-left:3px solid #0050a0;border-radius:1.5mm;padding:2mm 4mm;background:#f7f9fc}'
+      +'.kpi b{display:block;font-size:12pt;color:#0050a0}.kpi span{font-size:6.5pt;color:#666;letter-spacing:.8px}'
+      +'.note{font-size:7.5pt;color:#888;margin-top:4mm;border-top:.4px solid #ddd;padding-top:2mm}'
+      +'@media print{.np{display:none}}</style></head><body>'
+      +'<div class="np" style="margin-bottom:4mm"><button onclick="window.print()" style="padding:6px 16px">Print</button></div>'
+      +'<div class="hdr">'
+      +(_logo?('<img src="'+_logo+'">'):'')
+      +'<div class="co">'+_fact+'</div>'
+      +'<div class="ttl"><b>Order History</b><span>'+d.order.num+'</span></div></div>'
+      +'<div class="sub">'+d.order.pieces+' pieces \u00b7 '+d.order.sqm+' m\u00b2 \u00b7 status: '+d.order.status
+      +' \u00b7 printed '+new Date(Date.now()+3*3600000).toISOString().slice(0,16).replace('T',' ')+' (local time UTC+3)</div>'
+      +'<div class="kpi">'
+      +'<div><span>LEAD TIME</span><b>'+fh(S.lead_h)+'</b></div>'
+      +'<div><span>WORKING</span><b>'+fw(S.lead_wh)+'</b></div>'
+      +'<div><span>HANDS-ON</span><b>'+fh(S.active_work_h)+'</b></div>'
+      +'<div><span>SESSIONS</span><b>'+(S.work_sessions||0)+'</b></div>'
+      +'<div><span>SCANS</span><b>'+d.scans_count+'</b></div></div>'
+      +'<h2>Key timestamps</h2>'
+      +'<table><tbody>'
+      +'<tr><td style="width:24%">Order created</td><td style="width:26%">'+(S.created_at?loc(S.created_at):'-')+'</td>'
+      +'<td style="width:24%">Labels printed</td><td>'+(S.labels_at?loc(S.labels_at):'-')+'</td></tr>'
+      +'<tr><td>Optimization saved</td><td>'+(S.optimized_at?loc(S.optimized_at):'-')+(S.opt_files>1?(' ('+S.opt_files+' files)'):'')+'</td>'
+      +'<td>First cut scan</td><td>'+(S.first_scan?loc(S.first_scan):'-')+'</td></tr>'
+      +'<tr><td>Last scan</td><td>'+(S.last_scan?loc(S.last_scan):'-')+'</td>'
+      +'<td>Order done</td><td>'+(S.completed_at?loc(S.completed_at):'-')+'</td></tr>'
+      +'<tr><td>First delivery</td><td>'+(S.first_delivery?loc(S.first_delivery):'-')+'</td>'
+      +'<td>Last delivery</td><td>'+(S.last_delivery?loc(S.last_delivery):'-')+'</td></tr>'
+      +'<tr><td>Deliveries</td><td>'+(S.deliveries||0)+'</td><td></td><td></td></tr>'
+      +'</tbody></table>'
+      +((S.processes&&S.processes.length)?('<h2>Process timings</h2><table><thead><tr>'
+        +'<th>Process</th><th>First scan</th><th>Last scan</th><th class="r">Span</th><th class="r">Pieces</th><th>Workers</th></tr></thead><tbody>'
+        +S.processes.map(p=>'<tr><td>'+p.process+'</td><td>'+loc(p.first)+'</td><td>'+loc(p.last)+'</td>'
+          +'<td class="r">'+fh(p.span_h)+'</td><td class="r">'+p.pieces+'</td><td>'+(p.workers||'')+'</td></tr>').join('')
+        +'</tbody></table>'):'')
+      +'<h2>Stage summary</h2>'
+      +'<table><thead><tr><th>Stage</th><th>From</th><th>To</th><th class="r">Elapsed</th><th class="r">Working</th></tr></thead><tbody>'
+      +'<tr><td>Queued (created to first cut)</td><td>'+(S.created_at?loc(S.created_at):'-')+'</td><td>'+(S.first_scan?loc(S.first_scan):'-')+'</td><td class="r">'+fh(S.queue_h)+'</td><td class="r">'+fw(S.queue_wh)+'</td></tr>'
+      +'<tr><td>Production (first to last scan)</td><td>'+(S.first_scan?loc(S.first_scan):'-')+'</td><td>'+(S.last_scan?loc(S.last_scan):'-')+'</td><td class="r">'+fh(S.production_h)+'</td><td class="r">'+fw(S.production_wh)+'</td></tr>'
+      +'<tr><td>Ready to first collection</td><td>'+(S.ready_at?loc(S.ready_at):'-')+'</td><td>'+(S.first_delivery?loc(S.first_delivery):'-')+'</td><td class="r">'+fh(S.wait_first_pickup_h)+'</td><td class="r">'+fw(S.wait_first_pickup_wh)+'</td></tr>'
+      +'<tr><td>Ready to last collection</td><td>'+(S.ready_at?loc(S.ready_at):'-')+'</td><td>'+(S.last_delivery?loc(S.last_delivery):'-')+'</td><td class="r">'+fh(S.wait_last_pickup_h)+'</td><td class="r">'+fw(S.wait_last_pickup_wh)+'</td></tr>'
+      +'<tr class="tot"><td>Factory time (order to ready)</td><td>'+(S.created_at?loc(S.created_at):'-')+'</td><td>'+(S.ready_at?loc(S.ready_at):'-')+'</td><td class="r">'+fh(S.factory_h)+'</td><td class="r">'+fw(S.factory_wh)+'</td></tr>'
+      +'<tr class="tot"><td>Total lead time</td><td>'+(S.created_at?loc(S.created_at):'-')+'</td><td>'+(S.last_delivery?loc(S.last_delivery):'-')+'</td><td class="r">'+fh(S.lead_h)+'</td><td class="r">'+fw(S.lead_wh)+'</td></tr>'
+      +'</tbody></table>'
+      +'<h2>Full timeline</h2>'
+      +'<table><thead><tr><th>Time</th><th>Day</th><th>Event</th><th>Detail</th><th class="r">Gap</th><th class="r">Work</th></tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="note">Production events come from piece scans recorded at the machine. Sheet cutting movements are entered into stock later and are not shown as production times.</div>'
+      +'</body></html>');
+    w.document.close();
+    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 400);
+  }
+  function ensureUI(){
+    const pg=el('pg-reports'); if(!pg) return false;
+    const rtabs=pg.querySelector('.rtabs'); if(!rtabs) return false;
+    if(!el('rtab-ordhist')){
+      const b=document.createElement('button'); b.id='rtab-ordhist'; b.className='rtab';
+      b.textContent='\uD83D\uDD0E Order History';
+      b.setAttribute('onclick','showOrderHistoryReport()');
+      rtabs.appendChild(b);
+    }
+    if(!el('rpanel-ordhist-rep')){
+      const p=document.createElement('div'); p.id='rpanel-ordhist-rep'; p.className='rpanel';
+      p.style.display='none'; p.innerHTML=panelHTML(); pg.appendChild(p);
+      el('oh-go').addEventListener('click',run);
+      el('oh-print').addEventListener('click',printHistory);
+      const inp=el('oh-num'), sg=el('oh-sugg');
+      function hideSugg(){ sg.style.display='none'; }
+      function showMatches(){
+        const q=(inp.value||'').trim().toLowerCase();
+        if(!q || typeof orders==='undefined'){ hideSugg(); return; }
+        const hits=orders.filter(o=>(o.num||'').toLowerCase().includes(q)||(o.extref||'').toLowerCase().includes(q)).slice(0,12);
+        if(!hits.length){ hideSugg(); return; }
+        sg.innerHTML=hits.map(o=>'<div class="oh-hit" data-num="'+o.num+'" style="padding:5px 9px;cursor:pointer;font-size:.72rem;border-bottom:1px solid var(--border)">'
+          +'<b style="color:var(--a)">'+o.num+'</b> <span style="color:var(--mu)">'+(o.date||'')+'</span>'
+          +(o.extref?' <span style="color:var(--tx2)">'+o.extref+'</span>':'')+'</div>').join('');
+        sg.style.display='';
+        sg.querySelectorAll('.oh-hit').forEach(dv=>dv.onclick=function(){ inp.value=dv.dataset.num; hideSugg(); run(); });
+      }
+      inp.addEventListener('input',showMatches);
+      inp.addEventListener('focus',showMatches);
+      inp.addEventListener('keydown',ev=>{
+        if(ev.key==='Enter'){ const first=sg.querySelector('.oh-hit'); if(sg.style.display!=='none'&&first){ inp.value=first.dataset.num; } hideSugg(); run(); }
+        if(ev.key==='Escape') hideSugg();
+      });
+      document.addEventListener('click',ev=>{ if(!sg.contains(ev.target)&&ev.target!==inp) hideSugg(); });
+      try{ const dl=el('oh-list'); if(dl && typeof orders!=='undefined') dl.innerHTML=orders.slice(0,300).map(o=>'<option value="'+o.num+'">').join(''); }catch(e){}
+    }
+    return true;
+  }
+  window.showOrderHistoryReport=function(){
+    if(!ensureUI()) return;
+    const pg=el('pg-reports');
+    pg.querySelectorAll('.rtab').forEach(t=>t.classList.remove('on'));
+    pg.querySelectorAll('.rpanel').forEach(p=>{p.classList.remove('on');p.style.display='none';});
+    const rv=el('runout-view'); if(rv) rv.style.display='none';
+    [...pg.children].forEach(c=>{ if(c.id!=='runout-view') c.style.display=''; });
+    el('rtab-ordhist').classList.add('on');
+    const p=el('rpanel-ordhist-rep'); p.style.display=''; p.classList.add('on');
+  };
+  window.openOrderHistory=function(num){ showOrderHistoryReport(); const i=el('oh-num'); if(i){ i.value=num; run(); } };
+  ensureUI();
 })();
 </script>
 

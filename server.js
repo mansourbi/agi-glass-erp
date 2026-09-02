@@ -133,6 +133,7 @@ app.use('/api/holidays',  require('./routes/holidays'));
 app.use('/api/extprocesses', require('./routes/external_processes'));
 app.use('/api/factories',    require('./routes/factories'));
 app.use('/api/translations', require('./routes/translations'));
+app.use('/api/orderhistory', require('./routes/orderhistory'));
 app.use('/api/backup',       require('./routes/backup'));
 app.use('/api/audit',        require('./routes/audit'));
 
