@@ -24,4 +24,23 @@ function signToken(payload, expiresIn = '12h') {
   return jwt.sign(payload, SECRET, { expiresIn });
 }
 
-module.exports = { requireAuth, requireAdmin, signToken };
+// Permission check against role_permissions(role_id, perm_key).
+// Superadmin and the legacy 'admin' role always pass.
+function requirePerm(key){
+  return function(req,res,next){
+    try{
+      const u=req.user||{};
+      if(u.role==='admin') return next();
+      const db=require('../db');
+      const w=db.prepare('SELECT role_id FROM workers WHERE id=?').get(u.id);
+      if(!w||!w.role_id) return res.status(403).json({error:'Forbidden'});
+      const role=db.prepare('SELECT superadmin FROM roles WHERE id=?').get(w.role_id);
+      if(role&&role.superadmin) return next();
+      const hit=db.prepare('SELECT 1 x FROM role_permissions WHERE role_id=? AND perm_key=?').get(w.role_id,key);
+      if(hit) return next();
+      return res.status(403).json({error:'Forbidden: '+key+' required'});
+    }catch(e){ return res.status(500).json({error:e.message}); }
+  };
+}
+
+module.exports = { requireAuth, requireAdmin, requirePerm, signToken };

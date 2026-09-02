@@ -5,8 +5,12 @@
 // touching orderpricing.js / value_extras. Safe to run alongside live billing.
 const router = require('express').Router();
 const db     = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requirePerm } = require('../middleware/auth');
 router.use(requireAuth);
+// Every route here reads or writes money. The portal hides the pricing tab for
+// users without permission, but that is display only - enforce it server-side.
+const canView = requirePerm('pricing.access');
+const canEdit = requirePerm('pricing.edit');
 
 // G-3: snapshot table for finalized order prices (created on load; no live migration)
 db.exec("CREATE TABLE IF NOT EXISTS order_price_snapshot ("+
@@ -149,7 +153,7 @@ function buildPreview(id, popts){
 }
 
 // GET /api/pricing2/:orderId/preview  - full computed breakdown (no writes)
-router.get('/:orderId/preview', (req, res) => {
+router.get('/:orderId/preview', canView, (req, res) => {
   try {
     const r = buildPreview(+req.params.orderId);
     if (r.error) return res.status(r.status||500).json({ error:r.error });
@@ -161,7 +165,7 @@ router.get('/:orderId/preview', (req, res) => {
 function _getOrder(id){ return db.prepare('SELECT id FROM orders WHERE id=?').get(id); }
 
 // GET the raw order-level choice (profile override + discount)
-router.get('/:orderId/choice', (req,res) => {
+router.get('/:orderId/choice', canView, (req,res) => {
   try {
     const id=+req.params.orderId;
     const row=db.prepare('SELECT profile_id, discount_type, discount_value, discount_note FROM order_price_choice WHERE order_id=? AND product_id IS NULL').get(id);
@@ -170,7 +174,7 @@ router.get('/:orderId/choice', (req,res) => {
 });
 
 // PUT set/clear the order-level profile override + discount
-router.put('/:orderId/choice', (req,res) => {
+router.put('/:orderId/choice', canEdit, (req,res) => {
   try {
     const id=+req.params.orderId;
     if(!_getOrder(id)) return res.status(404).json({error:'Order not found'});
@@ -200,7 +204,7 @@ router.put('/:orderId/choice', (req,res) => {
 });
 
 // GET the order's manual extra charges
-router.get('/:orderId/charges', (req,res) => {
+router.get('/:orderId/charges', canView, (req,res) => {
   try {
     const id=+req.params.orderId;
     const rows=db.prepare(`SELECT ec.id, ec.category_id, ec.description, ec.amount, ec.piece_uid, ec.basis, ec.rate, c.label category_label
@@ -211,7 +215,7 @@ router.get('/:orderId/charges', (req,res) => {
 });
 
 // POST add a manual extra charge
-router.post('/:orderId/charges', (req,res) => {
+router.post('/:orderId/charges', canEdit, (req,res) => {
   try {
     const id=+req.params.orderId;
     if(!_getOrder(id)) return res.status(404).json({error:'Order not found'});
@@ -230,7 +234,7 @@ router.post('/:orderId/charges', (req,res) => {
 });
 
 // DELETE a manual extra charge (scoped to the order)
-router.delete('/:orderId/charges/:chargeId', (req,res) => {
+router.delete('/:orderId/charges/:chargeId', canEdit, (req,res) => {
   try {
     const id=+req.params.orderId, cid=+req.params.chargeId;
     db.prepare('DELETE FROM order_extra_charges WHERE id=? AND order_id=?').run(cid, id);
@@ -242,7 +246,7 @@ router.delete('/:orderId/charges/:chargeId', (req,res) => {
 function _who(req){ return (req.user && (req.user.name||req.user.username||req.user.email))||null; }
 
 // GET current snapshot (the frozen price), or finalized:false
-router.get('/:orderId/snapshot', (req,res) => {
+router.get('/:orderId/snapshot', canView, (req,res) => {
   try {
     const id=+req.params.orderId;
     const row=db.prepare('SELECT order_id, snapshot_json, subtotal, finalized_at, finalized_by FROM order_price_snapshot WHERE order_id=?').get(id);
@@ -253,7 +257,7 @@ router.get('/:orderId/snapshot', (req,res) => {
 });
 
 // POST finalize: compute the current breakdown and freeze it (upsert)
-router.post('/:orderId/finalize', (req,res) => {
+router.post('/:orderId/finalize', canEdit, (req,res) => {
   try {
     const id=+req.params.orderId;
     const r=buildPreview(id);
@@ -269,7 +273,7 @@ router.post('/:orderId/finalize', (req,res) => {
 });
 
 // DELETE un-finalize: unlock to re-quote
-router.delete('/:orderId/finalize', (req,res) => {
+router.delete('/:orderId/finalize', canEdit, (req,res) => {
   try {
     const id=+req.params.orderId;
     db.prepare('DELETE FROM order_price_snapshot WHERE order_id=?').run(id);
