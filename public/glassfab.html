@@ -20954,6 +20954,7 @@ function _renderPayrollWindow(month, ws, orient){
       ${V(+ot150pay>0?ot150pay:'', +ot150pay>0?'#1a6e3e':'#ccc')}
       ${V(otherAdd>0?'+'+otherAdd.toFixed(2):'', otherAdd>0?'#1a6e3e':'#ccc')}
       ${VTOT(totalAdd>0?'+'+totalAdd.toFixed(2):'—', totalAdd>0?'#1a6e3e':'#aaa','background:#eafaf0')}
+      ${VTOT(((+(w.base_salary||0))+totalAdd).toFixed(2),'#0050a0','background:#eef4fb')}
       ${VSEP(advances>0?'-'+advances.toFixed(2):'', advances>0?'#c0392b':'#ccc')}
       ${V(leaves>0?'-'+leaves.toFixed(2):'', leaves>0?'#c0392b':'#ccc')}
       ${V(otherDed>0?'-'+otherDed.toFixed(2):'', otherDed>0?'#c0392b':'#ccc')}
@@ -20999,7 +21000,8 @@ function _renderPayrollWindow(month, ws, orient){
     </div>
     <div style="text-align:right">
       <div style="font-size:9px;color:#888">Printed: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
-      <div style="font-size:13px;font-weight:800;color:#0050a0;margin-top:4px">Total Net: ${totalNet.toFixed(2)} JOD</div>
+      <div style="font-size:11px;color:#555;margin-top:4px">Total Salary: ${ws.reduce((a,w)=>a+(+w.base_salary||0)+(+w.overtime_pay||0)+(+w.weekend_pay||0)+(+w.holiday_pay||0)+(+w.adj_addition||0),0).toFixed(2)} JOD</div>
+      <div style="font-size:13px;font-weight:800;color:#0050a0;margin-top:2px">Total Net: ${totalNet.toFixed(2)} JOD</div>
     </div>
   </div>
   <table>
@@ -21010,6 +21012,7 @@ function _renderPayrollWindow(month, ws, orient){
         ${TH('Abs.','background:#1a3a5c;color:#fff',2)}
         ${TH('Base','background:#1a3a5c;color:#fff',2)}
         ${THGRP('── ADDITIONS ──','#d4edda','#1a5c3a',6,'border-left:2px solid #555')}
+        ${TH('Total<br>Salary','background:#0050a0;color:#fff;font-size:10px',2,'1','border-left:2px solid #555')}
         ${THGRP('── DEDUCTIONS ──','#fcd9d9','#6b1a1a',4,'border-left:2px solid #555')}
         ${TH('Gross','background:#1a3a5c;color:#fff',2)}
         ${TH('SS','background:#1a3a5c;color:#fff',2)}
@@ -21048,6 +21051,7 @@ function _renderPayrollWindow(month, ws, orient){
         <td style="padding:5px 6px;border:1px solid #bbb;font-size:10px;text-align:center;color:#1a6e3e">${(ws.reduce((a,w)=>a+(+w.weekend_pay||0)+(+w.holiday_pay||0),0)).toFixed(2)}</td>
         <td style="padding:5px 6px;border:1px solid #bbb;font-size:10px;text-align:center;color:#1a6e3e">${ws.reduce((a,w)=>a+(+w.adj_addition||0),0)>0?'+'+ws.reduce((a,w)=>a+(+w.adj_addition||0),0).toFixed(2):''}</td>
         <td style="padding:5px 8px;border:1px solid #bbb;border-left:2px solid #555;border-right:2px solid #555;font-size:11px;text-align:center;color:#1a6e3e;background:#d4edda">+${(ws.reduce((a,w)=>a+(+w.overtime_pay||0)+(+w.weekend_pay||0)+(+w.holiday_pay||0)+(+w.adj_addition||0),0)).toFixed(2)}</td>
+        <td style="padding:5px 8px;border:1px solid #bbb;border-left:2px solid #555;font-size:12px;text-align:center;font-weight:800;color:#0050a0;background:#eef4fb">${ws.reduce((a,w)=>a+(+w.base_salary||0)+(+w.overtime_pay||0)+(+w.weekend_pay||0)+(+w.holiday_pay||0)+(+w.adj_addition||0),0).toFixed(2)}</td>
         <td style="padding:5px 6px;border:1px solid #bbb;font-size:10px;text-align:center;color:#c0392b;border-left:2px solid #555">${ws.reduce((a,w)=>a+(+w.adj_advances||0),0)>0?'-'+ws.reduce((a,w)=>a+(+w.adj_advances||0),0).toFixed(2):''}</td>
         <td style="padding:5px 6px;border:1px solid #bbb;font-size:10px;text-align:center;color:#c0392b">${ws.reduce((a,w)=>a+(+w.balance_deduction||0),0)>0?'-'+ws.reduce((a,w)=>a+(+w.balance_deduction||0),0).toFixed(2):''}</td>
         <td style="padding:5px 6px;border:1px solid #bbb;font-size:10px;text-align:center;color:#c0392b">${ws.reduce((a,w)=>a+(+w.adj_other_ded||0),0)>0?'-'+ws.reduce((a,w)=>a+(+w.adj_other_ded||0),0).toFixed(2):''}</td>
@@ -24786,6 +24790,33 @@ function doLogout(){
   };
   window.openOrderHistory=function(num){ showOrderHistoryReport(); const i=el('oh-num'); if(i){ i.value=num; run(); } };
   ensureUI();
+})();
+</script>
+
+<!-- ORDER_MODAL_LOCK v1 -->
+<script>
+(function(){
+  if(window.__ordModalLock) return; window.__ordModalLock=true;
+  function orderModalOpen(){
+    var m=document.getElementById('m-order');
+    return !!(m && (m.classList.contains('on') || m.style.display==='flex'));
+  }
+  // Escape must not discard a half-typed order. Capture on window runs before
+  // the document-level handler that closes the topmost modal, so we can stop it.
+  window.addEventListener('keydown', function(e){
+    if(e.key!=='Escape' && e.key!=='Esc') return;
+    if(!orderModalOpen()) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }, true);
+  // Clicks on the dark backdrop must not close it either.
+  ['mousedown','mouseup','click'].forEach(function(evt){
+    window.addEventListener(evt, function(e){
+      if(!orderModalOpen()) return;
+      var m=document.getElementById('m-order');
+      if(e.target===m){ e.stopImmediatePropagation(); e.preventDefault(); }
+    }, true);
+  });
 })();
 </script>
 
