@@ -22,7 +22,7 @@ browser's Print button. SumatraPDF then prints the PDF with `landscape,noscale`.
   finished label HTML for piece/session labels).
 - `routes/printlabel.js` — `GET /print-label/remnant/:idOrUid` and
   `GET /print-label/job/:id` serve standalone label pages for Edge to render.
-- Agent token lives in `C:\agi-server\print-agent-token.txt` (gitignored). The same
+- Agent token lives in `C:\AGI\agi-server\print-agent-token.txt` (gitignored). The same
   token must go in the agent's `$TOKEN`.
 
 ## Laptop station requirements
@@ -103,6 +103,6 @@ stale code). Reliable restart:
 ```powershell
 pm2 delete agi-glass
 Get-NetTCPConnection -LocalPort 3000,3444 -State Listen | Select -Expand OwningProcess -Unique | % { Stop-Process -Id $_ -Force }
-pm2 start C:\agi-server\server.js --name agi-glass
+Restart-Service agi-glass   # NSSM service; pm2 retired 2026-09-14
 pm2 save
 ```

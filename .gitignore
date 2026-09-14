@@ -25,7 +25,7 @@ _route_backups/
 move_opt100.js
 public/patch_label_*.js
 
-# Local DB checkpoints (binary snapshots — never commit)
+# Local DB checkpoints (binary snapshots - never commit)
 _checkpoints/
 
 print-agent-token.txt

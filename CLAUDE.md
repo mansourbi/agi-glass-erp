@@ -16,13 +16,13 @@ material, which is what §6's pricing rules turn on.
 
 | | |
 |---|---|
-| Runtime | Node.js + Express, **better-sqlite3** (synchronous), pm2 service `agi-glass` |
-| Database | `C:\agi-server\agi-glass.db` — SQLite WAL, ~92 tables, ~51k rows, ~163 MB |
+| Runtime | Node.js + Express, **better-sqlite3** (synchronous); **NSSM service `agi-glass`** (LocalSystem, auto-start, restart-on-exit) — the only supervisor |
+| Database | `C:\AGI\agi-server\agi-glass.db` — SQLite WAL, ~92 tables, ~51k rows, ~163 MB |
 | Ports | 3000 HTTP (desktop), 3444 HTTPS (mobile) |
 | Server | Dell box, `192.168.1.14` (DHCP reservation; wired `.15` is dead — two adapters) |
 | Admin UI | `public/glassfab.html` — single file, ~26k lines |
 | Worker PWA | `public/glassfab-worker.html` — phone app for the floor |
-| Repo | `C:\agi-server` **is** the deployment; remote `mansourbi/agi-glass-erp` |
+| Repo | `C:\AGI\agi-server` **is** the deployment (inside the `C:\AGI` master folder); remote `mansourbi/agi-glass-erp` |
 | Backups | `_public_backups\`, `_route_backups\`, `_db_backups\` (`name.TIMESTAMP.TAG`) |
 | Print | AMRODELL-LAPTOP + TSC TE244, 100×50mm labels, headless-Edge PDF relay |
 
@@ -47,18 +47,18 @@ HTML changes need only a hard refresh. **Route changes need a restart.**
 6. Before declaring a regression, confirm it is apples-to-apples (same filters, same data).
 
 ### Restart procedure
-**Establish who owns the service before choosing verbs** — it has been pm2, an NSSM service
-(`Restart-Service agi-glass`) and `start-agi.bat` at different times, and `pm2 status`
-showing `online` is *not* evidence pm2 owns the listener.
-1. Port owner: `Get-NetTCPConnection -LocalPort 3000,3444 -State Listen`.
-2. `Get-Process -Id <pid> | Select Id,StartTime` — a **blank StartTime** means a SYSTEM-owned
-   process and `Stop-Process` fails silently on it; use `taskkill /F /PID <pid>` elevated. A
-   start time older than the file's LastWriteTime means the process predates your patch.
-3. Start via whichever supervisor actually owns it, then prove a **fresh** boot line.
+NSSM is the **only** supervisor — pm2, the WSL boot task and the `.bat` task were retired
+2026-09-14. Route changes: `Restart-Service agi-glass`. Logs: `logs\stdout.log` /
+`stderr.log`, NSSM-rotated at 10 MB.
+If it wedges: `Stop-Service agi-glass -Force` → `Get-NetTCPConnection -LocalPort 3000,3444
+-State Listen` → `taskkill /F /PID <pid>` from an elevated shell (`Stop-Process` fails
+silently on the SYSTEM-owned node; a **blank StartTime** in `Get-Process` is that process)
+→ `Start-Service agi-glass`. Also confirm `netsh interface portproxy show all` is empty — a
+dead boot script once installed proxies on 3000/3444 that fought node for the port.
 
-Healthy = fresh `[DB] SQLite ready` in the **out** log and an API probe returning **401**.
-Boot takes seconds (migrations run at startup) — wait ~8 s before judging; the error log
-mixes stale entries, don't trust it alone.
+Healthy = `[DB] SQLite ready: C:\AGI\agi-server\agi-glass.db` freshly appended to
+`stdout.log`, listeners owned by `node.exe` with StartTime = now, and `/api/health` →
+`"db":"connected"`. Boot takes seconds (migrations run at startup) — wait ~8 s first.
 
 ## 4. Data protection (hard rules)
 
