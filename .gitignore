@@ -31,3 +31,6 @@ _checkpoints/
 print-agent-token.txt
 
 *.bak404
+
+# TLS private keys - never commit
+*-key.pem
