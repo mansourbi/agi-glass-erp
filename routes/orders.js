@@ -2,6 +2,8 @@
 const router = require('express').Router();
 const db     = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const fs     = require('fs');
+const path   = require('path');
 
 router.use(requireAuth);
 
@@ -180,6 +182,33 @@ router.delete('/type-reasons/:id',(req,res)=>{
 });
 
 // ── GET /api/orders/:id ────────────────────────────────────────────────────
+// ── GET /api/orders/:id/attachment/:idx ─────────────────────────
+// Streams a migrated attachment from disk instead of shipping base64 in the
+// order payload. Authenticated by the router-level requireAuth above.
+// Declared ahead of '/:id' so the specific route is matched first.
+router.get('/:id/attachment/:idx', (req, res) => {
+  try {
+    const row = db.prepare('SELECT attachments FROM orders WHERE id=?').get(+req.params.id);
+    if (!row) return res.status(404).json({ error: 'Order not found' });
+    let arr; try { arr = JSON.parse(row.attachments || '[]'); } catch(e) { arr = []; }
+    const a = arr[+req.params.idx];
+    if (!a)      return res.status(404).json({ error: 'Attachment not found' });
+    if (!a.file) return res.status(409).json({ error: 'Attachment not migrated to disk' });
+
+    // Path is DB-supplied: still confine it under uploads/attachments.
+    const ROOT = path.join(__dirname, '..');
+    const BASE = path.join(ROOT, 'uploads', 'attachments');
+    const abs  = path.resolve(ROOT, a.file);
+    if (!abs.startsWith(BASE)) return res.status(400).json({ error: 'Bad attachment path' });
+    if (!fs.existsSync(abs))   return res.status(404).json({ error: 'File missing on disk' });
+
+    res.type(a.type || 'application/octet-stream');
+    // Filenames are content hashes, so a file never changes under its name.
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    fs.createReadStream(abs).pipe(res);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const order = db.prepare(`
