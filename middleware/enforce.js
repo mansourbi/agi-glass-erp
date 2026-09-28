@@ -67,6 +67,15 @@ const ROUTE_PERMS = [
   { m:'POST',   re:/^\/api\/remnants\/\d+\/use$/,           anyOf:['remnants.assign','workerapp.remnants'] },
   { m:'PUT',    re:/^\/api\/remnants\/\d+$/,                anyOf:['remnants.edit','workerapp.remnants'] },
   { m:'DELETE', re:/^\/api\/remnants\/\d+$/,                anyOf:['remnants.delete','workerapp.remnants'] },
+  // ---------- Optima export (optima.js) ----------
+  // Specific routes before any :param route, and every route mapped — an unmapped
+  // route falls through to bare requireAuth (GET /api/rawsheets is the precedent).
+  { m:'GET',    re:/^\/api\/optima\/material-map\/?$/,        anyOf:['settings.optima.manage','cutting.access'] },
+  { m:'POST',   re:/^\/api\/optima\/material-map\/?$/,        key:'settings.optima.manage' },
+  { m:'DELETE', re:/^\/api\/optima\/material-map\/[0-9.]+$/,  key:'settings.optima.manage' },
+  { m:'GET',    re:/^\/api\/optima\/customers\/?$/,           anyOf:['cutting.access','customers.access'] },
+  { m:'PUT',    re:/^\/api\/optima\/customers\/\d+\/optima-name$/, key:'customers.edit' },
+
   // ---------- A-Frames (slots.js) ----------
   { m:'GET',    re:/^\/api\/slots\/all-inventory\/?$/,      key:'aframes.access' },
   { m:'GET',    re:/^\/api\/slots\/movements\/?$/,          key:'aframes.access' },

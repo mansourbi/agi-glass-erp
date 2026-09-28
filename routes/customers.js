@@ -2,6 +2,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { validateOptimaName } = require('../optima-text');
 
 router.use(requireAuth);
 
@@ -62,11 +63,29 @@ router.put('/:id', (req, res) => {
     const { code, name, company, phone, email, address, notes, sheet_id } = req.body;
     if (!code || !name || !phone)
       return res.status(400).json({ error: 'code, name, phone required' });
+
+    // optima_name (Optima export). Absent key = preserve the stored value; present
+    // and empty = clear it. Never null it out just because a form didn't send it —
+    // the same trap that made order attachments vanish.
+    const hasOptima = Object.prototype.hasOwnProperty.call(req.body, 'optima_name');
+    let optimaName = null;
+    if (hasOptima) {
+      try { optimaName = validateOptimaName(req.body.optima_name); }
+      catch (ve) { return res.status(400).json({ error: ve.message }); }
+      if (optimaName) {
+        const clash = db.prepare('SELECT id, code FROM customers WHERE optima_name=? AND id<>?')
+          .get(optimaName, +req.params.id);
+        if (clash) return res.status(409).json({ error: `Optima name "${optimaName}" is already used by customer ${clash.code}` });
+      }
+    }
+
     db.prepare(`
       UPDATE customers SET code=?,name=?,company=?,phone=?,email=?,address=?,notes=?,sheet_id=?,
+      optima_name=CASE WHEN ?=1 THEN ? ELSE optima_name END,
       updated_at=datetime('now') WHERE id=?
     `).run(code.trim().toUpperCase(), name.trim(), company||null, phone.trim(),
-           email||null, address||null, notes||null, sheet_id||null, +req.params.id);
+           email||null, address||null, notes||null, sheet_id||null,
+           hasOptima ? 1 : 0, optimaName, +req.params.id);
     res.json(db.prepare('SELECT * FROM customers WHERE id=?').get(+req.params.id));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

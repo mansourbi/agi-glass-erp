@@ -119,6 +119,7 @@ const CATALOG = [
   {k:'settings.receivers.manage',g:'Settings', l:'Manage Delivery Receivers'},
   {k:'settings.factories.manage',g:'Settings', l:'Manage Factories'},
   {k:'settings.translations.manage',g:'Settings',l:'Manage Translations'},
+  {k:'settings.optima.manage',  g:'Settings',  l:'Manage Optima material map'},
   {k:'settings.system.manage',  g:'Settings',  l:'System configuration'},
   {k:'settings.logs.view',      g:'Settings',  l:'View audit logs', s:1},
   {k:'settings.users.manage',   g:'Settings',  l:'Manage users (add/edit, assign roles)', s:1},
