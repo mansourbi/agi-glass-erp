@@ -4,7 +4,55 @@
 
 const BASE = '';
 const TOK_KEY = 'agi_token';
-let _token = localStorage.getItem(TOK_KEY);
+
+// ── Guarded storage (Phase 2.5, see docs/optima-phase2.5-session-integrity.md) ─
+// Browser storage can be unavailable in three different ways: accessing it throws
+// (Edge Tracking Prevention, Safari private mode), reads return null while writes
+// are silently discarded, or the store is purged out from under us (iOS PWAs).
+// This used to be read unguarded on the line below, and `removeItem` inside the
+// 401 handler threw — which swallowed the logout event AND the 'Session expired'
+// signal, leaving the portal looking signed in while every write was rejected.
+// Memory is the fallback, so blocked storage degrades auth to SESSION-ONLY
+// (signed in for the life of the tab) instead of failing invisibly.
+const _mem = Object.create(null);
+let _storageOK = false;
+function _ls(){ try { return window.localStorage || null; } catch(e) { return null; } }
+function safeGet(k){
+  try { const s=_ls(); if(s){ const v=s.getItem(k); if(v!==null) return v; } } catch(e){}
+  return (k in _mem) ? _mem[k] : null;
+}
+function safeSet(k,v){
+  _mem[k]=v;                                        // memory always, cannot fail
+  try { const s=_ls(); if(s) s.setItem(k,v); } catch(e){}
+}
+function safeRemove(k){
+  delete _mem[k];
+  try { const s=_ls(); if(s) s.removeItem(k); } catch(e){}
+}
+// Boot probe: a real write-read-delete round trip. Catches the silently-discarded
+// case, which a plain try/catch on setItem does not.
+function probeStorage(){
+  const K='__agi_probe__';
+  try {
+    const s=_ls(); if(!s) return false;
+    s.setItem(K,'1');
+    const ok = s.getItem(K)==='1';
+    s.removeItem(K);
+    return ok;
+  } catch(e){ return false; }
+}
+_storageOK = probeStorage();
+if(!_storageOK){
+  console.warn('[agi-api] Browser storage is unavailable, so this session will last only as long as '
+    + 'this tab and you will be asked to sign in again on reload. In Edge this is usually Tracking '
+    + 'Prevention for this site (Settings > Privacy, or the shield icon in the address bar); it is '
+    + 'also normal in private browsing. Signing in still works.');
+  // Deferred a tick so listeners registered by the inline page script exist.
+  // Prefer AGI.storageOK() over catching this event — the event can be missed.
+  setTimeout(function(){ try { window.dispatchEvent(new Event('agi:storage-blocked')); } catch(e){} }, 0);
+}
+
+let _token = safeGet(TOK_KEY);
 const CLIENT = (location.pathname||'').toLowerCase().includes('worker') ? 'worker' : 'portal';
 
 async function api(path, opts={}){
@@ -14,7 +62,17 @@ async function api(path, opts={}){
   const text = await res.text();
   let data;
   try{ data=JSON.parse(text); }catch{ data={error:text}; }
-  if(res.status===401){ clearToken(); window.dispatchEvent(new Event('agi:logout')); throw new Error('Session expired'); }
+  if(res.status===401){
+    // Signal first, persist last. The error is built before anything can fail, the
+    // in-memory token is dropped before any listener runs so getToken() is honest,
+    // and the storage clear is wrapped so that even a future unguarded change in
+    // there cannot suppress the logout event or the throw. `status` is attached so
+    // callers branch on the status, never on this message string.
+    const err = Object.assign(new Error('Session expired'), { status:401, data });
+    try { clearToken(); } catch(e){ _token = null; }
+    try { window.dispatchEvent(new Event('agi:logout')); } catch(e){}
+    throw err;
+  }
   if(!res.ok) throw Object.assign(new Error(data.error||'API error '+res.status),{status:res.status,data});
   return data;
 }
@@ -25,7 +83,10 @@ const PTCH  = (p,b) => api(p,{method:'PATCH', body:JSON.stringify(b)});
 const PATCH = PTCH;
 const DEL  = p     => api(p,{method:'DELETE'});
 
-function setToken(t){ _token=t; if(t) localStorage.setItem(TOK_KEY,t); else localStorage.removeItem(TOK_KEY); }
+// In-memory assignment first and unconditionally: it cannot fail, and every caller
+// depends on getToken() being correct even when persistence is impossible.
+function setToken(t){ _token=t; if(t) safeSet(TOK_KEY,t); else safeRemove(TOK_KEY); }
+function storageOK(){ return _storageOK; }
 function clearToken(){ setToken(null); }
 function getToken(){ return _token; }
 function logEvent(section, detail, action){ try{ if(!_token) return; POST('/api/audit/event', { section: section||'', path: location.pathname, detail: detail||null, action: action||'view' }).catch(function(){}); }catch(e){} }
@@ -265,7 +326,11 @@ window.AGI = {
   Auth, Customers, Orders, Workers, Labels,
   RawSheets, OptFiles, Reports, Config, Purchases, Attendance, GlassFamilies, FinalProducts, FpFields, Remnants, HR, Deliveries, Holidays, health,
   CustomerPrices,
-  getToken, setToken, clearToken, api, logEvent
+  getToken, setToken, clearToken, api, logEvent,
+  // Phase 2.5: guarded storage. storageOK() is the reliable way to detect blocked
+  // storage; safeGet/safeSet/safeRemove are exported so page scripts stop reaching
+  // for localStorage directly.
+  storageOK, safeGet, safeSet, safeRemove
 };
 
 console.log('[AGI] API client ready');

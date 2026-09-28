@@ -21,9 +21,18 @@
   // material prompt blank and any manual pick is accepted silently.
   var EDITWAY_CODES = ['3', '4', '5', '6', '8', '10', '12', '15', '19'];
 
+  // Resolve via AGI.getToken(), never by reading the key directly (modules.md §15),
+  // and fall back through AGI's guarded storage rather than raw localStorage, which
+  // throws when Edge Tracking Prevention blocks it (Phase 2.5).
   function tok() {
-    try { return (window.AGI && AGI.getToken) ? AGI.getToken() : localStorage.getItem('agi_token'); }
-    catch (e) { return localStorage.getItem('agi_token'); }
+    try {
+      if (window.AGI && AGI.getToken) {
+        var t = AGI.getToken();
+        if (t) return t;
+        if (AGI.safeGet) return AGI.safeGet('agi_token');
+      }
+    } catch (e) {}
+    return null;
   }
   function api(path, opts) {
     opts = opts || {};

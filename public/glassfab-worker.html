@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060c14">
-<script src="/agi-api.js?v=2"></script>
+<script src="/agi-api.js?v=3"></script>
 <title>AGI Glass — Worker</title>
 <style>
 :root{
@@ -889,7 +889,7 @@ async function doLogin(){
   try{
     const worker = await AGI.Auth.login(email,pass);
     currentWorker = worker;
-    localStorage.setItem('gfw_session',JSON.stringify({id:worker.id,ts:Date.now(),date:new Date().toISOString().slice(0,10)}));
+    AGI.safeSet('gfw_session',JSON.stringify({id:worker.id,ts:Date.now(),date:new Date().toISOString().slice(0,10)}));
     await startSession();
   }catch(e){
     errEl.textContent = e.message||'Login failed';
@@ -901,7 +901,7 @@ async function doLogin(){
 }
 
 function doLogout(){
-  localStorage.removeItem('gfw_session');
+  AGI.safeRemove('gfw_session');
   AGI.Auth.logout();
   currentWorker = null;
   stopCamera();
@@ -912,13 +912,13 @@ function doLogout(){
 
 async function restoreSession(){
   try{
-    const s = JSON.parse(localStorage.getItem('gfw_session')||'null');
+    const s = JSON.parse(AGI.safeGet('gfw_session')||'null');
     if(!s) return false;
     // Expire if the stored date is not today (new day = must re-login)
     const today = new Date().toISOString().slice(0,10);
-    if(s.date && s.date !== today){ localStorage.removeItem('gfw_session'); AGI.clearToken(); return false; }
+    if(s.date && s.date !== today){ AGI.safeRemove('gfw_session'); AGI.clearToken(); return false; }
     // Fallback: expire after 20 hours if no date stored (old sessions)
-    if(!s.date && Date.now()-s.ts > 20*60*60*1000){ localStorage.removeItem('gfw_session'); return false; }
+    if(!s.date && Date.now()-s.ts > 20*60*60*1000){ AGI.safeRemove('gfw_session'); return false; }
     if(!AGI.getToken()) return false;
     const res = await AGI.Auth.me();
     if(!res || !res.worker) return false;
@@ -2538,7 +2538,7 @@ async function unmarkProcess(uid, pid){
   setTimeout(function(){
     // Only logout if a worker is currently logged in
     if(currentWorker){
-      localStorage.removeItem('gfw_session');
+      AGI.safeRemove('gfw_session');
       AGI.Auth.logout();
       currentWorker = null;
       stopCamera();
@@ -2996,7 +2996,7 @@ function invApplyPerm(){
     document.querySelectorAll('.bn[id$="-inv"]').forEach(function(b){ b.style.display = ok ? '' : 'none'; });
   }
   if(_invPerm !== null){ show(_invPerm); return; }
-  var cached = localStorage.getItem('agi_inv_perm');
+  var cached = AGI.safeGet('agi_inv_perm');
   if(cached !== null) show(cached === '1');
   var t = _invTok();
   if(!t){ show(false); return; }
@@ -3004,7 +3004,7 @@ function invApplyPerm(){
     .then(function(x){ return x.json(); })
     .then(function(me){
       _invPerm = !!(me && (me.superadmin || (Array.isArray(me.permissions) && me.permissions.indexOf('inventory.consume')>=0)));
-      try{ localStorage.setItem('agi_inv_perm', _invPerm ? '1' : '0'); }catch(e){}
+      AGI.safeSet('agi_inv_perm', _invPerm ? '1' : '0');
       show(_invPerm);
     })
     .catch(function(){ show(false); });
