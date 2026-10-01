@@ -23691,7 +23691,15 @@ async function _autoRefresh(){
 }
 setInterval(_autoRefresh, 90000);
 
-window.addEventListener('agi:logout', showLoginOverlay);
+window.addEventListener('agi:logout', async function(){
+  await showLoginOverlay();
+  // Say what happened AND that a write may have been lost: a 401 reaches us
+  // from call sites that do not check res.ok, so the last edit may be gone.
+  var _le = document.getElementById('agi-l-err');
+  if(_le){ _le.setAttribute('data-i18n', "Your session expired. Your last change may not have been saved — please check it after signing in.");
+           _le.textContent = "Your session expired. Your last change may not have been saved — please check it after signing in.";
+           try{ if(window.applyLang) applyLang(); }catch(e){} }
+});
 
 function doLogout(){
   AGI.Auth.logout();

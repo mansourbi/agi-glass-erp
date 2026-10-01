@@ -55,6 +55,31 @@ if(!_storageOK){
 let _token = safeGet(TOK_KEY);
 const CLIENT = (location.pathname||'').toLowerCase().includes('worker') ? 'worker' : 'portal';
 
+// ── Ending a session: ONE engine ──────────────────────────────────────────────
+// Both api() and the global fetch interceptor below observe 401s. They must not
+// each implement their own sign-out, or they drift (see landmines.md §8 on the
+// second-engine pattern) and they double-dispatch.
+//
+// A 401 is the NORMAL answer to a wrong password, so /api/auth/login can never
+// sign anyone out. Permission denials are 403 in this codebase, not 401, so they
+// are already excluded by status.
+const AUTH_EXEMPT = [/^\/api\/auth\/login\/?$/];
+function isAuthExempt(path){
+  const p = String(path||'').split('?')[0];
+  return AUTH_EXEMPT.some(re => re.test(p));
+}
+let _lastLogoutSignal = 0;
+const LOGOUT_DEBOUNCE_MS = 3000;   // one screen can fire many calls in parallel
+function signalUnauthorized(){
+  const now = Date.now();
+  if(now - _lastLogoutSignal < LOGOUT_DEBOUNCE_MS) return false;
+  _lastLogoutSignal = now;
+  _token = null;                              // in-memory first, cannot fail
+  try { safeRemove(TOK_KEY); } catch(e){}
+  try { window.dispatchEvent(new Event('agi:logout')); } catch(e){}
+  return true;
+}
+
 async function api(path, opts={}){
   const headers = {'Content-Type':'application/json','X-Client':CLIENT};
   if(_token) headers['Authorization'] = 'Bearer '+_token;
@@ -69,8 +94,7 @@ async function api(path, opts={}){
     // there cannot suppress the logout event or the throw. `status` is attached so
     // callers branch on the status, never on this message string.
     const err = Object.assign(new Error('Session expired'), { status:401, data });
-    try { clearToken(); } catch(e){ _token = null; }
-    try { window.dispatchEvent(new Event('agi:logout')); } catch(e){}
+    if(!isAuthExempt(path)) signalUnauthorized();
     throw err;
   }
   if(!res.ok) throw Object.assign(new Error(data.error||'API error '+res.status),{status:res.status,data});
@@ -87,6 +111,51 @@ const DEL  = p     => api(p,{method:'DELETE'});
 // depends on getToken() being correct even when persistence is impossible.
 function setToken(t){ _token=t; if(t) safeSet(TOK_KEY,t); else safeRemove(TOK_KEY); }
 function storageOK(){ return _storageOK; }
+
+// ── Global 401 interceptor ────────────────────────────────────────────────────
+// glassfab.html builds 92 Authorization headers by hand and glassfab-worker.html
+// 11 more, all calling fetch() directly. Measured: 0 of the 92 can surface a 401
+// as a sign-out, only 4 check res.ok, and 21 are mutations. So a session that was
+// dead server-side looked perfectly healthy while 21 write paths reported success.
+//
+// This watches every same-origin /api/ response and signals on 401. SIGNAL ONLY:
+// the response object is returned untouched and its body is never read, so no call
+// site changes behaviour. Status is readable without consuming the stream.
+//
+// Covers both clients at once: verified there is no XMLHttpRequest, sendBeacon,
+// EventSource, jQuery or service worker anywhere in public/ — every API call in
+// both clients goes through window.fetch.
+(function installUnauthorizedInterceptor(){
+  if(typeof window.fetch !== 'function' || window.fetch.__agiWrapped) return;
+  const nativeFetch = window.fetch.bind(window);
+
+  function apiPath(input){
+    try{
+      const raw = (typeof input === 'string') ? input
+                : (input && typeof input.url === 'string') ? input.url : '';
+      const url = new URL(raw, location.href);
+      if(url.origin !== location.origin) return null;          // same-origin only
+      return url.pathname.indexOf('/api/') === 0 ? url.pathname : null;
+    }catch(e){ return null; }
+  }
+
+  const wrapped = function(input, init){
+    const path = apiPath(input);
+    return nativeFetch(input, init).then(function(res){
+      try{
+        // Only when we believed we were signed in — otherwise the login screen
+        // would sign itself out in a loop.
+        if(res && res.status === 401 && path && _token && !isAuthExempt(path)){
+          signalUnauthorized();
+        }
+      }catch(e){}
+      return res;                        // untouched
+    });
+  };
+  wrapped.__agiWrapped = true;
+  try { window.fetch = wrapped; }
+  catch(e){ console.warn('[agi-api] could not install the 401 interceptor:', e.message); }
+})();
 function clearToken(){ setToken(null); }
 function getToken(){ return _token; }
 function logEvent(section, detail, action){ try{ if(!_token) return; POST('/api/audit/event', { section: section||'', path: location.pathname, detail: detail||null, action: action||'view' }).catch(function(){}); }catch(e){} }

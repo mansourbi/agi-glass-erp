@@ -900,6 +900,17 @@ async function doLogin(){
   }
 }
 
+// The shared API client dispatches agi:logout on any 401 from any call site.
+// Without this listener the worker app ignored it and stayed editable on a dead
+// session. doLogout() is reused so there is one sign-out path, not two.
+window.addEventListener('agi:logout', function(){
+  if(!currentWorker) return;                 // already on the login screen
+  try{ doLogout(); }catch(e){}
+  var _we = document.getElementById('l-err');
+  if(_we){ _we.setAttribute('data-i18n', "Your session expired. Your last change may not have been saved — please check it after signing in.");
+           _we.textContent = "Your session expired. Your last change may not have been saved — please check it after signing in.";
+           try{ if(window.applyLang) applyLang(); }catch(e){} }
+});
 function doLogout(){
   AGI.safeRemove('gfw_session');
   AGI.Auth.logout();
