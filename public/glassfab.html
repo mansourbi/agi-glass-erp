@@ -11375,49 +11375,15 @@ function exportPivot(){
 // ═══════════════════════════════════════════════════════
 // LABELS
 // ═══════════════════════════════════════════════════════
-function renderCutLabels(){
-  const filterMode=document.getElementById('lbl-opt-filter')?.value;
-  let list;
-  if(filterMode===''){ 
-    // Explicitly "All Labels"
-    list=labelItems;
-  } else {
-    // "This Optimization" — filter to current session only
-    if(activeOptId){
-      // Saved opt file: filter by optFileId
-      list=labelItems.filter(l=>(l.optFileId||l.opt_file_id)===activeOptId);
-    }
-    // Always also include pieces from current session (unsaved or just saved)
-    const sessionUids=new Set([
-      ...cutPieces.map(p=>p.uid),
-      ...manualPieces.map(p=>p.uid)
-    ]);
-    if(sessionUids.size){
-      const sessionList=labelItems.filter(l=>sessionUids.has(l.uid));
-      if(!activeOptId){
-        list=sessionList;
-      } else if(!list||!list.length){
-        list=sessionList; // fallback if optFileId match failed
-      }
-    }
-    if(!list) list=[];
-    // Last resort: if still empty but we have pieces, match ALL labelItems by uid
-    if(!list.length&&(cutPieces.length||manualPieces.length)){
-      const allUids=new Set([...cutPieces.map(p=>p.uid),...manualPieces.map(p=>p.uid)]);
-      list=labelItems.filter(l=>allUids.has(l.uid));
-    }
-  }
-  const grid=document.getElementById('cut-lbl-grid'); if(!grid) return;
-  if(!list.length){
-    grid.innerHTML='<div class="empty" style="grid-column:1/-1;padding:30px"><div class="empty-t">No labels for this optimization yet.<br>Run optimization first.</div></div>';
-    return;
-  }
-  grid.innerHTML='';
-  // Add remnant QR cards for remnants in this optimization
-  // Split into machine cut and manual cut groups
-  const machineList = list.filter(item=>item.cutType!=='manual');
-  const manualList  = list.filter(item=>item.cutType==='manual');
 
+// ── Label card + QR engine (module scope) ──────────────────────────────
+// Lifted out of renderCutLabels() so the optimizer, the Labels page and the
+// Optima cutting batches all use ONE card builder and ONE QR queue. There were
+// already two label builders drifting apart, and renderLabels() called renderQR
+// from outside this closure, which was a ReferenceError that silently left the
+// Labels page with no QR codes at all.
+// Bodies are byte-identical to the closure version apart from makeLabel taking
+// an optional `container` instead of closing over renderCutLabels' `grid`.
   // Build URL that phones can open when scanning
   function buildPieceUrl(uid){
     // Encode piece data as plain text so:
@@ -11491,7 +11457,9 @@ function renderCutLabels(){
   const _qrQueue = [];
   let _qrBusy = false;
   // Expose to window so printMode() can wait for the queue to drain before
-  // calling window.print(). Reassign on each renderCutLabels() call.
+  // calling window.print(). Assigned once now that the queue lives at module
+  // scope; renderCutLabels() clears the queue per run, which is what the old
+  // per-call `const _qrQueue = []` did implicitly.
   window._qrQueueRef = _qrQueue;
   window._qrBusyRef = () => _qrBusy;
   function _qrNext(){
@@ -11546,7 +11514,7 @@ function renderCutLabels(){
     _qrNext();
   }
 
-  function makeLabel(item, returnCard=false, labelIdx=0){
+  function makeLabel(item, returnCard=false, labelIdx=0, container=null){
     const card=document.createElement('div'); card.className='lcard lcard-piece';
     const qid='qr-'+item.uid.replace(/[^a-z0-9]/gi,'_');
     const isManual=item.cutType==='manual';
@@ -11620,9 +11588,61 @@ function renderCutLabels(){
       if(qrEl) renderQR(qrEl, qrText, 152);
       return card;
     }
-    grid.appendChild(card);
+    if(container) container.appendChild(card);
     renderQR(qid, qrText, 152);
   }
+
+// Shared with public/optima-ui.js (cutting batches). Phase 3 must call these
+// rather than building a third label card.
+window.AGI_Labels = { makeLabel: makeLabel, renderQR: renderQR, buildPieceUrl: buildPieceUrl };
+
+function renderCutLabels(){
+  const filterMode=document.getElementById('lbl-opt-filter')?.value;
+  let list;
+  if(filterMode===''){ 
+    // Explicitly "All Labels"
+    list=labelItems;
+  } else {
+    // "This Optimization" — filter to current session only
+    if(activeOptId){
+      // Saved opt file: filter by optFileId
+      list=labelItems.filter(l=>(l.optFileId||l.opt_file_id)===activeOptId);
+    }
+    // Always also include pieces from current session (unsaved or just saved)
+    const sessionUids=new Set([
+      ...cutPieces.map(p=>p.uid),
+      ...manualPieces.map(p=>p.uid)
+    ]);
+    if(sessionUids.size){
+      const sessionList=labelItems.filter(l=>sessionUids.has(l.uid));
+      if(!activeOptId){
+        list=sessionList;
+      } else if(!list||!list.length){
+        list=sessionList; // fallback if optFileId match failed
+      }
+    }
+    if(!list) list=[];
+    // Last resort: if still empty but we have pieces, match ALL labelItems by uid
+    if(!list.length&&(cutPieces.length||manualPieces.length)){
+      const allUids=new Set([...cutPieces.map(p=>p.uid),...manualPieces.map(p=>p.uid)]);
+      list=labelItems.filter(l=>allUids.has(l.uid));
+    }
+  }
+  const grid=document.getElementById('cut-lbl-grid'); if(!grid) return;
+  // The QR queue is module scope now, so reset it per run exactly as the old
+  // per-call `const _qrQueue = []` did implicitly — otherwise a stuck _qrBusy
+  // would persist for the life of the page instead of clearing on next render.
+  _qrQueue.length = 0; _qrBusy = false;
+  if(!list.length){
+    grid.innerHTML='<div class="empty" style="grid-column:1/-1;padding:30px"><div class="empty-t">No labels for this optimization yet.<br>Run optimization first.</div></div>';
+    return;
+  }
+  grid.innerHTML='';
+  // Add remnant QR cards for remnants in this optimization
+  // Split into machine cut and manual cut groups
+  const machineList = list.filter(item=>item.cutType!=='manual');
+  const manualList  = list.filter(item=>item.cutType==='manual');
+
 
 
   // Machine cut labels — grouped by sheet, with Storage Remnants sub-row
