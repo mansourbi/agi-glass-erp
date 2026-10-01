@@ -130,6 +130,45 @@ try {
   seedTx();
 } catch (e) { console.warn('[optima seed] material map:', e.message); }
 
+// ── Cutting batches apply to NEW work only (decision 12, Ala 2026-10-01) ─────
+// "Do not touch the past. I want it to work for new orders only."
+//
+// Every order that existed when Optima went live already carries an ERP
+// optimization — a new one is created within hours of each order arriving — and
+// decision 2 blocks any piece held by a pending optimization. Without a cutoff
+// that is a permanent stalemate, not a backlog: measured 1 Oct 2026, 0 of 60
+// pool pieces were batchable and all 60 were blocked by a pending optimization.
+//
+// So the past is excluded STRUCTURALLY: only orders with id > the cutoff are ever
+// considered. Existing orders, optimizations, labels and scans are never read as
+// candidates and never modified. The 60 claimed pieces stay with the ERP
+// optimizer, which is where their layouts already are.
+//
+// Why orders.id and not a date: the database mixes UTC and local timestamps and
+// string comparison on them has silently dropped whole days at ten query sites
+// (landmines.md §5). `id` is monotonic, timezone-proof and auditable — verified
+// 0 pairs where a later id carries an earlier date. The UI shows the human
+// boundary ("orders after REF-616, 30 Sep 2026") alongside the number.
+//
+// Seeded once to MAX(orders.id) at first boot after install. On a fresh database
+// with no history that is 0, which correctly makes everything eligible.
+try {
+  const existing = db.prepare("SELECT value FROM config WHERE key='optima_min_order_id'").get();
+  if (!existing) {
+    const mx = db.prepare('SELECT COALESCE(MAX(id),0) m FROM orders').get().m;
+    db.prepare("INSERT INTO config (key,value) VALUES ('optima_min_order_id',?)").run(String(mx));
+    console.log('[optima] batch cutoff seeded at orders.id > ' + mx);
+  }
+} catch (e) { console.warn('[optima seed] cutoff:', e.message); }
+
+function minOrderId() {
+  try {
+    const r = db.prepare("SELECT value FROM config WHERE key='optima_min_order_id'").get();
+    const n = r ? parseInt(r.value, 10) : 0;
+    return Number.isFinite(n) ? n : 0;
+  } catch (e) { return 0; }
+}
+
 router.use(requireAuth);
 
 // Codes verified to exist in this Edit-Way installation (spec §2). An unknown code
@@ -178,6 +217,37 @@ router.delete('/material-map/:thickness', (req, res) => {
     if (!isFinite(t)) return res.status(400).json({ error: 'bad thickness' });
     const r = db.prepare('DELETE FROM optima_material_map WHERE thickness=?').run(t);
     res.json({ ok: true, removed: r.changes });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/optima/settings — the batch cutoff, with the human boundary resolved
+router.get('/settings', (req, res) => {
+  try {
+    const min = minOrderId();
+    const boundary = db.prepare('SELECT num, date FROM orders WHERE id=?').get(min) || null;
+    const next = db.prepare('SELECT num, date FROM orders WHERE id>? ORDER BY id LIMIT 1').get(min) || null;
+    res.json({
+      min_order_id: min,
+      boundary_order: boundary,          // the last order NOT eligible
+      first_eligible_order: next,        // null until a new order arrives
+      note: 'Batches consider orders with id greater than min_order_id. Lowering this exposes historical orders, which already carry their own optimizations.'
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/optima/settings — move the cutoff. Deliberately blunt: there is no
+// reason to lower it in normal use, so the response says what it would expose.
+router.post('/settings', (req, res) => {
+  try {
+    const n = parseInt(req.body.min_order_id, 10);
+    if (!Number.isFinite(n) || n < 0) return res.status(400).json({ error: 'min_order_id must be a non-negative integer' });
+    const prev = minOrderId();
+    const exposed = n < prev
+      ? db.prepare('SELECT COUNT(*) c FROM orders WHERE id>? AND id<=?').get(n, prev).c
+      : 0;
+    db.prepare("INSERT INTO config (key,value,updated_at) VALUES ('optima_min_order_id',?,datetime('now')) " +
+               "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')").run(String(n));
+    res.json({ ok: true, min_order_id: n, previous: prev, historical_orders_exposed: exposed });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

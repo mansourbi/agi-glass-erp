@@ -73,6 +73,8 @@ const ROUTE_PERMS = [
   { m:'GET',    re:/^\/api\/optima\/material-map\/?$/,        anyOf:['settings.optima.manage','cutting.access'] },
   { m:'POST',   re:/^\/api\/optima\/material-map\/?$/,        key:'settings.optima.manage' },
   { m:'DELETE', re:/^\/api\/optima\/material-map\/[0-9.]+$/,  key:'settings.optima.manage' },
+  { m:'GET',    re:/^\/api\/optima\/settings\/?$/,            anyOf:['settings.optima.manage','cutting.access'] },
+  { m:'POST',   re:/^\/api\/optima\/settings\/?$/,            key:'settings.optima.manage' },
   { m:'GET',    re:/^\/api\/optima\/customers\/?$/,           anyOf:['cutting.access','customers.access'] },
   { m:'PUT',    re:/^\/api\/optima\/customers\/\d+\/optima-name$/, key:'customers.edit' },
 
