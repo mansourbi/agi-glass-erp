@@ -13,7 +13,7 @@
 const router = require('express').Router();
 const db     = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { validateOptimaName } = require('../optima-text');
+const { validateOptimaName, assertIdentity, sanitise } = require('../optima-text');
 
 // ── Migrations (idempotent, run at module load like the rest of the codebase) ──
 // Order matters: cutting_batches must exist before the label_items ALTER.
@@ -50,6 +50,8 @@ try {
     pattern         TEXT,
     company         TEXT,
     material_code   TEXT NOT NULL,
+    manufacturer_id   INTEGER REFERENCES manufacturers(id),
+    manufacturer_code TEXT,
     status          TEXT NOT NULL DEFAULT 'created',
     file_name       TEXT,
     archive_path    TEXT,
@@ -70,6 +72,11 @@ try {
   )`).run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_cb_status ON cutting_batches(status)').run();
 } catch (e) { console.warn('[optima migrate] cutting_batches:', e.message); }
+// The manufacturer snapshot was agreed after the table shipped in Phase 2, so
+// CREATE TABLE IF NOT EXISTS cannot add it to an existing database. NOTE1 needs
+// it (spec §5) and it is snapshotted so a rename cannot rewrite history.
+try { db.prepare('ALTER TABLE cutting_batches ADD COLUMN manufacturer_id INTEGER REFERENCES manufacturers(id)').run(); } catch (e) {}
+try { db.prepare('ALTER TABLE cutting_batches ADD COLUMN manufacturer_code TEXT').run(); } catch (e) {}
 
 // 4. Batch membership. Authoritative, independent of labels. Stores the FINISHED
 // size only — the ERP does not know the cut size in this flow (decision 11).
@@ -279,6 +286,294 @@ router.put('/customers/:id/optima-name', (req, res) => {
     }
     db.prepare("UPDATE customers SET optima_name=?, updated_at=datetime('now') WHERE id=?").run(name, id);
     res.json(db.prepare('SELECT id, code, name, optima_name FROM customers WHERE id=?').get(id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CUTTING BATCHES
+// The ERP optimizer and an Optima batch are ALTERNATIVES for the same work: a
+// piece goes down one path or the other, never both. The optimizer claims a piece
+// through label_items.opt_file_id; a batch claims it through
+// cutting_batch_pieces(piece_uid) WHERE active=1, which is a unique index, so the
+// database refuses a double claim rather than trusting a UI check.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const EDGE_ABBR = { flat:'FP', arrising:'ARR', drilling:'DRL', cutouts:'CO', bevel:'BEV', round:'RND' };
+const glassKeyOf = r => [r.thickness, r.glass_type || 'glass', (r.color || '').trim(),
+                         r.family || '', (r.pattern || '').trim()].join('|');
+
+// NOTE1 carries the manufacturer so the operator knows which stack to load.
+// Resolution order is the documented material-code one (modules.md §6):
+//   explicit manufacturers.code > the MFGCODE segment of raw_sheets.code > company
+// Measured 3 Oct 2026: only 29 of 47 non-virtual sheets carry a manufacturer_id and
+// NONE of the glass currently in play does, so the join alone would silently yield
+// no manufacturer at all. The code segment is where it actually lives:
+//   55FLO-OBKKSA-CLR-01 -> OBK      06FLO-SGGEGY-BRZ-01 -> SGG
+function resolveManufacturer(thickness, color, family) {
+  let rs = null;
+  try {
+    rs = db.prepare(`SELECT id, code, company, manufacturer_id FROM raw_sheets
+                     WHERE thickness=? AND COALESCE(color,'')=COALESCE(?,'')
+                       AND COALESCE(family,'')=COALESCE(?,'') AND is_virtual=0
+                     ORDER BY manufacturer_id IS NULL, id LIMIT 1`).get(thickness, color, family);
+  } catch (e) { return null; }
+  if (!rs) return null;
+  if (rs.manufacturer_id) {
+    const m = db.prepare('SELECT id, code FROM manufacturers WHERE id=?').get(rs.manufacturer_id);
+    if (m && m.code) return { id: m.id, code: sanitise(String(m.code).toUpperCase(), 8) || null };
+  }
+  // MFGCODE segment: second dash-separated part, first three characters.
+  const seg = String(rs.code || '').split('-')[1] || '';
+  const fromCode = (seg.match(/^[A-Za-z0-9]{3}/) || [''])[0].toUpperCase();
+  if (fromCode) return { id: null, code: fromCode };
+  const fromCompany = sanitise(String(rs.company || '').toUpperCase(), 8).replace(/[^A-Z0-9]/g, '').slice(0, 3);
+  return fromCompany ? { id: null, code: fromCompany } : null;
+}
+
+// Everything the eligibility rule needs, in one pass. Spec §8, conditions 1-6.
+function poolRows(where, params) {
+  const cutScanned = new Set(db.prepare(
+    "SELECT DISTINCT piece_uid FROM scan_log WHERE action='done' AND process='cutting'").all().map(r => r.piece_uid));
+  const labels = new Map(db.prepare(
+    `SELECT l.uid, l.opt_file_id, f.status opt_status, f.name opt_name
+     FROM label_items l LEFT JOIN opt_files f ON f.id = l.opt_file_id`).all().map(r => [r.uid, r]));
+  const claimed = new Map(db.prepare(
+    `SELECT p.piece_uid, b.batch_no FROM cutting_batch_pieces p
+     JOIN cutting_batches b ON b.id = p.batch_id WHERE p.active = 1`).all().map(r => [r.piece_uid, r.batch_no]));
+  const matMap = new Map(db.prepare('SELECT thickness, editway_code, active FROM optima_material_map').all()
+    .map(r => [r.thickness, r]));
+
+  const rows = db.prepare(`
+    SELECT o.id order_id, o.num order_num, o.date order_date, o.extref, o.notes order_notes,
+           c.id customer_id, c.code cust_code, c.name cust_name, c.optima_name,
+           oi.code piece_code, oi.w, oi.h, oi.thickness, oi.glass_type, oi.color, oi.family,
+           oi.pattern, oi.processes, oi.piece_uids, oi.bevel_mm, oi.drill_count, oi.cutout_count
+    FROM orders o
+    JOIN customers c ON c.id = o.customer_id
+    JOIN order_items oi ON oi.order_id = o.id
+    WHERE o.status NOT IN ('done','cancelled')
+      AND o.id > ?
+      ${where || ''}
+    ORDER BY o.num, oi.sort_order, oi.id`).all(minOrderId(), ...(params || []));
+
+  const out = [];
+  for (const r of rows) {
+    let procs = [], uids = [];
+    try { procs = JSON.parse(r.processes || '[]'); } catch (e) {}
+    try { uids = JSON.parse(r.piece_uids || '[]'); } catch (e) {}
+    if (!procs.includes('cutting')) continue;                 // condition 6
+    for (const uid of uids) {
+      const lab = labels.get(uid) || {};
+      if (lab.opt_file_id != null && lab.opt_status === 'done') continue;   // condition 3
+      if (cutScanned.has(uid)) continue;                                   // condition 4
+      if (claimed.has(uid)) continue;                                      // condition 5
+      const mm = matMap.get(r.thickness);
+      const blockers = [];
+      if (lab.opt_file_id != null) blockers.push(
+        'in ' + (lab.opt_status || 'open') + ' ERP optimization #' + lab.opt_file_id +
+        (lab.opt_name ? ' — "' + lab.opt_name + '"' : '') +
+        '. Delete that optimization or remove the order from it, or cut it on the ERP optimizer instead.');
+      if (!mm) blockers.push(r.thickness + 'mm is not set up in Optima');
+      else if (!mm.active) blockers.push(r.thickness + 'mm is mapped but inactive in the material map');
+      if (!r.optima_name) blockers.push('Customer ' + r.cust_code + ' has no Optima name');
+      try { assertIdentity('ORDER', r.order_num, 12); } catch (e) { blockers.push(e.message); }
+      try { assertIdentity('NOTE (piece UID)', uid, 32); } catch (e) { blockers.push(e.message); }
+      out.push({
+        piece_uid: uid, order_id: r.order_id, order_num: r.order_num, order_date: r.order_date,
+        customer_id: r.customer_id, cust_code: r.cust_code, cust_name: r.cust_name,
+        optima_name: r.optima_name, suggested_optima_name: r.optima_name || r.cust_code,
+        w: r.w, h: r.h, thickness: r.thickness, glass_type: r.glass_type, color: r.color,
+        family: r.family, pattern: r.pattern, processes: procs, piece_code: r.piece_code,
+        bevel_mm: r.bevel_mm, drill_count: r.drill_count, cutout_count: r.cutout_count,
+        material_code: mm ? mm.editway_code : null,
+        glass_key: glassKeyOf(r), blockers
+      });
+    }
+  }
+  return out;
+}
+
+// GET /api/optima/eligible — the pool, grouped by glass, for the New Batch screen
+router.get('/eligible', (req, res) => {
+  try {
+    const all = poolRows();
+    const groups = {};
+    for (const p of all) {
+      const g = groups[p.glass_key] || (groups[p.glass_key] = {
+        glass_key: p.glass_key, thickness: p.thickness, glass_type: p.glass_type,
+        color: p.color, family: p.family, pattern: p.pattern,
+        material_code: p.material_code, pieces: 0, ready: 0, orders: {}
+      });
+      g.pieces++;
+      if (!p.blockers.length) g.ready++;
+      const o = g.orders[p.order_num] || (g.orders[p.order_num] = {
+        order_id: p.order_id, order_num: p.order_num, order_date: p.order_date,
+        cust_code: p.cust_code, optima_name: p.optima_name,
+        suggested_optima_name: p.suggested_optima_name, pieces: [], blockers: []
+      });
+      o.pieces.push({ piece_uid: p.piece_uid, w: p.w, h: p.h, piece_code: p.piece_code, processes: p.processes });
+      p.blockers.forEach(b => { if (!o.blockers.includes(b)) o.blockers.push(b); });
+    }
+    res.json({
+      min_order_id: minOrderId(),
+      total_pieces: all.length,
+      ready_pieces: all.filter(p => !p.blockers.length).length,
+      groups: Object.values(groups).map(g => ({ ...g, orders: Object.values(g.orders) }))
+        .sort((a, b) => b.pieces - a.pieces)
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Batch numbers are MAX(suffix)+1, never COUNT+1 — one deletion must not re-issue
+// a live number (landmines.md §6, which cost a delivery serial collision). The
+// test imports on the cutting PC used OX0000-OX0006, so production starts at 7.
+function nextBatchNo() {
+  const rows = db.prepare("SELECT batch_no FROM cutting_batches WHERE batch_no GLOB 'OX[0-9][0-9][0-9][0-9]'").all();
+  let max = 6;
+  for (const r of rows) { const n = parseInt(String(r.batch_no).slice(2), 10); if (Number.isFinite(n) && n > max) max = n; }
+  return 'OX' + String(max + 1).padStart(4, '0');
+}
+
+// POST /api/optima/batches — create a batch from whole orders of one glass type
+router.post('/batches', (req, res) => {
+  try {
+    const glassKey = String(req.body.glass_key || '');
+    const orderIds = Array.isArray(req.body.order_ids) ? req.body.order_ids.map(Number).filter(Boolean) : [];
+    if (!glassKey) return res.status(400).json({ error: 'glass_key required' });
+    if (!orderIds.length) return res.status(400).json({ error: 'select at least one order' });
+
+    const pool = poolRows().filter(p => p.glass_key === glassKey && orderIds.includes(p.order_id));
+    if (!pool.length) return res.status(409).json({ error: 'No eligible pieces for that glass and those orders. The screen may be stale — reload.' });
+
+    const blocked = pool.filter(p => p.blockers.length);
+    if (blocked.length) {
+      return res.status(409).json({
+        error: 'Cannot create the batch: ' + blocked.length + ' piece(s) are blocked.',
+        blocked: blocked.map(p => ({ piece_uid: p.piece_uid, order_num: p.order_num, blockers: p.blockers }))
+      });
+    }
+    const first = pool[0];
+    const mfg = resolveManufacturer(first.thickness, first.color, first.family);
+
+    const note1 = sanitise([first.thickness, (first.color || '').toUpperCase(),
+      ((first.pattern || '').trim() || first.family || '').toUpperCase(),
+      mfg ? mfg.code : ''].filter(Boolean).join(' '), 32);
+
+    const batchNo = nextBatchNo();
+    const orderNums = [...new Set(pool.map(p => p.order_num))];
+    const created = (req.user && (req.user.name || req.user.email)) || '';
+
+    const txn = db.transaction(() => {
+      const bid = db.prepare(`INSERT INTO cutting_batches
+        (batch_no, thickness, glass_type, color, family, pattern, company, material_code,
+         manufacturer_id, manufacturer_code, order_nums, piece_count, created_by)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        batchNo, first.thickness, first.glass_type || 'glass', (first.color || '').trim(),
+        first.family || null, (first.pattern || '').trim() || null, null, first.material_code,
+        mfg ? mfg.id : null, mfg ? mfg.code : null,
+        JSON.stringify(orderNums), pool.length, created).lastInsertRowid;
+
+      const insPiece = db.prepare(`INSERT INTO cutting_batch_pieces
+        (batch_id, piece_uid, order_id, order_num, customer_id, optima_name, w, h, thickness,
+         glass_type, color, family, pattern, processes, note1, note2)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      // Labels: batch_id set, opt_file_id deliberately left alone. Worker scanning
+      // resolves a piece by uid, so it works unchanged once these rows exist.
+      const upLabel = db.prepare(`INSERT INTO label_items
+        (uid, code, w, h, thickness, glass_type, color, family, pattern, processes, bevel_mm,
+         drill_count, cutout_count, order_id, order_num, cut_type, date, batch_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'machine',?,?)
+        ON CONFLICT(uid) DO UPDATE SET
+          code=excluded.code, w=excluded.w, h=excluded.h, thickness=excluded.thickness,
+          glass_type=excluded.glass_type, color=excluded.color, family=excluded.family,
+          pattern=excluded.pattern, processes=excluded.processes, bevel_mm=excluded.bevel_mm,
+          drill_count=excluded.drill_count, cutout_count=excluded.cutout_count,
+          order_id=excluded.order_id, order_num=excluded.order_num, batch_id=excluded.batch_id`);
+
+      const d = new Date(), p2 = n => String(n).padStart(2, '0');
+      const today = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());  // local parts
+
+      for (const p of pool) {
+        const note2 = sanitise(p.processes.filter(x => x !== 'cutting')
+          .map(x => EDGE_ABBR[x] || x.toUpperCase()).join(' '), 32);
+        insPiece.run(bid, p.piece_uid, p.order_id, p.order_num, p.customer_id, p.optima_name,
+          p.w, p.h, p.thickness, p.glass_type, p.color, p.family, p.pattern,
+          JSON.stringify(p.processes), note1, note2);
+        upLabel.run(p.piece_uid, p.piece_code || '', p.w, p.h, p.thickness, p.glass_type || 'glass',
+          p.color || 'clear', p.family || null, p.pattern || null, JSON.stringify(p.processes),
+          p.bevel_mm || 0, p.drill_count || 0, p.cutout_count || 0,
+          p.order_id, p.order_num, today, bid);
+      }
+      return bid;
+    });
+    const id = txn();
+    res.status(201).json(batchDetail(id));
+  } catch (e) {
+    // The partial unique index is the real guard against a double claim.
+    if (/UNIQUE/i.test(e.message)) {
+      return res.status(409).json({ error: 'One or more pieces were claimed by another batch while you were working. Reload and try again.' });
+    }
+    console.error('[optima batch create]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+function batchDetail(id) {
+  const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+id);
+  if (!b) return null;
+  const pieces = db.prepare('SELECT * FROM cutting_batch_pieces WHERE batch_id=? ORDER BY order_num, piece_uid').all(+id);
+  const byOrder = {};
+  for (const p of pieces) {
+    (byOrder[p.order_num] = byOrder[p.order_num] || { order_num: p.order_num, order_id: p.order_id, pieces: [] })
+      .pieces.push({ ...p, processes: JSON.parse(p.processes || '[]') });
+  }
+  return { ...b, order_nums: JSON.parse(b.order_nums || '[]'), orders: Object.values(byOrder), pieces_total: pieces.length };
+}
+
+// GET /api/optima/batches — list
+router.get('/batches', (req, res) => {
+  try {
+    const status = req.query.status;
+    const rows = status
+      ? db.prepare('SELECT * FROM cutting_batches WHERE status=? ORDER BY id DESC').all(status)
+      : db.prepare('SELECT * FROM cutting_batches ORDER BY id DESC').all();
+    res.json(rows.map(b => ({ ...b, order_nums: JSON.parse(b.order_nums || '[]') })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/optima/batches/:id — detail, pieces grouped by order
+router.get('/batches/:id', (req, res) => {
+  try {
+    const d = batchDetail(req.params.id);
+    if (!d) return res.status(404).json({ error: 'Batch not found' });
+    res.json(d);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/optima/batches/:id/cancel — before cut only. Frees the pieces by
+// clearing `active`, which is what the partial unique index keys on.
+router.post('/batches/:id/cancel', (req, res) => {
+  try {
+    const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+req.params.id);
+    if (!b) return res.status(404).json({ error: 'Batch not found' });
+    if (b.status === 'cut') return res.status(409).json({ error: 'This batch is already marked cut and cannot be cancelled.' });
+    if (b.status === 'cancelled') return res.json({ ok: true, already: true, ...batchDetail(b.id) });
+    const who = (req.user && (req.user.name || req.user.email)) || '';
+    db.transaction(() => {
+      db.prepare("UPDATE cutting_batches SET status='cancelled', cancelled_at=datetime('now'), cancelled_by=? WHERE id=?").run(who, b.id);
+      db.prepare('UPDATE cutting_batch_pieces SET active=0 WHERE batch_id=?').run(b.id);
+      // The labels stay: they may already be printed and stuck to glass. Only the
+      // claim is released, so the pieces can go down either path again.
+      db.prepare('UPDATE label_items SET batch_id=NULL WHERE batch_id=?').run(b.id);
+    })();
+    res.json({
+      ok: true,
+      warn_delivered: b.delivery_status === 'delivered'
+        ? 'This batch was already delivered. Remove ' + (b.file_name || 'the file') +
+          ' from the To-Import folder on the cutting PC and delete the work order in Edit-Way.'
+        : null,
+      ...batchDetail(b.id)
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
