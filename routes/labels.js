@@ -12,11 +12,14 @@ try { db.prepare('ALTER TABLE label_items ADD COLUMN cutout_count INTEGER DEFAUL
 // GET /api/labels?orderId=&optFileId=
 router.get('/', (req, res) => {
   try {
-    const { orderId, optFileId } = req.query;
+    const { orderId, optFileId, batchId } = req.query;
     let sql = 'SELECT * FROM label_items WHERE 1=1';
     const params = [];
     if (orderId)   { sql += ' AND order_id=?';    params.push(+orderId); }
     if (optFileId) { sql += ' AND opt_file_id=?'; params.push(+optFileId); }
+    // Optima cutting batches: the batch label sheet needs its own pieces, and
+    // filtering client-side would mean shipping every label row to get a handful.
+    if (batchId)   { sql += ' AND batch_id=?';    params.push(+batchId); }
     sql += ' ORDER BY created_at DESC';
     const rows = db.prepare(sql).all(...params);
     res.json(rows.map(r => ({
