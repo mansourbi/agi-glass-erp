@@ -655,8 +655,15 @@
         + (b.delivery_status !== 'delivered'
             ? '<button class="btn ba bsm" id="ox-retry" data-i18n="Retry delivery">Retry delivery</button>' : '')
         + (b.status === 'created'
+            ? '<button class="btn bp bsm" id="ox-markcut" data-i18n="Mark as cut">Mark as cut</button>' : '')
+        + (b.status === 'created'
             ? '<button class="btn bd bsm" id="ox-cancel" data-i18n="Cancel batch">Cancel batch</button>' : '')
-        + '</div>';
+        + '</div><div id="ox-cut-panel"></div>'
+        + (b.status === 'cut'
+            ? '<p class="ox-note"><span data-i18n="Cut">Cut</span> ' + esc(String(b.cut_at || '').slice(0, 16))
+              + ' &bull; ' + esc(b.sheets_used) + ' <span data-i18n="sheet(s) used">sheet(s) used</span>'
+              + (b.cut_by ? ' &bull; ' + esc(b.cut_by) : '') + '</p>'
+            : '');
       (b.orders || []).forEach(function (o) {
         h += '<div style="margin-top:12px"><div style="font-family:\'DM Mono\',monospace;color:var(--a);font-size:.76rem;margin-bottom:4px">'
           + esc(o.order_num) + ' <span style="color:var(--mu);font-size:.66rem">' + o.pieces.length + ' pcs</span></div>'
@@ -697,8 +704,114 @@
         }).catch(function (e) { toast(e.message); });
       });
       document.getElementById('ox-labels').addEventListener('click', function () { printBatchLabels(b); });
+      var mc = document.getElementById('ox-markcut');
+      if (mc) mc.addEventListener('click', function () { renderCutPanel(b); });
       lang();
     }).catch(function (e) { el.innerHTML = '<div class="ox-err">' + esc(e.message) + '</div>'; });
+  }
+
+  // Mark as cut. Edit-Way decides which sheets get used, so the ERP has to be told:
+  // which rack, which sheet, how many. Same shape as the optimizer's slot modal.
+  // A dry run is shown first, because this writes two stock ledgers and stock is money.
+  var CUTDATA = { sheets: [], slots: [] };
+  function loadCutRefs() {
+    if (CUTDATA.sheets.length && CUTDATA.slots.length) return Promise.resolve(CUTDATA);
+    var get = function (p) {
+      if (window.AGI && AGI.api) return AGI.api(p);
+      return fetch(p, { headers: { 'Authorization': 'Bearer ' + tok() } }).then(function (r) { return r.json(); });
+    };
+    return Promise.all([get('/api/rawsheets'), get('/api/slots')]).then(function (res) {
+      CUTDATA.sheets = (res[0] || []).filter(function (s) { return !+s.is_virtual; });
+      CUTDATA.slots = (res[1] || []).filter(function (s) { return +s.active !== 0; });
+      return CUTDATA;
+    });
+  }
+  function cutRow(b) {
+    // Default to sheets matching the batch's glass, since that is what was cut.
+    var match = CUTDATA.sheets.filter(function (s) {
+      return +s.thickness === +b.thickness
+        && String(s.color || '').trim().toLowerCase() === String(b.color || '').trim().toLowerCase();
+    });
+    var list = match.length ? match : CUTDATA.sheets;
+    return '<div class="ox-cut-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">'
+      + '<select class="ox-sel ox-cut-sheet" style="flex:2">'
+      + list.map(function (s) { return '<option value="' + s.id + '">' + esc(s.notes || s.code) + '</option>'; }).join('')
+      + '</select>'
+      + '<select class="ox-sel ox-cut-slot" style="flex:1">'
+      + CUTDATA.slots.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('')
+      + '</select>'
+      + '<input type="number" min="1" step="1" class="ox-num ox-cut-qty" placeholder="Qty" data-i18n-placeholder="Qty">'
+      + '<button class="btn bd bsm ox-cut-del" style="font-size:.62rem">&times;</button></div>';
+  }
+  function renderCutPanel(b) {
+    var host = document.getElementById('ox-cut-panel');
+    if (!host) return;
+    host.innerHTML = '<div class="ox-note" data-i18n="Loading">Loading…</div>';
+    loadCutRefs().then(function () {
+      host.innerHTML = '<div class="card ox-wrap" style="max-width:none;margin-top:6px"><div class="ch">'
+        + '<span class="ct" style="color:var(--a4)" data-i18n="Mark as cut">Mark as cut</span></div><div class="cb">'
+        + '<p class="ox-note"><span data-i18n="Edit-Way chose the sheets, so record what was actually used. This reduces stock.">'
+        + 'Edit-Way chose the sheets, so record what was actually used. This reduces stock.</span></p>'
+        + '<div id="ox-cut-rows">' + cutRow(b) + '</div>'
+        + '<button class="btn bg bsm" id="ox-cut-add" style="font-size:.62rem">+ <span data-i18n="Add sheet">Add sheet</span></button>'
+        + '<div class="fg" style="margin-top:10px"><label class="lbl" data-i18n="Notes">Notes</label>'
+        + '<input type="text" id="ox-cut-notes" class="ox-sel" style="width:100%"></div>'
+        + '<div style="display:flex;gap:8px;margin-top:12px">'
+        + '<button class="btn bs bsm" id="ox-cut-preview" data-i18n="Preview">Preview</button>'
+        + '<button class="btn bp bsm" id="ox-cut-confirm" disabled data-i18n="Confirm and reduce stock">Confirm and reduce stock</button>'
+        + '</div><pre id="ox-cut-plan" style="display:none;background:var(--surf);border:1px solid var(--border);'
+        + 'border-radius:6px;padding:10px;font-size:.66rem;overflow:auto;max-height:240px;margin-top:10px"></pre>'
+        + '<div class="ox-err" id="ox-cut-err"></div></div></div>';
+      lang();
+      var rows = document.getElementById('ox-cut-rows');
+      function wireDel() {
+        rows.querySelectorAll('.ox-cut-del').forEach(function (x) {
+          x.onclick = function () { if (rows.children.length > 1) x.parentElement.remove(); };
+        });
+      }
+      wireDel();
+      document.getElementById('ox-cut-add').addEventListener('click', function () {
+        rows.insertAdjacentHTML('beforeend', cutRow(b)); lang(); wireDel();
+      });
+      function collect() {
+        return [].slice.call(rows.children).map(function (row) {
+          return { sheet_id: +row.querySelector('.ox-cut-sheet').value,
+                   slot_id: +row.querySelector('.ox-cut-slot').value,
+                   qty: +row.querySelector('.ox-cut-qty').value };
+        }).filter(function (d) { return d.sheet_id && d.slot_id && d.qty > 0; });
+      }
+      var err = document.getElementById('ox-cut-err');
+      var planEl = document.getElementById('ox-cut-plan');
+      var confirmBtn = document.getElementById('ox-cut-confirm');
+      document.getElementById('ox-cut-preview').addEventListener('click', function () {
+        err.textContent = ''; confirmBtn.disabled = true;
+        var d = collect();
+        if (!d.length) { err.textContent = 'Enter which sheet, which rack and how many.'; return; }
+        api('/batches/' + b.id + '/cut', { method: 'POST', body: { deductions: d, dry_run: true } })
+          .then(function (r) {
+            planEl.style.display = '';
+            planEl.textContent = 'Sheets used: ' + r.plan.sheets_used + '\n'
+              + 'Slot deductions: ' + r.plan.slot_inventory.map(function (x) { return x.qty + ' (slot ' + x.slot_id + ', sheet ' + x.sheet_id + ')'; }).join(', ') + '\n'
+              + 'Stock ledger: ' + r.plan.raw_sheet_transactions.map(function (x) { return x.qty + ' on sheet ' + x.sheet_id + ' [' + x.type + ']'; }).join(', ') + '\n'
+              + 'Cutting scans to record: ' + r.plan.cutting_scans.length
+              + (r.plan.cutting_scans_skipped_already_done ? ' (' + r.plan.cutting_scans_skipped_already_done + ' already scanned, skipped)' : '');
+            confirmBtn.disabled = false;
+          })
+          .catch(function (e) { err.textContent = e.message; });
+      });
+      confirmBtn.addEventListener('click', function () {
+        var d = collect();
+        if (!confirmSafe('Mark ' + b.batch_no + ' as cut?\n\nThis reduces stock and cannot be undone.')) return;
+        confirmBtn.disabled = true; confirmBtn.textContent = 'Saving…';
+        api('/batches/' + b.id + '/cut', { method: 'POST',
+          body: { deductions: d, notes: (document.getElementById('ox-cut-notes') || {}).value || '' } })
+          .then(function () { toast('Batch marked cut — stock reduced'); refreshCoverage(); renderBatchDetail(b.id); })
+          .catch(function (e) {
+            confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm and reduce stock';
+            err.textContent = e.message; toast(e.message);
+          });
+      });
+    }).catch(function (e) { host.innerHTML = '<div class="ox-err">' + esc(e.message) + '</div>'; });
   }
 
   // Labels use the SHARED builder lifted out of renderCutLabels, so a batch label
