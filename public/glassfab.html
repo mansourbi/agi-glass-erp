@@ -4697,6 +4697,11 @@ function renderOrderMatrix(containerId, compact=false){
   const el=document.getElementById(containerId); if(!el) return;
   // Coverage set: order IDs that appear in ANY optimization file (order_ids or cut_pieces).
   const _optCovSet=new Set();
+  // An Optima cutting batch is the other way a piece reaches the saw, so it
+  // counts as coverage too — otherwise tracking flags every batch order as
+  // "cut outside the optimizer" and the Cut button keeps offering itself.
+  // window.AGI_BatchCovered is maintained by public/optima-ui.js.
+  if (window.AGI_BatchCovered) window.AGI_BatchCovered.forEach(function(id){ _optCovSet.add(+id); });
   (optFiles||[]).forEach(f=>{
     const ids=Array.isArray(f.order_ids)?f.order_ids:(Array.isArray(f.orderIds)?f.orderIds:[]);
     ids.forEach(id=>{ if(id) _optCovSet.add(+id); });
@@ -6512,6 +6517,11 @@ async function renderOrders(){
 
   // Build set of order IDs already in any opt file
   const _coveredByOpt=new Set();
+  // An Optima cutting batch is the other way a piece reaches the saw, so it
+  // counts as coverage too — otherwise tracking flags every batch order as
+  // "cut outside the optimizer" and the Cut button keeps offering itself.
+  // window.AGI_BatchCovered is maintained by public/optima-ui.js.
+  if (window.AGI_BatchCovered) window.AGI_BatchCovered.forEach(function(id){ _coveredByOpt.add(+id); });
   (optFiles||[]).forEach(f=>{
     // Primary: order_ids array stored directly on the opt file
     const ids=Array.isArray(f.order_ids)?f.order_ids:(Array.isArray(f.orderIds)?f.orderIds:[]);

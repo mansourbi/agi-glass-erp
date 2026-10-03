@@ -391,6 +391,24 @@
 
   var BATCH = { groups: [], selected: null, detail: null };
 
+  // Orders claimed by an active batch. glassfab.html seeds both of its coverage sets
+  // from this, so a batch-cut order is not flagged "cut outside the optimizer" in
+  // tracking and does not keep offering its Cut button. Refreshed whenever a batch
+  // is created or cancelled, since both change what is covered.
+  window.AGI_BatchCovered = window.AGI_BatchCovered || new Set();
+  function refreshCoverage() {
+    return api('/batches').then(function (rows) {
+      var s = new Set();
+      (rows || []).forEach(function (b) {
+        (b.covered_order_ids || []).forEach(function (id) { if (id) s.add(+id); });
+      });
+      window.AGI_BatchCovered = s;
+      // Repaint whatever is on screen so the change is visible without a reload.
+      try { if (typeof renderOrders === 'function' && document.getElementById('ord-body')) renderOrders(); } catch (e) {}
+      return s;
+    }).catch(function () { return window.AGI_BatchCovered; });
+  }
+
   function injectBatchView() {
     if (document.getElementById('cut-view-batches')) return true;
     var pg = document.getElementById('pg-cutting');
@@ -596,6 +614,7 @@
     api('/batches', { method: 'POST', body: { glass_key: BATCH.selected.glass_key, order_ids: ids } })
       .then(function (b) {
         toast('Batch ' + b.batch_no + ' created');
+        refreshCoverage();
         // Generate the file and attempt delivery straight away, then show the
         // detail. A delivery failure is expected sometimes and must not block.
         return api('/batches/' + b.id + '/file', { method: 'POST' })
@@ -672,6 +691,7 @@
         if (!confirmSafe('Cancel batch ' + b.batch_no + '?\n\nIts pieces become available again. Labels already printed stay valid.')) return;
         api('/batches/' + b.id + '/cancel', { method: 'POST' }).then(function (r) {
           if (r.warn_delivered) alert(r.warn_delivered);
+          refreshCoverage();
           toast('Batch cancelled');
           renderBatchList();
         }).catch(function (e) { toast(e.message); });
@@ -760,6 +780,7 @@
       if (!done.batchView) done.batchView = injectBatchView();
       if (!done.cutView)   done.cutView   = hookCutView();
       if (!done.sendCut)   done.sendCut   = hookSendToCutting();
+      if (tries === 2) refreshCoverage();   // once, after the portal has a token
     } catch (e) { console.warn('[optima-ui] bootstrap', e); }
     var all = done.tab && done.hook && done.field && done.apiSave && done.saveCust && done.openCust
            && done.batchView && done.cutView && done.sendCut;

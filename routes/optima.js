@@ -540,7 +540,16 @@ router.get('/batches', (req, res) => {
     const rows = status
       ? db.prepare('SELECT * FROM cutting_batches WHERE status=? ORDER BY id DESC').all(status)
       : db.prepare('SELECT * FROM cutting_batches ORDER BY id DESC').all();
-    res.json(rows.map(b => ({ ...b, order_nums: JSON.parse(b.order_nums || '[]') })));
+    // covered_order_ids mirrors what optfiles exposes: the portal's tracking matrix
+    // and the orders list both decide "has this order reached the saw?" from a
+    // coverage set, and a batch is the other way it gets there.
+    const covered = db.prepare(`SELECT DISTINCT order_id FROM cutting_batch_pieces
+                                WHERE active=1 AND order_id IS NOT NULL`).all().map(r => r.order_id);
+    res.json(rows.map(b => ({
+      ...b,
+      order_nums: JSON.parse(b.order_nums || '[]'),
+      covered_order_ids: covered
+    })));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -648,6 +657,129 @@ router.post('/batches/:id/deliver', (req, res) => {
     // fine, only the network leg failed, and the UI needs the detail to show Retry.
     res.json(out);
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// ── Mark as cut: sheets used, stock reduced, cutting recorded ─────────────────
+// Mirrors how an optimization deducts, deliberately and exactly. Two ledgers are
+// written, both append-only:
+//
+//   slot_inventory          one row per deduction, qty negative, type 'deduct',
+//                           ref_type 'batch',    ref_id = batch id
+//   raw_sheet_transactions  one row PER SHEET,   qty negative, type 'batch_use',
+//                           ref_id = batch id
+//
+// Why this shape and not something tidier:
+//   * One ledger row per participating sheet, never one per batch. A multi-sheet
+//     optimization once booked everything on the primary sheet and left a balance
+//     of -50 (landmines.md §7).
+//   * Both ledgers are written in the SAME transaction. They were historically two
+//     independent write paths and drifted: ledger -2 / slots -1, slot rows with
+//     qty 0, ledger-only cuts, 19 cuts never deducted from slots.
+//   * Dedup on (type, ref_id, sheet_id), not ref_id alone — deduping on ref_id
+//     alone is what made the second sheet of a split silently skip its row.
+//   * type 'batch_use' goes in through THIS endpoint, never the generic
+//     transactions POST, whose type whitelist rejection is what destroyed 35
+//     purchase rows (landmines.md §6).
+//   * ref_id alone is ambiguous now that two kinds of work write here, so every
+//     dedup and reverse lookup must include `type`.
+function slotBalance(slotId, sheetId) {
+  const r = db.prepare('SELECT COALESCE(SUM(qty),0) AS bal FROM slot_inventory WHERE slot_id=? AND sheet_id=?')
+    .get(slotId, sheetId);
+  return r ? r.bal : 0;
+}
+
+// POST /api/optima/batches/:id/cut
+// body: { deductions:[{slot_id, sheet_id, qty}], date?, notes?, record_cutting? }
+// Pass dry_run:true to get exactly the rows that would be written, and nothing else.
+router.post('/batches/:id/cut', (req, res) => {
+  try {
+    const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+req.params.id);
+    if (!b) return res.status(404).json({ error: 'Batch not found' });
+    if (b.status === 'cut') return res.status(409).json({ error: 'This batch is already marked cut. Stock has been deducted once and must not be deducted again.' });
+    if (b.status === 'cancelled') return res.status(409).json({ error: 'This batch is cancelled' });
+
+    const deductions = (Array.isArray(req.body.deductions) ? req.body.deductions : [])
+      .map(d => ({ slot_id: +d.slot_id, sheet_id: +d.sheet_id, qty: Number(d.qty) }))
+      .filter(d => d.slot_id && d.sheet_id && d.qty > 0);
+    if (!deductions.length) return res.status(400).json({ error: 'Add at least one slot deduction (which rack, which sheet, how many).' });
+
+    // Balance check per deduction, with the same فضل exemption the optimizer path
+    // uses: those sheets are virtual, legitimately negative, and must not block.
+    for (const d of deductions) {
+      const sheet = db.prepare('SELECT code, notes FROM raw_sheets WHERE id=?').get(d.sheet_id);
+      const slot = db.prepare('SELECT name FROM a_frame_slots WHERE id=?').get(d.slot_id);
+      if (!sheet) return res.status(400).json({ error: 'Unknown raw sheet ' + d.sheet_id });
+      if (!slot) return res.status(400).json({ error: 'Unknown slot ' + d.slot_id });
+      const isFadl = (sheet.code || '').includes('فضل') || (sheet.notes || '').includes('فضل')
+                  || (slot.name || '').includes('فضل');
+      if (!isFadl) {
+        const bal = slotBalance(d.slot_id, d.sheet_id);
+        if (d.qty > bal) return res.status(409).json({ error: 'Slot ' + slot.name + ' holds only ' + bal + ' sheet(s) of that type, and ' + d.qty + ' were entered.' });
+      }
+    }
+
+    const bySheet = {};
+    deductions.forEach(d => { bySheet[d.sheet_id] = (bySheet[d.sheet_id] || 0) + d.qty; });
+    const sheetsUsed = deductions.reduce((a, d) => a + d.qty, 0);
+    const date = String(req.body.date || '').slice(0, 10) || (() => {
+      const d = new Date(), p2 = n => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());   // local parts
+    })();
+    const who = (req.user && (req.user.name || req.user.email)) || '';
+    const label = b.batch_no + (b.file_name ? ' — ' + b.file_name : '');
+    const recordCutting = req.body.record_cutting !== false;
+
+    const pieces = db.prepare('SELECT piece_uid, order_num, order_id FROM cutting_batch_pieces WHERE batch_id=? AND active=1').all(b.id);
+    const alreadyScanned = new Set(db.prepare(
+      "SELECT DISTINCT piece_uid FROM scan_log WHERE action='done' AND process='cutting'").all().map(r => r.piece_uid));
+    const toScan = recordCutting ? pieces.filter(p => !alreadyScanned.has(p.piece_uid)) : [];
+
+    const plan = {
+      batch_no: b.batch_no,
+      sheets_used: sheetsUsed,
+      slot_inventory: deductions.map(d => ({
+        slot_id: d.slot_id, sheet_id: d.sheet_id, qty: -Math.abs(d.qty),
+        type: 'deduct', ref_type: 'batch', ref_id: b.id, date
+      })),
+      raw_sheet_transactions: Object.keys(bySheet).map(sid => ({
+        sheet_id: +sid, type: 'batch_use', qty: -Math.abs(bySheet[sid]), ref_id: b.id, ref_label: label, date
+      })),
+      cutting_scans: toScan.map(p => p.piece_uid),
+      cutting_scans_skipped_already_done: pieces.length - toScan.length
+    };
+    if (req.body.dry_run) return res.json({ dry_run: true, plan });
+
+    const txn = db.transaction(() => {
+      const insSlot = db.prepare(`INSERT INTO slot_inventory (slot_id,sheet_id,qty,type,ref_type,ref_id,date,notes,created_by)
+                                  VALUES (?,?,?,'deduct','batch',?,?,?,?)`);
+      for (const d of deductions) {
+        insSlot.run(d.slot_id, d.sheet_id, -Math.abs(d.qty), b.id, date, label, who);
+      }
+      const seen = db.prepare("SELECT id FROM raw_sheet_transactions WHERE type='batch_use' AND ref_id=? AND sheet_id=?");
+      const insLedger = db.prepare(`INSERT INTO raw_sheet_transactions (sheet_id,type,qty,ref_id,ref_label,date,notes,created_by)
+                                    VALUES (?,'batch_use',?,?,?,?,?,?)`);
+      for (const sid of Object.keys(bySheet)) {
+        if (seen.get(b.id, +sid)) continue;                       // dedup on (type, ref_id, sheet_id)
+        insLedger.run(+sid, -Math.abs(bySheet[sid]), b.id, label, date, 'Optima batch cut', who);
+      }
+      if (toScan.length) {
+        const insScan = db.prepare(`INSERT INTO scan_log (worker_id,worker_name,piece_uid,process,action,order_num,order_id)
+                                    VALUES (?,?,?,'cutting','done',?,?)`);
+        for (const p of toScan) {
+          insScan.run((req.user && req.user.id) || 1, who, p.piece_uid, p.order_num, p.order_id);
+        }
+      }
+      db.prepare(`UPDATE cutting_batches SET status='cut', cut_at=datetime('now'), cut_by=?, sheets_used=?,
+                  notes=CASE WHEN ?<>'' THEN ? ELSE notes END WHERE id=?`)
+        .run(who, sheetsUsed, String(req.body.notes || ''), String(req.body.notes || ''), b.id);
+    });
+    txn();
+
+    res.json({ ok: true, ...plan, ...batchDetail(b.id) });
+  } catch (e) {
+    console.error('[optima batch cut]', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;
