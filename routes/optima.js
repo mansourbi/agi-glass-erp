@@ -16,6 +16,7 @@ const { requireAuth } = require('../middleware/auth');
 const fs = require('fs');
 const { validateOptimaName, assertIdentity, sanitise } = require('../optima-text');
 const { writeArchive } = require('../optima-xls');
+const { deliver } = require('../optima-deliver');
 
 // ── Migrations (idempotent, run at module load like the rest of the codebase) ──
 // Order matters: cutting_batches must exist before the label_items ALTER.
@@ -610,6 +611,42 @@ router.get('/batches/:id/download', (req, res) => {
     res.setHeader('Content-Type', 'application/vnd.ms-excel');
     res.setHeader('Content-Disposition', 'attachment; filename="' + name + '"');
     fs.createReadStream(p).pipe(res);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// ── Delivery ──────────────────────────────────────────────────────────────────
+// Delivery failing must never block a batch: both machines are on Wi-Fi and the
+// cutting PC is sometimes off. Failure is recorded and Retry is the same endpoint;
+// Download stays available throughout.
+function deliverBatch(id) {
+  const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+id);
+  if (!b) throw Object.assign(new Error('Batch not found'), { status: 404 });
+  if (b.status === 'cancelled') throw Object.assign(new Error('This batch is cancelled'), { status: 409 });
+
+  let archivePath = b.archive_path, fileName = b.file_name;
+  if (!archivePath || !fileName || !fs.existsSync(archivePath)) {
+    const g = generateFile(b.id);
+    archivePath = g.archivePath; fileName = g.fileName;
+  }
+  const r = deliver(archivePath, fileName);
+  if (r.ok) {
+    db.prepare(`UPDATE cutting_batches SET delivery_status='delivered', delivered_at=datetime('now'),
+                delivery_error=NULL, delivery_tries=delivery_tries+1 WHERE id=?`).run(b.id);
+  } else {
+    db.prepare(`UPDATE cutting_batches SET delivery_status='failed', delivery_error=?,
+                delivery_tries=delivery_tries+1 WHERE id=?`).run(String(r.error).slice(0, 500), b.id);
+  }
+  const after = db.prepare('SELECT delivery_status, delivered_at, delivery_error, delivery_tries FROM cutting_batches WHERE id=?').get(b.id);
+  return { ...r, file_name: fileName, ...after };
+}
+
+// POST /api/optima/batches/:id/deliver — also the Retry endpoint
+router.post('/batches/:id/deliver', (req, res) => {
+  try {
+    const out = deliverBatch(req.params.id);
+    // A failed delivery is a 200 with ok:false, not an HTTP error: the batch is
+    // fine, only the network leg failed, and the UI needs the detail to show Retry.
+    res.json(out);
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
