@@ -13,7 +13,9 @@
 const router = require('express').Router();
 const db     = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const fs = require('fs');
 const { validateOptimaName, assertIdentity, sanitise } = require('../optima-text');
+const { writeArchive } = require('../optima-xls');
 
 // ── Migrations (idempotent, run at module load like the rest of the codebase) ──
 // Order matters: cutting_batches must exist before the label_items ALTER.
@@ -575,6 +577,40 @@ router.post('/batches/:id/cancel', (req, res) => {
       ...batchDetail(b.id)
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── File generation and archive ───────────────────────────────────────────────
+// Generation is a separate, idempotent step rather than something buried in create,
+// so Download and Retry can both work and a failed write never loses the batch.
+function generateFile(id) {
+  const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+id);
+  if (!b) throw Object.assign(new Error('Batch not found'), { status: 404 });
+  if (b.status === 'cancelled') throw Object.assign(new Error('This batch is cancelled'), { status: 409 });
+  const pieces = db.prepare('SELECT * FROM cutting_batch_pieces WHERE batch_id=? AND active=1 ORDER BY order_num, piece_uid').all(+id);
+  if (!pieces.length) throw Object.assign(new Error('Batch has no active pieces'), { status: 409 });
+  const out = writeArchive(b, pieces);
+  db.prepare('UPDATE cutting_batches SET file_name=?, archive_path=? WHERE id=?').run(out.fileName, out.archivePath, b.id);
+  return out;
+}
+
+// POST /api/optima/batches/:id/file — (re)generate and archive
+router.post('/batches/:id/file', (req, res) => {
+  try { res.json({ ok: true, ...generateFile(req.params.id) }); }
+  catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// GET /api/optima/batches/:id/download — always available as the fallback when
+// network delivery is not working. Regenerates if the archive copy is missing.
+router.get('/batches/:id/download', (req, res) => {
+  try {
+    const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+req.params.id);
+    if (!b) return res.status(404).json({ error: 'Batch not found' });
+    let p = b.archive_path, name = b.file_name;
+    if (!p || !fs.existsSync(p)) { const g = generateFile(b.id); p = g.archivePath; name = g.fileName; }
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + name + '"');
+    fs.createReadStream(p).pipe(res);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 module.exports = router;

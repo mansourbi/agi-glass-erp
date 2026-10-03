@@ -77,6 +77,8 @@ const ROUTE_PERMS = [
   { m:'GET',    re:/^\/api\/optima\/batches\/?$/,             key:'cutting.access' },
   { m:'POST',   re:/^\/api\/optima\/batches\/?$/,             key:'cutting.create' },
   { m:'POST',   re:/^\/api\/optima\/batches\/\d+\/cancel$/,   key:'cutting.edit'   },
+  { m:'POST',   re:/^\/api\/optima\/batches\/\d+\/file$/,     key:'cutting.edit'   },
+  { m:'GET',    re:/^\/api\/optima\/batches\/\d+\/download$/, anyOf:['cutting.export','cutting.access'] },
   { m:'GET',    re:/^\/api\/optima\/batches\/\d+$/,           key:'cutting.access' },
   { m:'GET',    re:/^\/api\/optima\/settings\/?$/,            anyOf:['settings.optima.manage','cutting.access'] },
   { m:'POST',   re:/^\/api\/optima\/settings\/?$/,            key:'settings.optima.manage' },
