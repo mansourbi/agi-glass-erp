@@ -740,21 +740,43 @@
             : '');
       var editable = b.status === 'created';
       if (editable) {
-        h += '<div style="margin:10px 0"><button class="btn bs bsm" id="ox-add-orders" data-i18n="Add an order">Add an order</button>'
-          + '<span class="ox-note" style="margin-left:10px">'
-          + '<span data-i18n="Changing the contents regenerates the file and needs delivering again.">'
-          + 'Changing the contents regenerates the file and needs delivering again.</span></span></div>'
+        h += '<div class="card ox-wrap" style="max-width:none;margin:10px 0"><div class="cb">'
+          + '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'
+          + '<div class="fg"><label class="lbl" data-i18n="Add to width (mm)">Add to width (mm)</label>'
+          + '<input type="number" id="ox-comp-w" class="ox-num" min="0" max="50" step="0.5" value="' + esc(b.comp_w) + '"></div>'
+          + '<div class="fg"><label class="lbl" data-i18n="Add to height (mm)">Add to height (mm)</label>'
+          + '<input type="number" id="ox-comp-h" class="ox-num" min="0" max="50" step="0.5" value="' + esc(b.comp_h) + '"></div>'
+          + '<button class="btn bp bsm" id="ox-comp-apply" data-i18n="Apply to all pieces">Apply to all pieces</button>'
+          + '<button class="btn bs bsm" id="ox-add-orders" data-i18n="Add an order">Add an order</button>'
+          + '</div>'
+          + '<p class="ox-note" style="margin:10px 0 0">'
+          + '<strong style="color:var(--a4)" data-i18n="Edit-Way must have its own allowance set to ZERO">'
+          + 'Edit-Way must have its own allowance set to ZERO</strong> — '
+          + '<span data-i18n="the file now carries the cut size, so adding it again on the machine cuts every piece twice oversize.">'
+          + 'the file now carries the cut size, so adding it again on the machine cuts every piece twice oversize.</span><br>'
+          + '<span data-i18n="Applying to all overwrites any per-piece cut sizes. Changing anything regenerates the file and needs sending again.">'
+          + 'Applying to all overwrites any per-piece cut sizes. Changing anything regenerates the file and needs sending again.</span>'
+          + '</p><div class="ox-err" id="ox-comp-err"></div></div></div>'
           + '<div id="ox-add-host"></div>';
       }
       (b.orders || []).forEach(function (o) {
         h += '<div style="margin-top:12px"><div style="font-family:\'DM Mono\',monospace;color:var(--a);font-size:.76rem;margin-bottom:4px">'
           + esc(o.order_num) + ' <span style="color:var(--mu);font-size:.66rem">' + o.pieces.length + ' pcs</span></div>'
           + '<table class="ox-tbl"><thead><tr><th data-i18n="Piece">Piece</th>'
-          + '<th data-i18n="Size">Size</th><th data-i18n="Processes">Processes</th>'
+          + '<th data-i18n="Finished">Finished</th>'
+          + '<th data-i18n="Cut size sent to Optima">Cut size sent to Optima</th>'
+          + '<th data-i18n="Processes">Processes</th>'
           + '<th>NOTE1</th><th>NOTE2</th>' + (editable ? '<th></th>' : '') + '</tr></thead><tbody>';
         o.pieces.forEach(function (p) {
+          var cw = (p.cut_w == null ? p.w : p.cut_w), ch = (p.cut_h == null ? p.h : p.cut_h);
           h += '<tr><td class="ox-th">' + esc(p.piece_uid) + '</td>'
-            + '<td>' + esc(p.w) + ' × ' + esc(p.h) + ' mm</td>'
+            + '<td style="color:var(--mu)">' + esc(p.w) + ' × ' + esc(p.h) + ' mm</td>'
+            + '<td>' + (editable
+                ? '<input type="number" class="ox-num ox-cutw" data-uid="' + esc(p.piece_uid) + '" value="' + esc(cw) + '" step="0.5" style="width:78px">'
+                  + ' × <input type="number" class="ox-num ox-cuth" data-uid="' + esc(p.piece_uid) + '" value="' + esc(ch) + '" step="0.5" style="width:78px">'
+                  + ' <button class="btn ba bsm ox-cut-save" data-uid="' + esc(p.piece_uid) + '" style="font-size:.58rem" data-i18n="Set">Set</button>'
+                : '<strong style="color:var(--a)">' + esc(cw) + ' × ' + esc(ch) + ' mm</strong>')
+              + '</td>'
             + '<td style="font-size:.68rem">' + esc((p.processes || []).join(', ')) + '</td>'
             + '<td style="font-size:.66rem;color:var(--mu)">' + esc(p.note1 || '') + '</td>'
             + '<td style="font-size:.66rem;color:var(--mu)">' + esc(p.note2 || '') + '</td>'
@@ -833,6 +855,45 @@
               toast('Removed ' + uid); refreshCoverage(); renderBatchDetail(b.id);
             })
             .catch(function (e) { x.disabled = false; toast(e.message); });
+        });
+      });
+
+      // Batch allowance: one figure per axis, applied to every piece.
+      var applyBtn = document.getElementById('ox-comp-apply');
+      if (applyBtn) applyBtn.addEventListener('click', function () {
+        var er = document.getElementById('ox-comp-err');
+        er.textContent = '';
+        var cw = parseFloat(document.getElementById('ox-comp-w').value);
+        var ch = parseFloat(document.getElementById('ox-comp-h').value);
+        if (!isFinite(cw) || !isFinite(ch) || cw < 0 || ch < 0) { er.textContent = 'Enter a number of millimetres for each axis.'; return; }
+        if (!confirmSafe('Add ' + cw + ' mm to every width and ' + ch + ' mm to every height in '
+          + b.batch_no + '?\n\nThis overwrites any per-piece cut sizes, regenerates the file and '
+          + 'needs sending to the cutting PC again.')) return;
+        applyBtn.disabled = true;
+        api('/batches/' + b.id + '/allowance', { method: 'PATCH', body: { comp_w: cw, comp_h: ch } })
+          .then(function (r) {
+            if (r.warn_stale_delivery) alert(r.warn_stale_delivery);
+            toast('Allowance applied: +' + r.comp_w + ' / +' + r.comp_h + ' mm');
+            renderBatchDetail(b.id);
+          })
+          .catch(function (e) { applyBtn.disabled = false; er.textContent = e.message; });
+      });
+
+      // Per-piece override.
+      el.querySelectorAll('.ox-cut-save').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var uid = btn.getAttribute('data-uid');
+          var wEl = el.querySelector('.ox-cutw[data-uid="' + uid + '"]');
+          var hEl = el.querySelector('.ox-cuth[data-uid="' + uid + '"]');
+          btn.disabled = true;
+          api('/batches/' + b.id + '/pieces/' + encodeURIComponent(uid),
+              { method: 'PATCH', body: { cut_w: parseFloat(wEl.value), cut_h: parseFloat(hEl.value) } })
+            .then(function (r) {
+              if (r.warn_stale_delivery) alert(r.warn_stale_delivery);
+              toast(uid + ' cut size set to ' + r.cut_w + ' × ' + r.cut_h + ' mm');
+              renderBatchDetail(b.id);
+            })
+            .catch(function (e) { btn.disabled = false; toast(e.message); });
         });
       });
 

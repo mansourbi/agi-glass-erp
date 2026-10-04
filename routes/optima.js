@@ -81,8 +81,26 @@ try {
 try { db.prepare('ALTER TABLE cutting_batches ADD COLUMN manufacturer_id INTEGER REFERENCES manufacturers(id)').run(); } catch (e) {}
 try { db.prepare('ALTER TABLE cutting_batches ADD COLUMN manufacturer_code TEXT').run(); } catch (e) {}
 
-// 4. Batch membership. Authoritative, independent of labels. Stores the FINISHED
-// size only — the ERP does not know the cut size in this flow (decision 11).
+// Decision 13 (Ala, 2026-10-04) REVERSES decision 11: the cut-size allowance comes
+// back into the ERP. Columns 1-2 of the export now carry w+comp_w and h+comp_h, and
+// each piece can override its own cut size.
+//
+// THE RISK THIS CREATES: Edit-Way has its own per-side allowance, which the operator
+// has been entering by hand. If both are applied the glass is cut twice oversize.
+// Columns 8-12 stay empty so the FILE never adds it a second time, but the machine's
+// own setting is outside this file's control and must be zeroed on that side.
+try { db.prepare('ALTER TABLE cutting_batches ADD COLUMN comp_w REAL NOT NULL DEFAULT 4').run(); } catch (e) {}
+try { db.prepare('ALTER TABLE cutting_batches ADD COLUMN comp_h REAL NOT NULL DEFAULT 4').run(); } catch (e) {}
+// The per-piece cut_w/cut_h ALTERs live AFTER the cutting_batch_pieces CREATE
+// below — running them here would silently no-op on a fresh database, where the
+// table does not exist yet, and the columns would never appear.
+try {
+  db.prepare("INSERT OR IGNORE INTO config (key,value) VALUES ('optima_default_comp_w','4')").run();
+  db.prepare("INSERT OR IGNORE INTO config (key,value) VALUES ('optima_default_comp_h','4')").run();
+} catch (e) { console.warn('[optima seed] default allowance:', e.message); }
+
+// 4. Batch membership. Authoritative, independent of labels. Holds the finished
+// size (w/h) and, since decision 13, the cut size actually exported (cut_w/cut_h).
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS cutting_batch_pieces (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,6 +121,8 @@ try {
     processes    TEXT NOT NULL DEFAULT '[]',
     note1        TEXT DEFAULT '',
     note2        TEXT DEFAULT '',
+    cut_w        REAL,
+    cut_h        REAL,
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
   )`).run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_cbp_batch ON cutting_batch_pieces(batch_id)').run();
@@ -111,6 +131,10 @@ try {
   db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cbp_active_uid
               ON cutting_batch_pieces(piece_uid) WHERE active = 1`).run();
 } catch (e) { console.warn('[optima migrate] cutting_batch_pieces:', e.message); }
+// Decision 13, for databases where the table already existed. NULL on an old row
+// means "no allowance recorded"; the writer falls back to the finished size.
+try { db.prepare('ALTER TABLE cutting_batch_pieces ADD COLUMN cut_w REAL').run(); } catch (e) {}
+try { db.prepare('ALTER TABLE cutting_batch_pieces ADD COLUMN cut_h REAL').run(); } catch (e) {}
 
 // 5. Label linkage. Nullable and additive: every existing label row keeps NULL, so
 // label and scan history for existing optimizations is untouched. opt_file_id must
@@ -466,6 +490,7 @@ router.post('/batches', (req, res) => {
       ((first.pattern || '').trim() || first.family || '').toUpperCase(),
       mfg ? mfg.code : ''].filter(Boolean).join(' '), 32);
 
+    const comp = defaultComp();                  // decision 13, default 4mm per axis
     const batchNo = nextBatchNo();
     const orderNums = [...new Set(pool.map(p => p.order_num))];
     const created = (req.user && (req.user.name || req.user.email)) || '';
@@ -473,17 +498,17 @@ router.post('/batches', (req, res) => {
     const txn = db.transaction(() => {
       const bid = db.prepare(`INSERT INTO cutting_batches
         (batch_no, thickness, glass_type, color, family, pattern, company, material_code,
-         manufacturer_id, manufacturer_code, order_nums, piece_count, created_by)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+         manufacturer_id, manufacturer_code, order_nums, piece_count, created_by, comp_w, comp_h)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         batchNo, first.thickness, first.glass_type || 'glass', (first.color || '').trim(),
         first.family || null, (first.pattern || '').trim() || null, null, first.material_code,
         mfg ? mfg.id : null, mfg ? mfg.code : null,
-        JSON.stringify(orderNums), pool.length, created).lastInsertRowid;
+        JSON.stringify(orderNums), pool.length, created, comp.w, comp.h).lastInsertRowid;
 
       const insPiece = db.prepare(`INSERT INTO cutting_batch_pieces
         (batch_id, piece_uid, order_id, order_num, customer_id, optima_name, w, h, thickness,
-         glass_type, color, family, pattern, processes, note1, note2)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+         glass_type, color, family, pattern, processes, note1, note2, cut_w, cut_h)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
       // Labels: batch_id set, opt_file_id deliberately left alone. Worker scanning
       // resolves a piece by uid, so it works unchanged once these rows exist.
       const upLabel = db.prepare(`INSERT INTO label_items
@@ -505,7 +530,7 @@ router.post('/batches', (req, res) => {
           .map(x => EDGE_ABBR[x] || x.toUpperCase()).join(' '), 32);
         insPiece.run(bid, p.piece_uid, p.order_id, p.order_num, p.customer_id, p.optima_name,
           p.w, p.h, p.thickness, p.glass_type, p.color, p.family, p.pattern,
-          JSON.stringify(p.processes), note1, note2);
+          JSON.stringify(p.processes), note1, note2, p.w + comp.w, p.h + comp.h);
         upLabel.run(p.piece_uid, p.piece_code || '', p.w, p.h, p.thickness, p.glass_type || 'glass',
           p.color || 'clear', p.family || null, p.pattern || null, JSON.stringify(p.processes),
           p.bevel_mm || 0, p.drill_count || 0, p.cutout_count || 0,
@@ -593,6 +618,70 @@ router.post('/batches/:id/cancel', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Cut-size allowance (decision 13) ─────────────────────────────────────────
+function defaultComp() {
+  const g = k => {
+    const r = db.prepare('SELECT value FROM config WHERE key=?').get(k);
+    const n = r ? Number(r.value) : NaN;
+    return Number.isFinite(n) && n >= 0 ? n : 4;
+  };
+  return { w: g('optima_default_comp_w'), h: g('optima_default_comp_h') };
+}
+// Rounded to 0.5mm and clamped, mirroring the optimizer's own Edge Compensation
+// input (min 0, max 50, step 0.5) so the two paths cannot disagree on what is sane.
+function cleanComp(v, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(50, Math.max(0, Math.round(n * 2) / 2));
+}
+// Recompute every piece's cut size from the batch allowance. "Apply to all" is
+// deliberate: it overwrites per-piece overrides, which is what the operator means
+// when they set a batch-wide figure.
+function applyAllowance(batchId, compW, compH) {
+  db.prepare(`UPDATE cutting_batch_pieces SET cut_w = w + ?, cut_h = h + ?
+              WHERE batch_id=? AND active=1`).run(compW, compH, batchId);
+}
+
+// PATCH /api/optima/batches/:id/allowance  { comp_w, comp_h }
+router.patch('/batches/:id/allowance', (req, res) => {
+  try {
+    const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+req.params.id);
+    assertEditable(b);
+    const cw = cleanComp(req.body.comp_w, b.comp_w);
+    const ch = cleanComp(req.body.comp_h, b.comp_h);
+    db.transaction(() => {
+      db.prepare('UPDATE cutting_batches SET comp_w=?, comp_h=? WHERE id=?').run(cw, ch, b.id);
+      applyAllowance(b.id, cw, ch);
+    })();
+    const after = afterContentChange(db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(b.id));
+    res.json({ ok: true, comp_w: cw, comp_h: ch, ...after, ...batchDetail(b.id) });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// PATCH /api/optima/batches/:id/pieces/:uid  { cut_w, cut_h } — one piece only
+router.patch('/batches/:id/pieces/:uid', (req, res) => {
+  try {
+    const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+req.params.id);
+    assertEditable(b);
+    const uid = String(req.params.uid);
+    const p = db.prepare('SELECT * FROM cutting_batch_pieces WHERE batch_id=? AND piece_uid=? AND active=1').get(b.id, uid);
+    if (!p) return res.status(404).json({ error: 'That piece is not in this batch' });
+    const cw = Number(req.body.cut_w), ch = Number(req.body.cut_h);
+    if (!Number.isFinite(cw) || !Number.isFinite(ch) || cw <= 0 || ch <= 0) {
+      return res.status(400).json({ error: 'Cut width and height must both be positive numbers' });
+    }
+    // A cut size below the finished size would cut the piece too small, which is
+    // scrap. Refuse rather than warn.
+    if (cw < p.w || ch < p.h) {
+      return res.status(400).json({ error: 'Cut size cannot be smaller than the finished size (' + p.w + ' × ' + p.h + ' mm)' });
+    }
+    db.prepare('UPDATE cutting_batch_pieces SET cut_w=?, cut_h=? WHERE batch_id=? AND piece_uid=?')
+      .run(cw, ch, b.id, uid);
+    const after = afterContentChange(b);
+    res.json({ ok: true, piece_uid: uid, cut_w: cw, cut_h: ch, ...after, ...batchDetail(b.id) });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
 // ── Editing a batch before it is cut ─────────────────────────────────────────
 // Allowed only while status='created'. Once marked cut the stock has moved and the
 // glass is on the floor, so the contents are history.
@@ -649,8 +738,8 @@ router.post('/batches/:id/pieces', (req, res) => {
     db.transaction(() => {
       const insPiece = db.prepare(`INSERT INTO cutting_batch_pieces
         (batch_id, piece_uid, order_id, order_num, customer_id, optima_name, w, h, thickness,
-         glass_type, color, family, pattern, processes, note1, note2)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+         glass_type, color, family, pattern, processes, note1, note2, cut_w, cut_h)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
       const upLabel = db.prepare(`INSERT INTO label_items
         (uid, code, w, h, thickness, glass_type, color, family, pattern, processes, bevel_mm,
          drill_count, cutout_count, order_id, order_num, cut_type, date, batch_id)
@@ -662,7 +751,8 @@ router.post('/batches/:id/pieces', (req, res) => {
           .map(x => EDGE_ABBR[x] || x.toUpperCase()).join(' '), 32);
         insPiece.run(b.id, p.piece_uid, p.order_id, p.order_num, p.customer_id, p.optima_name,
           p.w, p.h, p.thickness, p.glass_type, p.color, p.family, p.pattern,
-          JSON.stringify(p.processes), (note1 && note1.note1) || '', note2);
+          JSON.stringify(p.processes), (note1 && note1.note1) || '', note2,
+          p.w + b.comp_w, p.h + b.comp_h);
         upLabel.run(p.piece_uid, p.piece_code || '', p.w, p.h, p.thickness, p.glass_type || 'glass',
           p.color || 'clear', p.family || null, p.pattern || null, JSON.stringify(p.processes),
           p.bevel_mm || 0, p.drill_count || 0, p.cutout_count || 0,

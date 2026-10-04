@@ -12,9 +12,12 @@
 //     pieces on the wrong thickness. That is why the code comes from the material
 //     map and is never improvised.
 //   * Arabic is destroyed - every non-ASCII character becomes '?' in every field.
-//   * Columns 8-12 stay EMPTY so Edit-Way never adds allowances a second time.
-//   * Decision 11: columns 1-2 carry the FINISHED size. The allowance belongs to
-//     Optima; the operator enters it per side in Edit-Way.
+//   * Columns 8-12 stay EMPTY so the FILE never adds an allowance a second time.
+//   * Decision 13 (4 Oct, reversing decision 11): columns 1-2 carry the CUT size —
+//     finished size plus the batch allowance, default 4mm per axis, overridable per
+//     piece. Edit-Way's own per-side allowance must therefore be set to ZERO on the
+//     machine, or every piece is cut oversize twice. Columns 8-12 cover the file's
+//     side of that; the machine's manual setting is outside this file's control.
 
 const XLSX = require('xlsx');
 const fs = require('fs');
@@ -55,9 +58,15 @@ function buildRows(batch, pieces) {
   const textCells = [];                       // rows needing MATERIAL forced to text
   pieces.forEach((p, i) => {
     const row = new Array(16).fill(null);
-    row[0] = Number(p.w);                                        // FINISHED width
-    row[1] = Number(p.h);                                        // FINISHED height
+    // CUT size (decision 13). Falls back to the finished size for rows written
+    // before the allowance existed, so an old batch still exports correctly.
+    row[0] = Number(p.cut_w != null ? p.cut_w : p.w);
+    row[1] = Number(p.cut_h != null ? p.cut_h : p.h);
     if (!(row[0] > 0) || !(row[1] > 0)) throw new Error('BLOCK: piece ' + p.piece_uid + ' has a non-positive size');
+    // Cutting below the finished size is scrap, so refuse rather than warn.
+    if (row[0] < Number(p.w) || row[1] < Number(p.h)) {
+      throw new Error('BLOCK: piece ' + p.piece_uid + ' has a cut size smaller than its finished size');
+    }
     row[2] = 1;
     row[3] = assertIdentity('CUSTOMER', p.optima_name, 12);
     row[4] = material;                                           // forced to text below

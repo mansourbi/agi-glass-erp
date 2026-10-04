@@ -20,10 +20,21 @@ router.get('/', (req, res) => {
     // Optima cutting batches: the batch label sheet needs its own pieces, and
     // filtering client-side would mean shipping every label row to get a handful.
     if (batchId)   { sql += ' AND batch_id=?';    params.push(+batchId); }
+    // Cut sizes live on cutting_batch_pieces, not label_items. makeLabel already
+    // renders a CUT line whenever cutW/cutH differ from w/h, so joining them here
+    // makes a batch label match an optimizer label with no change to the builder.
+    const cutByUid = batchId
+      ? new Map(db.prepare('SELECT piece_uid, cut_w, cut_h FROM cutting_batch_pieces WHERE batch_id=? AND active=1')
+          .all(+batchId).map(r => [r.piece_uid, r]))
+      : null;
     sql += ' ORDER BY created_at DESC';
     const rows = db.prepare(sql).all(...params);
     res.json(rows.map(r => ({
       ...r,
+      ...(cutByUid && cutByUid.get(r.uid)
+          ? { cutW: cutByUid.get(r.uid).cut_w, cutH: cutByUid.get(r.uid).cut_h,
+              cut_w: cutByUid.get(r.uid).cut_w, cut_h: cutByUid.get(r.uid).cut_h }
+          : {}),
       processes: JSON.parse(r.processes||'[]'),
       optFileId: r.opt_file_id,
       orderId: r.order_id,

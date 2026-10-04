@@ -81,6 +81,8 @@ const ROUTE_PERMS = [
   { m:'POST',   re:/^\/api\/optima\/batches\/\d+\/cut$/,      anyOf:['aframes.stock.edit','cutting.edit'] },
   { m:'GET',    re:/^\/api\/optima\/batches\/\d+\/addable$/,  key:'cutting.access' },
   { m:'POST',   re:/^\/api\/optima\/batches\/\d+\/pieces$/,   key:'cutting.edit'   },
+  { m:'PATCH',  re:/^\/api\/optima\/batches\/\d+\/allowance$/, key:'cutting.edit'  },
+  { m:'PATCH',  re:/^\/api\/optima\/batches\/\d+\/pieces\/.+$/, key:'cutting.edit' },
   { m:'DELETE', re:/^\/api\/optima\/batches\/\d+\/pieces\/.+$/, key:'cutting.edit' },
   { m:'POST',   re:/^\/api\/optima\/batches\/\d+\/file$/,     key:'cutting.edit'   },
   { m:'POST',   re:/^\/api\/optima\/batches\/\d+\/deliver$/,  key:'cutting.edit'   },
