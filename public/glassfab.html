@@ -23304,7 +23304,12 @@ async function printMode(mode){
   const isLabels = (mode === 'labels' || mode === 'pieces-only');
   // Auto-save the optimization before printing labels: printing is proof the
   // optimization is real, so it must be persisted (prevents label-print-without-save).
-  if(isLabels && typeof cutPieces!=='undefined' && cutPieces && cutPieces.length && !activeOptId){
+  // Never auto-save an optimization while printing Optima batch labels: the
+  // operator's unsaved optimizer session has nothing to do with this batch, and
+  // saving it would claim its pieces.
+  const _oxBatchView = document.getElementById('cut-view-batches');
+  const _oxPrintingBatch = !!(_oxBatchView && _oxBatchView.style.display !== 'none');
+  if(isLabels && !_oxPrintingBatch && typeof cutPieces!=='undefined' && cutPieces && cutPieces.length && !activeOptId){
     try{
       await saveOptFile(getDefaultOptName());
       if(typeof toast==='function') toast('Optimization auto-saved before printing');
@@ -23392,7 +23397,13 @@ async function printMode(mode){
     const selector = (mode === 'pieces-only') ? '.lcard-piece' : '.lcard';
     // Search globally so we find labels in any render path — the current grid
     // is #cut-lbl-grid but legacy layouts may use #lbl-grid.
-    let src = Array.from(document.querySelectorAll('#cut-lbl-grid ' + selector));
+    // Optima batch labels render into their own host on the batches view. Look
+    // there FIRST, but only while that view is actually showing, so a stale batch
+    // host can never shadow the optimizer's own grid.
+    const _oxV = document.getElementById('cut-view-batches');
+    let src = (_oxV && _oxV.style.display !== 'none')
+      ? Array.from(document.querySelectorAll('#ox-labels-host ' + selector)) : [];
+    if(!src.length) src = Array.from(document.querySelectorAll('#cut-lbl-grid ' + selector));
     if(!src.length) src = Array.from(document.querySelectorAll('#lbl-grid ' + selector));
     if(!src.length){
       alert('No labels to print.');

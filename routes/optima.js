@@ -589,6 +589,131 @@ router.post('/batches/:id/cancel', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Editing a batch before it is cut ─────────────────────────────────────────
+// Allowed only while status='created'. Once marked cut the stock has moved and the
+// glass is on the floor, so the contents are history.
+//
+// Any change invalidates the file that was already generated and possibly already
+// delivered, so both are reset: the file is regenerated and delivery_status drops
+// back to 'pending'. The response says whether a stale copy is sitting on the
+// cutting PC, because Edit-Way will happily keep the old work order.
+function assertEditable(b) {
+  if (!b) throw Object.assign(new Error('Batch not found'), { status: 404 });
+  if (b.status === 'cut') throw Object.assign(new Error('This batch is marked cut — its contents cannot change.'), { status: 409 });
+  if (b.status === 'cancelled') throw Object.assign(new Error('This batch is cancelled.'), { status: 409 });
+}
+function afterContentChange(b) {
+  const wasDelivered = b.delivery_status === 'delivered';
+  let file = null;
+  try { file = generateFile(b.id); } catch (e) { /* reported below */ }
+  db.prepare(`UPDATE cutting_batches SET delivery_status='pending', delivery_error=NULL,
+              piece_count=(SELECT COUNT(*) FROM cutting_batch_pieces WHERE batch_id=? AND active=1),
+              order_nums=? WHERE id=?`)
+    .run(b.id, JSON.stringify([...new Set(db.prepare(
+      'SELECT order_num FROM cutting_batch_pieces WHERE batch_id=? AND active=1 ORDER BY order_num').all(b.id)
+      .map(r => r.order_num))]), b.id);
+  return {
+    regenerated: !!file,
+    file_name: file ? file.fileName : null,
+    warn_stale_delivery: wasDelivered
+      ? 'This batch had already been delivered. The old file is still in To-Import on the cutting PC — remove it and its work order in Edit-Way, then deliver again.'
+      : null
+  };
+}
+
+// POST /api/optima/batches/:id/pieces — add whole orders of the batch's glass
+router.post('/batches/:id/pieces', (req, res) => {
+  try {
+    const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+req.params.id);
+    assertEditable(b);
+    const orderIds = (Array.isArray(req.body.order_ids) ? req.body.order_ids : []).map(Number).filter(Boolean);
+    if (!orderIds.length) return res.status(400).json({ error: 'Select at least one order to add' });
+
+    const key = [b.thickness, b.glass_type || 'glass', (b.color || '').trim(), b.family || '', (b.pattern || '').trim()].join('|');
+    const pool = poolRows().filter(p => p.glass_key === key && orderIds.includes(p.order_id));
+    if (!pool.length) return res.status(409).json({ error: 'No eligible pieces of this glass in those orders. They may already be claimed — reload.' });
+    const blocked = pool.filter(p => p.blockers.length);
+    if (blocked.length) return res.status(409).json({
+      error: blocked.length + ' piece(s) are blocked and cannot be added.',
+      blocked: blocked.map(p => ({ piece_uid: p.piece_uid, order_num: p.order_num, blockers: p.blockers }))
+    });
+
+    const note1 = db.prepare('SELECT note1 FROM cutting_batch_pieces WHERE batch_id=? LIMIT 1').get(b.id);
+    const d = new Date(), p2 = n => String(n).padStart(2, '0');
+    const today = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+
+    db.transaction(() => {
+      const insPiece = db.prepare(`INSERT INTO cutting_batch_pieces
+        (batch_id, piece_uid, order_id, order_num, customer_id, optima_name, w, h, thickness,
+         glass_type, color, family, pattern, processes, note1, note2)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      const upLabel = db.prepare(`INSERT INTO label_items
+        (uid, code, w, h, thickness, glass_type, color, family, pattern, processes, bevel_mm,
+         drill_count, cutout_count, order_id, order_num, cut_type, date, batch_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'machine',?,?)
+        ON CONFLICT(uid) DO UPDATE SET batch_id=excluded.batch_id, order_id=excluded.order_id,
+          order_num=excluded.order_num, processes=excluded.processes`);
+      for (const p of pool) {
+        const note2 = sanitise(p.processes.filter(x => x !== 'cutting')
+          .map(x => EDGE_ABBR[x] || x.toUpperCase()).join(' '), 32);
+        insPiece.run(b.id, p.piece_uid, p.order_id, p.order_num, p.customer_id, p.optima_name,
+          p.w, p.h, p.thickness, p.glass_type, p.color, p.family, p.pattern,
+          JSON.stringify(p.processes), (note1 && note1.note1) || '', note2);
+        upLabel.run(p.piece_uid, p.piece_code || '', p.w, p.h, p.thickness, p.glass_type || 'glass',
+          p.color || 'clear', p.family || null, p.pattern || null, JSON.stringify(p.processes),
+          p.bevel_mm || 0, p.drill_count || 0, p.cutout_count || 0,
+          p.order_id, p.order_num, today, b.id);
+      }
+    })();
+    const after = afterContentChange(b);
+    res.json({ ok: true, added: pool.length, ...after, ...batchDetail(b.id) });
+  } catch (e) {
+    if (/UNIQUE/i.test(e.message)) return res.status(409).json({ error: 'One or more pieces were claimed by another batch. Reload and try again.' });
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/optima/batches/:id/pieces/:uid — drop one piece back to the pool
+router.delete('/batches/:id/pieces/:uid', (req, res) => {
+  try {
+    const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+req.params.id);
+    assertEditable(b);
+    const uid = String(req.params.uid);
+    const row = db.prepare('SELECT * FROM cutting_batch_pieces WHERE batch_id=? AND piece_uid=? AND active=1').get(b.id, uid);
+    if (!row) return res.status(404).json({ error: 'That piece is not in this batch' });
+    const left = db.prepare('SELECT COUNT(*) c FROM cutting_batch_pieces WHERE batch_id=? AND active=1').get(b.id).c;
+    if (left <= 1) return res.status(409).json({ error: 'A batch cannot be emptied. Cancel it instead, which frees every piece.' });
+
+    db.transaction(() => {
+      // active=0 rather than DELETE: the partial unique index keys on active, so
+      // this frees the piece while leaving the record of what was in the batch.
+      db.prepare('UPDATE cutting_batch_pieces SET active=0 WHERE batch_id=? AND piece_uid=?').run(b.id, uid);
+      db.prepare('UPDATE label_items SET batch_id=NULL WHERE uid=? AND batch_id=?').run(uid, b.id);
+    })();
+    const after = afterContentChange(b);
+    res.json({ ok: true, removed: uid, ...after, ...batchDetail(b.id) });
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// GET /api/optima/batches/:id/addable — orders that could join this batch
+router.get('/batches/:id/addable', (req, res) => {
+  try {
+    const b = db.prepare('SELECT * FROM cutting_batches WHERE id=?').get(+req.params.id);
+    if (!b) return res.status(404).json({ error: 'Batch not found' });
+    const key = [b.thickness, b.glass_type || 'glass', (b.color || '').trim(), b.family || '', (b.pattern || '').trim()].join('|');
+    const pool = poolRows().filter(p => p.glass_key === key);
+    const byOrder = {};
+    pool.forEach(p => {
+      const o = byOrder[p.order_num] || (byOrder[p.order_num] = {
+        order_id: p.order_id, order_num: p.order_num, cust_code: p.cust_code, pieces: [], blockers: []
+      });
+      o.pieces.push({ piece_uid: p.piece_uid, w: p.w, h: p.h });
+      p.blockers.forEach(x => { if (!o.blockers.includes(x)) o.blockers.push(x); });
+    });
+    res.json({ glass_key: key, editable: b.status === 'created', orders: Object.values(byOrder) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── File generation and archive ───────────────────────────────────────────────
 // Generation is a separate, idempotent step rather than something buried in create,
 // so Download and Retry can both work and a failed write never loses the batch.

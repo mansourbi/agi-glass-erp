@@ -96,7 +96,13 @@
     + '.ox-remap{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;font-size:.62rem;font-weight:700;'
     + 'background:rgba(255,210,63,.14);color:var(--a4)}'
     + '.ox-err{color:var(--a2);font-size:.7rem;margin-top:4px;min-height:1em}'
-    + '.ox-ok{color:var(--a3)}';
+    + '.ox-ok{color:var(--a3)}'
++ '.ox-big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;'
+    + 'min-width:260px;min-height:150px;padding:22px 28px;border-radius:12px;background:var(--surf);'
+    + 'border:1px solid var(--border);color:var(--tx);cursor:pointer}'
+    + '.ox-big:hover{border-color:var(--a);background:rgba(0,204,255,.06)}'
+    + '.ox-big-t{font-family:"Bebas Neue","Cairo",sans-serif;letter-spacing:2px;font-size:1.3rem;color:var(--a)}'
+    + '.ox-big-s{font-size:.7rem;color:var(--mu)}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
   /* ─────────────────── 1. Settings -> Optima material map ────────────────── */
@@ -409,6 +415,33 @@
     }).catch(function () { return window.AGI_BatchCovered; });
   }
 
+  // Landing page for Cutting: the two paths, side by side, as equals.
+  function injectChooseView() {
+    if (document.getElementById('cut-view-choose')) return true;
+    var pg = document.getElementById('pg-cutting');
+    if (!pg) return false;
+    var v = document.createElement('div');
+    v.id = 'cut-view-choose';
+    v.style.display = 'none';
+    v.innerHTML = '<div class="ph"><div><div class="pt" data-i18n="Cutting">Cutting</div>'
+      + '<div class="ps" data-i18n="Choose how this glass gets cut">Choose how this glass gets cut</div></div></div>'
+      + '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px">'
+      + '<button class="btn ox-big" id="ox-go-agi">'
+      + '<span style="font-size:2rem;line-height:1">&#9906;</span>'
+      + '<span class="ox-big-t" data-i18n="AGI Opt">AGI Opt</span>'
+      + '<span class="ox-big-s" data-i18n="Optimize in the ERP, as before">Optimize in the ERP, as before</span></button>'
+      + '<button class="btn ox-big" id="ox-go-optima">'
+      + '<span style="font-size:2rem;line-height:1">&#9636;</span>'
+      + '<span class="ox-big-t" data-i18n="Optima Opt">Optima Opt</span>'
+      + '<span class="ox-big-s" data-i18n="Cutting batches for the Yinrui line">Cutting batches for the Yinrui line</span></button>'
+      + '</div>';
+    pg.appendChild(v);
+    document.getElementById('ox-go-agi').addEventListener('click', function () { showCutView('files'); });
+    document.getElementById('ox-go-optima').addEventListener('click', function () { showCutView('batches'); });
+    lang();
+    return true;
+  }
+
   function injectBatchView() {
     if (document.getElementById('cut-view-batches')) return true;
     var pg = document.getElementById('pg-cutting');
@@ -442,29 +475,54 @@
     return true;
   }
 
-  // showCutView only knows 'files' and 'ws'; wrap it for 'batches'.
+  // showCutView only knows 'files' and 'ws'; wrap it for 'choose' and 'batches'.
+  var _oxLastExplicit = 0;
+  function hideOurViews() {
+    ['cut-view-choose', 'cut-view-batches'].forEach(function (id) {
+      var e = document.getElementById(id); if (e) e.style.display = 'none';
+    });
+  }
   function hookCutView() {
     if (typeof window.showCutView !== 'function' || window.showCutView.__ox) return false;
     var orig = window.showCutView;
     var wrapped = function (view) {
       try {
-        if (view === 'batches') {
-          injectBatchView();
-          var f = document.getElementById('cut-view-files'), w = document.getElementById('cut-view-ws'),
-              b = document.getElementById('cut-view-batches');
+        if (view !== 'choose') _oxLastExplicit = Date.now();
+        var f = document.getElementById('cut-view-files'), w = document.getElementById('cut-view-ws');
+        if (view === 'choose' || view === 'batches') {
+          injectChooseView(); injectBatchView();
+          hideOurViews();
           if (f) f.style.display = 'none';
           if (w) w.style.display = 'none';
-          if (b) b.style.display = '';
-          renderBatchList();
+          var t = document.getElementById(view === 'choose' ? 'cut-view-choose' : 'cut-view-batches');
+          if (t) t.style.display = '';
+          if (view === 'batches') renderBatchList();
           return;
         }
-        var bb = document.getElementById('cut-view-batches');
-        if (bb) bb.style.display = 'none';
+        hideOurViews();
       } catch (e) { console.warn('[optima-ui] cut view', e); }
       return orig.apply(this, arguments);
     };
     wrapped.__ox = true;
     window.showCutView = wrapped;
+    return true;
+  }
+
+  // Entering Cutting from the nav lands on the chooser. renderCutUI is what SP()
+  // calls for this page. Anything that asked for a specific view just before —
+  // sendToCutting, opening an optimization — wins, so those flows are unchanged.
+  function hookRenderCutUI() {
+    if (typeof window.renderCutUI !== 'function' || window.renderCutUI.__ox) return false;
+    var orig = window.renderCutUI;
+    var wrapped = function () {
+      var r = orig.apply(this, arguments);
+      try {
+        if (Date.now() - _oxLastExplicit > 400) showCutView('choose');
+      } catch (e) { console.warn('[optima-ui] renderCutUI', e); }
+      return r;
+    };
+    wrapped.__ox = true;
+    window.renderCutUI = wrapped;
     return true;
   }
 
@@ -664,26 +722,57 @@
               + ' &bull; ' + esc(b.sheets_used) + ' <span data-i18n="sheet(s) used">sheet(s) used</span>'
               + (b.cut_by ? ' &bull; ' + esc(b.cut_by) : '') + '</p>'
             : '');
+      var editable = b.status === 'created';
+      if (editable) {
+        h += '<div style="margin:10px 0"><button class="btn bs bsm" id="ox-add-orders" data-i18n="Add an order">Add an order</button>'
+          + '<span class="ox-note" style="margin-left:10px">'
+          + '<span data-i18n="Changing the contents regenerates the file and needs delivering again.">'
+          + 'Changing the contents regenerates the file and needs delivering again.</span></span></div>'
+          + '<div id="ox-add-host"></div>';
+      }
       (b.orders || []).forEach(function (o) {
         h += '<div style="margin-top:12px"><div style="font-family:\'DM Mono\',monospace;color:var(--a);font-size:.76rem;margin-bottom:4px">'
           + esc(o.order_num) + ' <span style="color:var(--mu);font-size:.66rem">' + o.pieces.length + ' pcs</span></div>'
           + '<table class="ox-tbl"><thead><tr><th data-i18n="Piece">Piece</th>'
           + '<th data-i18n="Size">Size</th><th data-i18n="Processes">Processes</th>'
-          + '<th>NOTE1</th><th>NOTE2</th></tr></thead><tbody>';
+          + '<th>NOTE1</th><th>NOTE2</th>' + (editable ? '<th></th>' : '') + '</tr></thead><tbody>';
         o.pieces.forEach(function (p) {
           h += '<tr><td class="ox-th">' + esc(p.piece_uid) + '</td>'
             + '<td>' + esc(p.w) + ' × ' + esc(p.h) + ' mm</td>'
             + '<td style="font-size:.68rem">' + esc((p.processes || []).join(', ')) + '</td>'
             + '<td style="font-size:.66rem;color:var(--mu)">' + esc(p.note1 || '') + '</td>'
-            + '<td style="font-size:.66rem;color:var(--mu)">' + esc(p.note2 || '') + '</td></tr>';
+            + '<td style="font-size:.66rem;color:var(--mu)">' + esc(p.note2 || '') + '</td>'
+            + (editable ? '<td style="text-align:right"><button class="btn bd bsm ox-rm-piece" data-uid="'
+                + esc(p.piece_uid) + '" style="font-size:.6rem" title="Remove from this batch">&times;</button></td>' : '')
+            + '</tr>';
         });
         h += '</tbody></table></div>';
       });
       el.innerHTML = h + '</div></div>';
       document.getElementById('ox-det-back').addEventListener('click', renderBatchList);
       document.getElementById('ox-download').addEventListener('click', function () {
-        // Sizes are finished sizes; the operator enters the allowance in Edit-Way.
-        window.open(API + '/batches/' + b.id + '/download', '_blank');
+        // window.open() is a plain navigation and carries no Authorization header,
+        // so it comes back {"error":"No token"}. Fetch it authenticated and hand the
+        // blob to a download anchor instead.
+        var btn = this; btn.disabled = true;
+        var headers = {};
+        try { var t = tok(); if (t) headers.Authorization = 'Bearer ' + t; } catch (e) {}
+        fetch(API + '/batches/' + b.id + '/download', { headers: headers })
+          .then(function (r) {
+            if (!r.ok) return r.json().catch(function () { return {}; })
+              .then(function (j) { throw new Error(j.error || ('HTTP ' + r.status)); });
+            return r.blob();
+          })
+          .then(function (blob) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url; a.download = b.file_name || (b.batch_no + '.xls');
+            document.body.appendChild(a); a.click();
+            setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+            toast('Downloaded ' + a.download);
+          })
+          .catch(function (e) { toast('Download failed: ' + e.message); })
+          .then(function () { btn.disabled = false; });
       });
       var rt = document.getElementById('ox-retry');
       if (rt) rt.addEventListener('click', function () {
@@ -706,6 +795,67 @@
       document.getElementById('ox-labels').addEventListener('click', function () { printBatchLabels(b); });
       var mc = document.getElementById('ox-markcut');
       if (mc) mc.addEventListener('click', function () { renderCutPanel(b); });
+
+      // Remove a piece. Blocked server-side from emptying the batch — cancel does that.
+      el.querySelectorAll('.ox-rm-piece').forEach(function (x) {
+        x.addEventListener('click', function () {
+          var uid = x.getAttribute('data-uid');
+          if (!confirmSafe('Remove ' + uid + ' from ' + b.batch_no + '?\n\n'
+            + 'It goes back to the pool and can be batched again or optimized in the ERP.\n'
+            + 'The file will be regenerated and must be delivered again.')) return;
+          x.disabled = true;
+          api('/batches/' + b.id + '/pieces/' + encodeURIComponent(uid), { method: 'DELETE' })
+            .then(function (r) {
+              if (r.warn_stale_delivery) alert(r.warn_stale_delivery);
+              toast('Removed ' + uid); refreshCoverage(); renderBatchDetail(b.id);
+            })
+            .catch(function (e) { x.disabled = false; toast(e.message); });
+        });
+      });
+
+      var addBtn = document.getElementById('ox-add-orders');
+      if (addBtn) addBtn.addEventListener('click', function () {
+        var host = document.getElementById('ox-add-host');
+        host.innerHTML = '<div class="ox-note" data-i18n="Loading">Loading…</div>';
+        api('/batches/' + b.id + '/addable').then(function (d) {
+          var avail = (d.orders || []);
+          if (!avail.length) {
+            host.innerHTML = '<div class="ox-note" data-i18n="No other orders have pieces of this glass.">No other orders have pieces of this glass.</div>';
+            lang(); return;
+          }
+          var hh = '<div class="card ox-wrap" style="max-width:none;margin:8px 0"><div class="cb">'
+            + '<table class="ox-tbl"><thead><tr><th></th><th data-i18n="Order">Order</th>'
+            + '<th data-i18n="Customer">Customer</th><th data-i18n="Pieces">Pieces</th>'
+            + '<th data-i18n="Status">Status</th></tr></thead><tbody>';
+          avail.forEach(function (o) {
+            var blocked = o.blockers.length > 0;
+            hh += '<tr style="' + (blocked ? 'opacity:.55' : '') + '">'
+              + '<td><input type="checkbox" class="ox-addord" value="' + o.order_id + '"' + (blocked ? ' disabled' : '')
+              + ' style="width:16px;height:16px;padding:0"></td>'
+              + '<td class="ox-th">' + esc(o.order_num) + '</td>'
+              + '<td style="font-size:.72rem">' + esc(o.cust_code) + '</td>'
+              + '<td>' + o.pieces.length + '</td>'
+              + '<td style="font-size:.66rem">' + (blocked
+                  ? '<span style="color:var(--a2)">' + o.blockers.map(esc).join('<br>') + '</span>'
+                  : '<span style="color:var(--a3)" data-i18n="Ready">Ready</span>') + '</td></tr>';
+          });
+          hh += '</tbody></table><button class="btn bp bsm" id="ox-add-go" style="margin-top:10px" data-i18n="Add to batch">Add to batch</button>'
+            + '<div class="ox-err" id="ox-add-err"></div></div></div>';
+          host.innerHTML = hh; lang();
+          document.getElementById('ox-add-go').addEventListener('click', function () {
+            var ids = [].slice.call(host.querySelectorAll('.ox-addord:checked')).map(function (c) { return +c.value; });
+            var er = document.getElementById('ox-add-err');
+            if (!ids.length) { er.textContent = 'Tick at least one order.'; return; }
+            this.disabled = true;
+            api('/batches/' + b.id + '/pieces', { method: 'POST', body: { order_ids: ids } })
+              .then(function (r) {
+                if (r.warn_stale_delivery) alert(r.warn_stale_delivery);
+                toast('Added ' + r.added + ' piece(s)'); refreshCoverage(); renderBatchDetail(b.id);
+              })
+              .catch(function (e) { er.textContent = e.message; });
+          });
+        }).catch(function (e) { host.innerHTML = '<div class="ox-err">' + esc(e.message) + '</div>'; });
+      });
       lang();
     }).catch(function (e) { el.innerHTML = '<div class="ox-err">' + esc(e.message) + '</div>'; });
   }
@@ -847,8 +997,17 @@
           if (card) host.appendChild(card);
         });
       });
-      toast(items.length + ' label(s) rendered — use the browser print dialog');
+      // printMode('pieces-only') is the portal's one print engine: it waits for the
+      // QR queue to drain, converts canvases to images, builds a flat print root and
+      // calls window.print(). It now looks in #ox-labels-host first while this view
+      // is showing. Rendering without printing is what made the button look dead.
       host.scrollIntoView({ behavior: 'smooth' });
+      if (typeof window.printMode === 'function') {
+        toast(items.length + ' label(s) — opening the print dialog…');
+        setTimeout(function () { try { printMode('pieces-only'); } catch (e) { toast('Print failed: ' + e.message); } }, 150);
+      } else {
+        toast(items.length + ' label(s) rendered — use the browser print dialog');
+      }
     }).catch(function (e) { toast('Labels: ' + e.message); });
   }
 
@@ -880,7 +1039,7 @@
   // racing INIT. Everything is guarded and idempotent.
   var tries = 0;
   var done = { tab: false, hook: false, field: false, apiSave: false, saveCust: false, openCust: false,
-               batchView: false, cutView: false, sendCut: false };
+               batchView: false, cutView: false, sendCut: false, chooseView: false, cutUI: false };
   var timer = setInterval(function () {
     tries++;
     try {
@@ -890,13 +1049,15 @@
       if (!done.apiSave)   done.apiSave   = hookSaveCustomer();
       if (!done.saveCust)  done.saveCust  = hookSaveCust();
       if (!done.openCust)  done.openCust  = hookOpenCustomer();
-      if (!done.batchView) done.batchView = injectBatchView();
-      if (!done.cutView)   done.cutView   = hookCutView();
-      if (!done.sendCut)   done.sendCut   = hookSendToCutting();
+      if (!done.batchView)  done.batchView  = injectBatchView();
+      if (!done.chooseView) done.chooseView = injectChooseView();
+      if (!done.cutView)    done.cutView    = hookCutView();
+      if (!done.sendCut)    done.sendCut    = hookSendToCutting();
+      if (!done.cutUI)      done.cutUI      = hookRenderCutUI();
       if (tries === 2) refreshCoverage();   // once, after the portal has a token
     } catch (e) { console.warn('[optima-ui] bootstrap', e); }
     var all = done.tab && done.hook && done.field && done.apiSave && done.saveCust && done.openCust
-           && done.batchView && done.cutView && done.sendCut;
+           && done.batchView && done.chooseView && done.cutView && done.sendCut && done.cutUI;
     if (all || tries > 60) {
       clearInterval(timer);
       // Every hook is named so a half-applied module is visible, not guessed at.
