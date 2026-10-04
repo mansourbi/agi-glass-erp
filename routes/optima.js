@@ -238,6 +238,10 @@ router.get('/settings', (req, res) => {
     const next = db.prepare('SELECT num, date FROM orders WHERE id>? ORDER BY id LIMIT 1').get(min) || null;
     res.json({
       min_order_id: min,
+      // Destination only. The account and password stay in .env and are never
+      // returned, logged, or put anywhere a browser can see them.
+      share_path: process.env.OPTIMA_SHARE_PATH || null,
+      share_configured: !!(process.env.OPTIMA_SHARE_PATH && process.env.OPTIMA_SHARE_USER && process.env.OPTIMA_SHARE_PASS),
       boundary_order: boundary,          // the last order NOT eligible
       first_eligible_order: next,        // null until a new order arrives
       note: 'Batches consider orders with id greater than min_order_id. Lowering this exposes historical orders, which already carry their own optimizations.'

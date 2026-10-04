@@ -396,6 +396,13 @@
   // dispatch entry or it renders empty (landmines.md §11).
 
   var BATCH = { groups: [], selected: null, detail: null };
+  // Destination for the Send button. Path only — the account and password live in
+  // .env and the server never returns them.
+  var OX_SETTINGS = { share_path: null, share_configured: null };
+  function loadSettings() {
+    return api('/settings').then(function (s) { OX_SETTINGS = s || OX_SETTINGS; return OX_SETTINGS; })
+      .catch(function () { return OX_SETTINGS; });
+  }
 
   // Orders claimed by an active batch. glassfab.html seeds both of its coverage sets
   // from this, so a batch-cut order is not flagged "cut outside the optimizer" in
@@ -705,13 +712,22 @@
         + ' &bull; ' + statusPill(b.status) + ' ' + statusPill(b.delivery_status, 'd')
         + (b.delivery_tries ? ' <span style="font-size:.62rem;color:var(--mu)">' + b.delivery_tries + ' attempt(s)</span>' : '')
         + '</p>'
-        + (b.file_name ? '<p class="ox-note" style="font-family:\'DM Mono\',monospace;font-size:.66rem">' + esc(b.file_name) + '</p>' : '')
+        + (b.file_name ? '<p class="ox-note" style="font-family:\'DM Mono\',monospace;font-size:.66rem">' + esc(b.file_name)
+            + (OX_SETTINGS.share_path ? '<br><span style="color:var(--mu)">&#8594; ' + esc(OX_SETTINGS.share_path) + '</span>' : '')
+            + (b.delivered_at ? '<br><span style="color:var(--a3)" data-i18n="last sent">last sent</span> '
+                + esc(String(b.delivered_at).slice(0, 16)) : '')
+            + '</p>' : '')
         + (b.delivery_error ? '<div class="ox-err">' + esc(b.delivery_error) + '</div>' : '')
         + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">'
         + '<button class="btn bs bsm" id="ox-labels" data-i18n="Print labels">Print labels</button>'
         + '<button class="btn bg bsm" id="ox-download" data-i18n="Download file">Download file</button>'
-        + (b.delivery_status !== 'delivered'
-            ? '<button class="btn ba bsm" id="ox-retry" data-i18n="Retry delivery">Retry delivery</button>' : '')
+        // Always available, not just after a failure: the file may need sending
+        // again after an edit, after clearing the old one off the cutting PC, or
+        // simply because the operator wants it there now.
+        + '<button class="btn ba bsm" id="ox-retry">&#128228; '
+        + (b.delivery_status === 'delivered'
+            ? '<span data-i18n="Send again">Send again</span>'
+            : '<span data-i18n="Send to Cutting PC">Send to Cutting PC</span>') + '</button>'
         + (b.status === 'created'
             ? '<button class="btn bp bsm" id="ox-markcut" data-i18n="Mark as cut">Mark as cut</button>' : '')
         + (b.status === 'created'
@@ -776,9 +792,16 @@
       });
       var rt = document.getElementById('ox-retry');
       if (rt) rt.addEventListener('click', function () {
-        rt.disabled = true; rt.textContent = 'Delivering…';
+        // Sending an already-delivered batch again overwrites the file in
+        // To-Import. Edit-Way keeps the work order it already imported, so the
+        // operator has to clear that side too — say so rather than assume.
+        if (b.delivery_status === 'delivered' &&
+            !confirmSafe('This batch was already delivered.\n\nSend ' + (b.file_name || 'the file')
+              + ' to the cutting PC again?\n\nIt overwrites the file in To-Import. If Edit-Way already '
+              + 'imported the old one, delete that work order there first.')) return;
+        rt.disabled = true; rt.textContent = 'Sending…';
         api('/batches/' + b.id + '/deliver', { method: 'POST' }).then(function (r) {
-          toast(r.ok ? 'Delivered' : ('Delivery failed: ' + r.error));
+          toast(r.ok ? ('Sent to the cutting PC — ' + (r.file_name || '')) : ('Send failed: ' + r.error));
           renderBatchDetail(b.id);
         }).catch(function (e) { toast(e.message); renderBatchDetail(b.id); });
       });
@@ -1054,7 +1077,7 @@
       if (!done.cutView)    done.cutView    = hookCutView();
       if (!done.sendCut)    done.sendCut    = hookSendToCutting();
       if (!done.cutUI)      done.cutUI      = hookRenderCutUI();
-      if (tries === 2) refreshCoverage();   // once, after the portal has a token
+      if (tries === 2) { refreshCoverage(); loadSettings(); }   // once, after the portal has a token
     } catch (e) { console.warn('[optima-ui] bootstrap', e); }
     var all = done.tab && done.hook && done.field && done.apiSave && done.saveCust && done.openCust
            && done.batchView && done.chooseView && done.cutView && done.sendCut && done.cutUI;
